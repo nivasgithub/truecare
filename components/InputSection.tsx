@@ -1,6 +1,8 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { Icons, Card, Button, SectionTitle } from './ui';
 import { PatientInfo, UploadedFile } from '../types';
+import SmartCamera from './SmartCamera';
+import { extractPatientDetails } from '../services/extractor';
 
 interface TrueCareIntakeProps {
   patientInfo: PatientInfo;
@@ -25,6 +27,13 @@ export default function TrueCareIntake({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const [showCamera, setShowCamera] = useState(false);
+
+  // Quick Fill State
+  const [quickFillText, setQuickFillText] = useState('');
+  const [isListening, setIsListening] = useState(false);
+  const [isAutoFilling, setIsAutoFilling] = useState(false);
+  const recognitionRef = useRef<any>(null);
 
   const validate = () => {
     const newErrors: Record<string, string> = {};
@@ -105,15 +114,27 @@ export default function TrueCareIntake({
       const reader = new FileReader();
       reader.onload = (e) => {
         const result = e.target?.result as string;
-        setFiles(prev => [...prev, {
-          id: Math.random().toString(36).substr(2, 9),
-          data: result.split(',')[1],
-          mimeType: file.type,
-          preview: result
-        }]);
+        addFile(result, file.type);
       };
       reader.readAsDataURL(file);
     });
+  };
+
+  const addFile = (dataUrl: string, mimeType: string) => {
+      setFiles(prev => [...prev, {
+        id: Math.random().toString(36).substr(2, 9),
+        data: dataUrl.split(',')[1],
+        mimeType: mimeType,
+        preview: dataUrl
+      }]);
+      // Clear error if present
+      if (errors.general) {
+          setErrors(prev => {
+              const next = { ...prev };
+              delete next.general;
+              return next;
+          });
+      }
   };
 
   const getInputClass = (key: string) => {
@@ -123,9 +144,88 @@ export default function TrueCareIntake({
     return `${base} border-slate-200 focus:border-blue-500 focus:ring-blue-500`;
   };
 
+  // --- Voice Input Logic ---
+  const toggleListening = () => {
+    if (isListening) {
+      if (recognitionRef.current) recognitionRef.current.stop();
+      setIsListening(false);
+      return;
+    }
+
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("Your browser does not support voice input. Please type instead.");
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = 'en-US';
+
+    recognition.onstart = () => setIsListening(true);
+    
+    recognition.onresult = (event: any) => {
+      let finalTranscript = '';
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        if (event.results[i].isFinal) {
+          finalTranscript += event.results[i][0].transcript;
+        }
+      }
+      if (finalTranscript) {
+        setQuickFillText(prev => prev + (prev ? ' ' : '') + finalTranscript);
+      }
+    };
+
+    recognition.onerror = (event: any) => {
+      console.error("Speech recognition error", event.error);
+      setIsListening(false);
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+    };
+
+    recognitionRef.current = recognition;
+    recognition.start();
+  };
+
+  const handleAutoFill = async () => {
+    if (!quickFillText.trim()) return;
+    setIsAutoFilling(true);
+    try {
+      const extracted = await extractPatientDetails(quickFillText);
+      setPatientInfo(prev => ({
+        ...prev,
+        name: extracted.name || prev.name,
+        age: extracted.age || prev.age,
+        primary_condition: extracted.primary_condition || prev.primary_condition,
+        language_preference: extracted.language_preference || prev.language_preference,
+        caregiver_role: extracted.caregiver_role || prev.caregiver_role
+      }));
+      // Clear errors if fields are filled
+      setErrors({});
+    } catch (e) {
+      console.error("Auto fill failed", e);
+    } finally {
+      setIsAutoFilling(false);
+    }
+  };
+
+
   return (
     <div className="max-w-5xl mx-auto pb-12">
       
+      {showCamera && (
+        <SmartCamera 
+          onCapture={(dataUrl) => {
+            addFile(dataUrl, 'image/jpeg');
+            setShowCamera(false);
+          }} 
+          onClose={() => setShowCamera(false)} 
+        />
+      )}
+
       <SectionTitle 
         title="Let's build your care plan" 
         subtitle="We just need a little information about the patient and the instructions you received." 
@@ -135,6 +235,42 @@ export default function TrueCareIntake({
         
         {/* Step 1: Patient Info */}
         <div className="lg:col-span-7 space-y-6">
+          
+          {/* Quick Fill Card */}
+          <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl p-6 text-white shadow-xl shadow-indigo-200">
+             <div className="flex items-center gap-2 mb-3">
+               <Icons.Sparkle className="w-5 h-5 text-yellow-300" />
+               <h3 className="font-bold text-lg">AI Quick Fill</h3>
+             </div>
+             <p className="text-indigo-100 text-sm mb-4">
+               Don't want to type? Just describe the patient, age, and condition below, and we'll fill the form for you.
+             </p>
+             <div className="relative">
+                <textarea 
+                  value={quickFillText}
+                  onChange={(e) => setQuickFillText(e.target.value)}
+                  placeholder="Tap the mic and say: 'This is for my father John Smith, he is 75 and recovering from a heart attack...'"
+                  className="w-full bg-white/10 border border-white/20 rounded-xl p-4 text-white placeholder-indigo-200 focus:bg-white/20 outline-none h-24 resize-none pr-12"
+                />
+                <button 
+                  onClick={toggleListening}
+                  className={`absolute bottom-3 right-3 p-2 rounded-full transition-all ${isListening ? 'bg-red-500 animate-pulse' : 'bg-white/20 hover:bg-white/30'}`}
+                >
+                  {isListening ? <Icons.Stop className="w-5 h-5 text-white" /> : <Icons.Mic className="w-5 h-5 text-white" />}
+                </button>
+             </div>
+             <div className="mt-3 flex justify-end">
+                <button 
+                  onClick={handleAutoFill}
+                  disabled={!quickFillText.trim() || isAutoFilling}
+                  className="px-4 py-2 bg-white text-indigo-700 rounded-lg text-sm font-bold shadow-sm hover:bg-indigo-50 disabled:opacity-50 flex items-center gap-2 transition-all"
+                >
+                   {isAutoFilling ? <Icons.Spinner className="text-indigo-600" /> : <Icons.Sparkle className="w-4 h-4 text-indigo-600" />}
+                   Auto-Fill Details
+                </button>
+             </div>
+          </div>
+
           <Card className="p-8 border-t-4 border-t-blue-500">
             <div className="flex items-center gap-4 mb-6">
               <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-700 flex items-center justify-center font-bold text-lg border border-blue-100">1</div>
@@ -234,50 +370,63 @@ export default function TrueCareIntake({
              </div>
 
              <div className="flex-1">
-               {files.length === 0 ? (
-                 <div 
-                   onClick={() => fileInputRef.current?.click()}
-                   className="cursor-pointer h-64 border-2 border-dashed border-slate-300 rounded-2xl bg-slate-50 hover:bg-slate-100 hover:border-slate-400 transition-all flex flex-col items-center justify-center text-center p-6 group"
-                 >
-                   <input type="file" multiple ref={fileInputRef} className="hidden" onChange={handleFileSelect} accept="image/*,application/pdf" />
-                   <div className="bg-white p-4 rounded-full shadow-sm mb-4 group-hover:scale-110 transition-transform">
-                     <Icons.Camera className="text-blue-600 w-8 h-8" />
-                   </div>
-                   <p className="text-slate-900 font-bold text-lg">Click to Upload</p>
-                   <p className="text-slate-500 text-sm mt-1 max-w-[200px]">Photos of discharge papers, pill bottles, or PDF files.</p>
-                 </div>
-               ) : (
-                 <div className="space-y-4">
-                   <div className="grid grid-cols-3 gap-3">
-                     {files.map(f => (
-                       <div key={f.id} className="relative aspect-square rounded-xl overflow-hidden border border-slate-200 group bg-white shadow-sm">
-                         {f.mimeType.includes('image') ? (
-                           <img src={f.preview} className="w-full h-full object-cover" />
-                         ) : (
-                           <div className="w-full h-full flex items-center justify-center bg-slate-50 text-slate-400 font-bold text-xs">PDF</div>
-                         )}
-                         <button 
-                           onClick={(e) => { e.stopPropagation(); setFiles(prev => prev.filter(x => x.id !== f.id))}}
-                           className="absolute top-1 right-1 bg-white p-1.5 rounded-full text-red-500 hover:bg-red-50 transition-colors shadow-sm"
-                         >
-                           <Icons.Trash className="w-3 h-3" />
-                         </button>
-                       </div>
-                     ))}
-                     <button 
-                        onClick={() => fileInputRef.current?.click()}
-                        className="aspect-square rounded-xl border-2 border-dashed border-slate-200 flex items-center justify-center text-slate-400 hover:text-blue-600 hover:border-blue-300 hover:bg-blue-50 transition-all"
-                     >
-                        <span className="text-2xl">+</span>
+               <div className="space-y-4">
+                 <div className="grid grid-cols-2 gap-3 mb-4">
+                    <button 
+                      onClick={() => setShowCamera(true)}
+                      className="flex flex-col items-center justify-center p-4 bg-slate-900 text-white rounded-xl shadow-lg shadow-blue-500/20 hover:bg-slate-800 transition-all hover:-translate-y-0.5"
+                    >
+                        <Icons.Maximize className="w-6 h-6 mb-2 text-cyan-400" />
+                        <span className="text-sm font-bold">Smart Scan (AI)</span>
+                    </button>
+                    <button 
+                      onClick={() => fileInputRef.current?.click()}
+                      className="flex flex-col items-center justify-center p-4 bg-white border border-slate-200 text-slate-700 rounded-xl hover:bg-slate-50 transition-all"
+                    >
                         <input type="file" multiple ref={fileInputRef} className="hidden" onChange={handleFileSelect} accept="image/*,application/pdf" />
-                     </button>
-                   </div>
-                   <div className="flex justify-between items-center pt-2">
-                      <span className="text-sm font-medium text-slate-500">{files.length} file{files.length !== 1 ? 's' : ''} attached</span>
-                      <button onClick={() => setFiles([])} className="text-sm text-red-500 font-medium hover:text-red-700">Clear all</button>
-                   </div>
+                        <Icons.Upload className="w-6 h-6 mb-2 text-slate-400" />
+                        <span className="text-sm font-bold">Upload Files</span>
+                    </button>
                  </div>
-               )}
+
+                 {files.length > 0 && (
+                   <div className="space-y-4">
+                     <div className="grid grid-cols-3 gap-3">
+                       {files.map(f => (
+                         <div key={f.id} className="relative aspect-square rounded-xl overflow-hidden border border-slate-200 group bg-white shadow-sm">
+                           {f.mimeType.includes('image') ? (
+                             <img src={f.preview} className="w-full h-full object-cover" />
+                           ) : (
+                             <div className="w-full h-full flex items-center justify-center bg-slate-50 text-slate-400 font-bold text-xs">PDF</div>
+                           )}
+                           <button 
+                             onClick={(e) => { e.stopPropagation(); setFiles(prev => prev.filter(x => x.id !== f.id))}}
+                             className="absolute top-1 right-1 bg-white p-1.5 rounded-full text-red-500 hover:bg-red-50 transition-colors shadow-sm"
+                           >
+                             <Icons.Trash className="w-3 h-3" />
+                           </button>
+                         </div>
+                       ))}
+                       <button 
+                          onClick={() => fileInputRef.current?.click()}
+                          className="aspect-square rounded-xl border-2 border-dashed border-slate-200 flex items-center justify-center text-slate-400 hover:text-blue-600 hover:border-blue-300 hover:bg-blue-50 transition-all"
+                       >
+                          <span className="text-2xl">+</span>
+                       </button>
+                     </div>
+                     <div className="flex justify-between items-center pt-2">
+                        <span className="text-sm font-medium text-slate-500">{files.length} file{files.length !== 1 ? 's' : ''} attached</span>
+                        <button onClick={() => setFiles([])} className="text-sm text-red-500 font-medium hover:text-red-700">Clear all</button>
+                     </div>
+                   </div>
+                 )}
+
+                 {files.length === 0 && (
+                     <div className="text-center p-6 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50">
+                         <p className="text-sm text-slate-400">No documents added yet.</p>
+                     </div>
+                 )}
+               </div>
              </div>
 
              <div className="mt-8 pt-6 border-t border-slate-100">

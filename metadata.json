@@ -1,6 +1,7 @@
 {
   "requestFramePermissions": [
-    "camera"
+    "camera",
+    "microphone"
   ],
   "name": "TrueCare",
   "description": "AI assistant that helps patients and caregivers understand and organize existing hospital discharge instructions."

@@ -127,3 +127,42 @@ Please parse the attached files and notes.
   if (!response.text) throw new Error("No response from AI model");
   return cleanAndParseJSON<ParsedEpisode>(response.text);
 }
+
+/**
+ * Extracts structured patient info from natural language text
+ */
+export async function extractPatientDetails(text: string): Promise<Partial<PatientInfo>> {
+  if (!text.trim()) return {};
+
+  const systemPrompt = `
+    You are an AI assistant helper. 
+    Extract patient details from the provided text into a JSON object.
+    Only include fields that are mentioned in the text.
+    If age is mentioned as a number or a string (e.g., "eighty two"), convert to a string number (e.g., "82").
+  `;
+
+  const response = await ai.models.generateContent({
+    model: AppConfig.models.extractor,
+    contents: {
+      role: 'user',
+      parts: [{ text: text }]
+    },
+    config: {
+      systemInstruction: systemPrompt,
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          name: { type: Type.STRING, nullable: true },
+          age: { type: Type.STRING, nullable: true },
+          primary_condition: { type: Type.STRING, nullable: true },
+          language_preference: { type: Type.STRING, nullable: true },
+          caregiver_role: { type: Type.STRING, nullable: true }
+        }
+      }
+    }
+  });
+
+  if (!response.text) throw new Error("Failed to extract details");
+  return cleanAndParseJSON<Partial<PatientInfo>>(response.text);
+}
