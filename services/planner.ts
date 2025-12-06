@@ -28,6 +28,7 @@ Safety Report: ${JSON.stringify(consistencyReport)}
 Generate the care playbook JSON.
 `;
 
+  // Request 15: Use thinking mode for complex queries (Care Plan generation is complex)
   const response = await ai.models.generateContent({
     model: AppConfig.models.planner,
     contents: {
@@ -37,6 +38,8 @@ Generate the care playbook JSON.
     config: {
       systemInstruction: systemPrompt,
       responseMimeType: "application/json",
+      // Thinking Config for deeper reasoning on safety/conflicts
+      thinkingConfig: { thinkingBudget: 1024 }, 
       responseSchema: {
         type: Type.OBJECT,
         properties: {
@@ -66,10 +69,11 @@ export async function queryCarePlan(
   carePlanContext: FormattedCarePlan,
   history: ChatMessage[],
   newMessage: string
-): Promise<string> {
+): Promise<{ text: string, groundingMetadata?: any }> {
   
   const systemPrompt = `
 You are "TrueCare Assistant". Answer questions based ONLY on the provided care plan.
+If the user asks about pharmacies, locations, or medical definitions not in the plan, USE YOUR TOOLS (Google Search / Maps).
 Keep answers short and simple.
 `;
 
@@ -85,14 +89,25 @@ ${JSON.stringify(carePlanContext)}
 Question: ${newMessage}
 `;
 
+  // Request 4 & 6: Use Google Maps and Search Grounding
+  // Must use gemini-2.5-flash for Maps/Search tools
   const response = await ai.models.generateContent({
-    model: AppConfig.models.planner,
+    model: AppConfig.models.chat, 
     contents: [
       ...chatHistory,
       { role: 'user', parts: [{ text: contextMessage }] }
     ],
-    config: { systemInstruction: systemPrompt }
+    config: { 
+      systemInstruction: systemPrompt,
+      tools: [
+        { googleSearch: {} },
+        { googleMaps: {} }
+      ]
+    }
   });
 
-  return response.text || "I'm having trouble reading the plan right now. Please try again.";
+  return {
+    text: response.text || "I'm having trouble understanding. Please try again.",
+    groundingMetadata: response.candidates?.[0]?.groundingMetadata
+  };
 }

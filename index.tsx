@@ -9,6 +9,8 @@ import StatusMessage from './components/StatusMessage';
 import TrueCareResults from './components/ResultsDashboard';
 import SignInScreen from './components/SignInScreen';
 import DashboardScreen from './components/DashboardScreen';
+import TestModelsScreen from './components/TestModelsScreen';
+import SettingsScreen from './components/SettingsScreen';
 
 // --- Router Helpers ---
 const getHashPath = () => {
@@ -100,6 +102,11 @@ export default function TrueCareApp() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const handleSettings = () => {
+    navigate('settings');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   // Route Guards / Logic
   const activeView = currentView;
   
@@ -121,6 +128,7 @@ export default function TrueCareApp() {
         user={user}
         onSignIn={handleSignIn}
         onLogout={handleLogout}
+        onSettingsClick={handleSettings}
       />
 
       <main className="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -188,6 +196,20 @@ export default function TrueCareApp() {
               onReset={handleReset} 
             />
           </div>
+        )}
+
+        {/* VIEW: Settings Hub */}
+        {activeView === 'settings' && user && (
+           <SettingsScreen 
+             user={user}
+             onNavigate={navigate}
+             onLogout={handleLogout}
+           />
+        )}
+
+        {/* VIEW: Test Models (Sub-view of Settings) */}
+        {activeView === 'test' && user && (
+          <TestModelsScreen onBack={handleSettings} />
         )}
 
       </main>

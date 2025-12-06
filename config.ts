@@ -1,14 +1,26 @@
 export const AppConfig = {
   apiKey: process.env.API_KEY,
   models: {
-    // Default model used for extracting data from documents (OCR/Multimodal)
-    extractor: process.env.MODEL_EXTRACTOR || 'gemini-2.5-flash',
-    // Model used for checking safety/consistency
-    safety: process.env.MODEL_SAFETY || 'gemini-2.5-flash',
-    // Model used for generating the care plan and chat
-    planner: process.env.MODEL_PLANNER || 'gemini-2.5-flash',
-    // Model used for video generation
-    video: process.env.MODEL_VIDEO || 'veo-3.1-fast-generate-preview'
+    // Analysis & OCR (Request 11: Use Gemini 3 Pro Preview)
+    extractor: 'gemini-3-pro-preview',
+    // Safety Checks
+    safety: 'gemini-2.5-flash',
+    // Care Planning (Complex reasoning uses Thinking)
+    planner: 'gemini-3-pro-preview',
+    // Chat & Grounding (Maps/Search requires Flash currently)
+    chat: 'gemini-2.5-flash',
+    // Fast responses (Request 12)
+    fast: 'gemini-2.5-flash-lite',
+    // Video Generation (Request 3, 9)
+    video: 'veo-3.1-fast-generate-preview',
+    // Image Generation (Request 5)
+    imageGen: 'gemini-3-pro-image-preview',
+    // Image Editing (Request 1)
+    imageEdit: 'gemini-2.5-flash-image',
+    // TTS (Request 16)
+    tts: 'gemini-2.5-flash-preview-tts',
+    // Live API (Request 2)
+    live: 'gemini-2.5-flash-native-audio-preview-09-2025'
   },
   video: {
     resolution: '720p',

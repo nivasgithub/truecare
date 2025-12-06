@@ -117,9 +117,20 @@ export interface ChatMessage {
   role: 'user' | 'model';
   text: string;
   timestamp: number;
+  // For Intake Agent
+  widget?: 'upload' | 'camera' | 'analyze' | 'none';
+  extractedInfo?: Partial<PatientInfo>;
 }
 
 export interface GeneratedVideo {
   uri: string;
   expiresAt: string;
+}
+
+// --- Intake Agent Types ---
+export interface IntakeAgentResponse {
+  text: string;
+  widget: 'upload' | 'camera' | 'analyze' | 'none';
+  suggestions: string[];
+  extracted_info: Partial<PatientInfo>;
 }
