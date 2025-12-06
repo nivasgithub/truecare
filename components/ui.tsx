@@ -16,13 +16,15 @@ export const Icons = {
   ArrowRight: ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>,
   Pill: ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z"/><path d="m8.5 8.5 7 7"/></svg>,
   Calendar: ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>,
-  Clipboard: ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg>
+  Clipboard: ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg>,
+  Sparkle: ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/></svg>,
+  Send: ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={className} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
 };
 
 // --- Components ---
 
 export const Card = ({ children, className = "" }: { children: React.ReactNode; className?: string }) => (
-  <div className={`bg-white rounded-2xl border border-slate-200 shadow-sm ${className}`}>
+  <div className={`bg-white rounded-2xl border border-slate-100 shadow-sm ${className}`}>
     {children}
   </div>
 );
@@ -40,12 +42,17 @@ export const Button = ({
   className?: string;
   disabled?: boolean;
 }) => {
-  const baseStyle = "px-6 py-3 rounded-xl font-semibold transition-all duration-200 flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed";
+  const baseStyle = "px-6 py-3.5 rounded-full font-semibold transition-all duration-300 flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed text-sm md:text-base";
+  
   const variants = {
-    primary: "bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white shadow-lg shadow-blue-200",
-    secondary: "bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 shadow-sm",
-    danger: "bg-red-50 text-red-600 hover:bg-red-100 border border-red-200",
-    ghost: "text-slate-500 hover:text-slate-700 hover:bg-slate-100"
+    // Soft Blue Gradient for trust/action
+    primary: "bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white shadow-lg shadow-blue-200 hover:shadow-blue-300",
+    // Clean secondary
+    secondary: "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300 shadow-sm",
+    // Soft warning
+    danger: "bg-red-50 text-red-600 hover:bg-red-100 border border-red-100",
+    // Ghost
+    ghost: "text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg"
   };
 
   return (
@@ -57,15 +64,22 @@ export const Button = ({
 
 export const Badge = ({ children, color = 'blue' }: { children: React.ReactNode; color?: 'blue' | 'green' | 'red' | 'amber' | 'slate' }) => {
   const colors = {
-    blue: "bg-blue-100 text-blue-800 border-blue-200",
-    green: "bg-emerald-100 text-emerald-800 border-emerald-200",
-    red: "bg-red-100 text-red-800 border-red-200",
-    amber: "bg-amber-100 text-amber-800 border-amber-200",
-    slate: "bg-slate-100 text-slate-800 border-slate-200"
+    blue: "bg-blue-50 text-blue-700 border-blue-100",
+    green: "bg-emerald-50 text-emerald-700 border-emerald-100",
+    red: "bg-red-50 text-red-700 border-red-100",
+    amber: "bg-amber-50 text-amber-700 border-amber-100",
+    slate: "bg-slate-50 text-slate-700 border-slate-100"
   };
   return (
-    <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wide border ${colors[color]}`}>
+    <span className={`px-3 py-1 rounded-full text-xs font-semibold tracking-wide border ${colors[color]}`}>
       {children}
     </span>
   );
 };
+
+export const SectionTitle = ({ title, subtitle }: { title: string, subtitle?: string }) => (
+  <div className="mb-6 md:mb-10 text-center max-w-2xl mx-auto">
+    <h2 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight mb-3">{title}</h2>
+    {subtitle && <p className="text-slate-500 text-lg leading-relaxed">{subtitle}</p>}
+  </div>
+);

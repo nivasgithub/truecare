@@ -1,85 +1,140 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Card, Badge, Icons, Button } from './ui';
-import { ParsedEpisode, ConsistencyReport, FormattedCarePlan } from '../types';
+import { ParsedEpisode, ConsistencyReport, FormattedCarePlan, ChatMessage } from '../types';
+import { queryCarePlan, generateRecoveryVideo } from '../api';
 
-interface ResultsDashboardProps {
+interface TrueCareResultsProps {
   data: ParsedEpisode;
   consistency: ConsistencyReport | null;
   carePlan: FormattedCarePlan | null;
   onReset: () => void;
 }
 
-export default function ResultsDashboard({ data, consistency, carePlan, onReset }: ResultsDashboardProps) {
+export default function TrueCareResults({ data, consistency, carePlan, onReset }: TrueCareResultsProps) {
   
-  // Default to playbook if available, otherwise clinical
-  const [view, setView] = useState<'clinical' | 'playbook'>('playbook'); 
+  const [view, setView] = useState<'playbook' | 'clinical'>('playbook'); 
   const [showDebug, setShowDebug] = useState(false);
   const hasIssues = consistency?.status === 'success' && (consistency.conflicts.length > 0 || consistency.gaps.length > 0);
 
-  return (
-    <div className="animate-fade-in-up space-y-6 pb-20">
+  // Chat State
+  const [chatOpen, setChatOpen] = useState(false);
+  const [messages, setMessages] = useState<ChatMessage[]>([
+    { id: '1', role: 'model', text: `Hi! I've reviewed ${data.patient.name || 'the patient'}'s discharge plan. Ask me anything about medications, appointments, or what to do next.`, timestamp: Date.now() }
+  ]);
+  const [input, setInput] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
+  // Video State
+  const [videoPrompt, setVideoPrompt] = useState('');
+  const [generatingVideo, setGeneratingVideo] = useState(false);
+  const [videoUrl, setVideoUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, chatOpen]);
+
+  const handleSend = async () => {
+    if (!input.trim() || !carePlan) return;
+    
+    const userMsg: ChatMessage = { id: Date.now().toString(), role: 'user', text: input, timestamp: Date.now() };
+    setMessages(prev => [...prev, userMsg]);
+    setInput('');
+    setIsTyping(true);
+
+    try {
+      // API call to Gemini
+      const replyText = await queryCarePlan(carePlan, messages, userMsg.text);
       
-      {/* Header Actions - Simplified as we are now part of a larger page flow */}
-      <div className="flex flex-col md:flex-row md:justify-between md:items-end gap-4 pb-2">
+      const botMsg: ChatMessage = { id: (Date.now() + 1).toString(), role: 'model', text: replyText, timestamp: Date.now() };
+      setMessages(prev => [...prev, botMsg]);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsTyping(false);
+    }
+  };
+
+  const handleGenerateVideo = async () => {
+    if (!videoPrompt) return;
+    setGeneratingVideo(true);
+    try {
+        const result = await generateRecoveryVideo(`A cinematic, inspiring video of: ${videoPrompt}. Soft lighting, peaceful atmosphere, high quality.`);
+        setVideoUrl(result.uri);
+    } catch (e) {
+        console.error("Video generation failed", e);
+        alert("Sorry, we couldn't generate the video right now.");
+    } finally {
+        setGeneratingVideo(false);
+    }
+  };
+
+  return (
+    <div className="animate-fade-in space-y-8 pb-32">
+      
+      {/* Dashboard Header */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-4 border-b border-slate-200">
         <div>
-           <p className="text-slate-500">Analysis complete for <span className="font-semibold text-slate-800">{data.patient.name || 'Patient'}</span></p>
+           <div className="flex items-center gap-2 mb-2">
+             <span className="px-3 py-1 rounded-full bg-green-100 text-green-700 text-xs font-bold uppercase tracking-wide flex items-center gap-1">
+               <Icons.Sparkle className="w-3 h-3"/> Analysis Complete
+             </span>
+           </div>
+           <h2 className="text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight">
+             Care Plan for <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600">{data.patient.name || 'Patient'}</span>
+           </h2>
         </div>
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" onClick={onReset} className="py-2.5 px-4 text-sm text-red-500 hover:bg-red-50 hover:text-red-600 border border-transparent hover:border-red-100"><Icons.Trash className="w-4 h-4" /> Clear & Start Over</Button>
+        
+        {/* View Toggle */}
+        <div className="flex bg-slate-100 p-1 rounded-xl">
+          <button 
+            onClick={() => setView('playbook')}
+            className={`px-6 py-2.5 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${view === 'playbook' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+          >
+            <Icons.Clipboard className="w-4 h-4" /> Patient View
+          </button>
+          <button 
+            onClick={() => setView('clinical')}
+            className={`px-6 py-2.5 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${view === 'clinical' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+          >
+            <Icons.Shield className="w-4 h-4" /> Clinician View
+          </button>
         </div>
       </div>
 
-      {/* View Switcher (Screens 3 & 4 toggle) */}
-      <div className="flex p-1 bg-slate-200 rounded-xl w-full md:w-fit">
-        <button 
-          onClick={() => setView('playbook')}
-          className={`flex-1 md:flex-none px-6 py-3 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${view === 'playbook' ? 'bg-white text-blue-600 shadow-sm ring-1 ring-black/5' : 'text-slate-600 hover:text-slate-800'}`}
-        >
-          <Icons.Clipboard className="w-4 h-4" /> Your Care Plan (Patient)
-        </button>
-        <button 
-          onClick={() => setView('clinical')}
-          className={`flex-1 md:flex-none px-6 py-3 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${view === 'clinical' ? 'bg-white text-blue-600 shadow-sm ring-1 ring-black/5' : 'text-slate-600 hover:text-slate-800'}`}
-        >
-          <Icons.Shield className="w-4 h-4" /> For Doctors & Safety
-        </button>
-      </div>
-
-      {/* --- PLAYBOOK VIEW (Screen 3) --- */}
-      {view === 'playbook' && (
-        carePlan ? (
+      {/* --- PATIENT PLAYBOOK VIEW --- */}
+      {view === 'playbook' && carePlan && (
         <div className="space-y-8 animate-fade-in">
           
-          <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">Your Care Plan</h2>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             
-            {/* Today & Tomorrow */}
-            <Card className="p-0 overflow-hidden border-blue-200 shadow-blue-100/50">
-              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 border-b border-blue-100">
-                <div className="flex items-center gap-3">
-                  <div className="bg-white p-2 rounded-lg text-blue-600 shadow-sm"><Icons.Calendar /></div>
-                  <h3 className="text-xl font-bold text-slate-800">Today & Tomorrow</h3>
+            {/* 1. Immediate Actions (Hero Card) */}
+            <Card className="col-span-1 lg:col-span-2 overflow-hidden border-blue-200 shadow-lg shadow-blue-100/50">
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-8 border-b border-blue-100">
+                <div className="flex items-center gap-4 mb-2">
+                  <div className="bg-white p-2.5 rounded-xl text-blue-600 shadow-sm"><Icons.Calendar /></div>
+                  <h3 className="text-2xl font-bold text-slate-800">Today & Tomorrow</h3>
                 </div>
+                <p className="text-slate-600 ml-[3.25rem]">The most important things to do right now.</p>
               </div>
-              <div className="p-6">
-                <ul className="space-y-4">
+              <div className="p-8">
+                <ul className="space-y-6">
                   {carePlan.patient_friendly_plan.today_and_tomorrow.map((item, i) => (
-                    <li key={i} className="flex gap-4 items-start">
-                      <div className="w-6 h-6 rounded-full border-2 border-blue-200 flex-shrink-0 mt-0.5"></div>
-                      <p className="text-slate-700 font-medium text-lg leading-snug">{item}</p>
+                    <li key={i} className="flex gap-4 items-start group">
+                      <div className="w-6 h-6 rounded-full border-2 border-blue-200 group-hover:border-blue-500 group-hover:bg-blue-50 transition-colors flex-shrink-0 mt-1"></div>
+                      <p className="text-slate-700 font-medium text-lg leading-relaxed">{item}</p>
                     </li>
                   ))}
-                  {carePlan.patient_friendly_plan.today_and_tomorrow.length === 0 && <p className="text-slate-500 italic">No specific immediate tasks.</p>}
+                  {carePlan.patient_friendly_plan.today_and_tomorrow.length === 0 && <p className="text-slate-400 italic">No immediate actions found.</p>}
                 </ul>
               </div>
             </Card>
 
-            {/* Daily Routine */}
-            <Card className="p-0 overflow-hidden border-emerald-200 shadow-emerald-100/50">
+            {/* 2. Daily Routine */}
+            <Card className="overflow-hidden border-emerald-100 shadow-lg shadow-emerald-50/50">
               <div className="bg-gradient-to-r from-emerald-50 to-teal-50 p-6 border-b border-emerald-100">
                 <div className="flex items-center gap-3">
-                  <div className="bg-white p-2 rounded-lg text-emerald-600 shadow-sm"><Icons.Check /></div>
+                  <div className="bg-white p-2 rounded-xl text-emerald-600 shadow-sm"><Icons.Check /></div>
                   <h3 className="text-xl font-bold text-slate-800">Daily Routine</h3>
                 </div>
               </div>
@@ -87,289 +142,270 @@ export default function ResultsDashboard({ data, consistency, carePlan, onReset 
                 <ul className="space-y-4">
                   {carePlan.patient_friendly_plan.daily_routine.map((item, i) => (
                     <li key={i} className="flex gap-4 items-start">
-                      <div className="bg-emerald-100 text-emerald-600 rounded-full w-6 h-6 flex items-center justify-center flex-shrink-0 mt-0.5">
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12"/></svg>
-                      </div>
-                      <p className="text-slate-700 font-medium text-lg leading-snug">{item}</p>
+                      <div className="bg-emerald-100 text-emerald-700 rounded-full w-6 h-6 flex items-center justify-center flex-shrink-0 mt-0.5 text-xs font-bold">✓</div>
+                      <p className="text-slate-700 font-medium text-lg">{item}</p>
                     </li>
                   ))}
-                  {carePlan.patient_friendly_plan.daily_routine.length === 0 && <p className="text-slate-500 italic">No specific daily routine found.</p>}
-                </ul>
-              </div>
-            </Card>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-             
-             {/* Before Your Next Appointment (was Weekly) */}
-            <Card className="p-0 overflow-hidden border-indigo-200 shadow-indigo-100/50">
-              <div className="bg-gradient-to-r from-indigo-50 to-violet-50 p-6 border-b border-indigo-100">
-                <div className="flex items-center gap-3">
-                  <div className="bg-white p-2 rounded-lg text-indigo-600 shadow-sm"><Icons.Calendar /></div>
-                  <h3 className="text-xl font-bold text-slate-800">Before Your Next Appointment</h3>
-                </div>
-              </div>
-              <div className="p-6">
-                <ul className="space-y-4">
-                  {carePlan.patient_friendly_plan.weekly_or_followup_tasks.length > 0 ? (
-                    carePlan.patient_friendly_plan.weekly_or_followup_tasks.map((item, i) => (
-                      <li key={i} className="flex gap-4 items-start">
-                         <div className="bg-indigo-100 text-indigo-600 rounded-lg p-1 flex-shrink-0 mt-0.5">
-                           <Icons.Check className="w-3.5 h-3.5" />
-                         </div>
-                        <p className="text-slate-700 font-medium text-lg leading-snug">{item}</p>
-                      </li>
-                    ))
-                  ) : (
-                    <p className="text-slate-500 italic">No specific tasks before your next visit.</p>
-                  )}
+                  {carePlan.patient_friendly_plan.daily_routine.length === 0 && <p className="text-slate-400 italic">No specific daily routine found.</p>}
                 </ul>
               </div>
             </Card>
 
-             {/* Warning Signs */}
-            <Card className="p-0 overflow-hidden border-red-200 shadow-red-100/50 bg-red-50/30">
-              <div className="bg-red-50 p-6 border-b border-red-100">
+            {/* 3. Warning Signs */}
+            <Card className="overflow-hidden border-red-100 shadow-lg shadow-red-50/50">
+              <div className="bg-gradient-to-r from-red-50 to-orange-50 p-6 border-b border-red-100">
                 <div className="flex items-center gap-3">
-                  <div className="bg-white p-2 rounded-lg text-red-600 shadow-sm"><Icons.Alert /></div>
-                  <h3 className="text-xl font-bold text-red-900">Warning Signs – Do Not Ignore</h3>
+                  <div className="bg-white p-2 rounded-xl text-red-600 shadow-sm"><Icons.Alert /></div>
+                  <h3 className="text-xl font-bold text-red-900">Warning Signs</h3>
                 </div>
               </div>
-              <div className="p-6">
+              <div className="p-6 bg-red-50/30 h-full">
+                <p className="text-sm font-bold text-red-800 uppercase tracking-wide mb-4">Call your doctor if:</p>
                 <ul className="space-y-3">
                   {carePlan.patient_friendly_plan.warning_signs_card.map((item, i) => (
-                    <li key={i} className="flex gap-3 items-start p-3 bg-white rounded-lg border border-red-100">
+                    <li key={i} className="flex gap-3 items-start">
                       <Icons.Alert className="text-red-500 w-5 h-5 flex-shrink-0 mt-0.5" />
-                      <p className="text-red-900 font-semibold">{item}</p>
-                    </li>
-                  ))}
-                  {carePlan.patient_friendly_plan.warning_signs_card.length === 0 && <p className="text-slate-500 italic">No specific warnings found.</p>}
-                </ul>
-              </div>
-            </Card>
-          </div>
-
-          {/* Questions for Doctor */}
-          <Card className="p-0 overflow-hidden bg-amber-50/30 border-amber-200">
-            <div className="bg-amber-50 p-6 border-b border-amber-100">
-              <div className="flex items-center gap-3">
-                <div className="bg-white p-2 rounded-lg text-amber-600 shadow-sm"><Icons.Question /></div>
-                <h3 className="text-xl font-bold text-amber-900">Questions to Ask at Your Next Visit</h3>
-              </div>
-            </div>
-            <div className="p-6">
-               {carePlan.patient_friendly_plan.doctor_questions.length > 0 ? (
-                 <ul className="space-y-3">
-                  {carePlan.patient_friendly_plan.doctor_questions.map((item, i) => (
-                    <li key={i} className="flex gap-3 items-start p-3 bg-white rounded-lg border border-amber-100">
-                      <span className="text-amber-500 font-bold text-lg select-none">Q.</span>
                       <p className="text-slate-800 font-medium">{item}</p>
                     </li>
                   ))}
-                 </ul>
-               ) : (
-                 <div className="text-center py-4 text-slate-500 italic">
-                   No specific questions identified from conflicts or gaps.
-                 </div>
-               )}
-            </div>
-          </Card>
+                  {carePlan.patient_friendly_plan.warning_signs_card.length === 0 && <p className="text-slate-400 italic">No specific warnings found.</p>}
+                </ul>
+              </div>
+            </Card>
 
-          {/* Footer Note */}
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 flex flex-col sm:flex-row gap-4 items-start sm:items-center">
-            <div className="bg-white p-2 rounded-full shadow-sm text-2xl">💡</div>
-            <p className="text-blue-900 font-medium text-lg">Bring this screen (or a printout) to your next appointment and review it with your care team.</p>
-          </div>
+            {/* 4. Upcoming / Questions */}
+            <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-8">
+                <Card className="p-6 bg-slate-50 border-slate-200">
+                    <h4 className="font-bold text-slate-900 mb-4 flex items-center gap-2"><Icons.Calendar className="text-indigo-500"/> Before Next Visit</h4>
+                    <ul className="space-y-3">
+                         {carePlan.patient_friendly_plan.weekly_or_followup_tasks.length > 0 ? (
+                            carePlan.patient_friendly_plan.weekly_or_followup_tasks.map((item, i) => (
+                            <li key={i} className="flex gap-3 text-slate-700 font-medium">
+                                <span className="text-indigo-400">•</span> {item}
+                            </li>
+                            ))
+                        ) : <p className="text-slate-400 italic">No specific tasks.</p>}
+                    </ul>
+                </Card>
 
-          {/* Technical Summary */}
-          <div className="mt-8 pt-6 border-t border-slate-200">
-            <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wide mb-2">Technical Summary</h4>
-            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-              <p className="text-slate-600 text-sm leading-relaxed">
-                {carePlan.technical_summary_for_clinicians}
-              </p>
+                <Card className="p-6 bg-amber-50 border-amber-200">
+                    <h4 className="font-bold text-amber-900 mb-4 flex items-center gap-2"><Icons.Question className="text-amber-600"/> Ask Your Doctor</h4>
+                     {carePlan.patient_friendly_plan.doctor_questions.length > 0 ? (
+                         <ul className="space-y-3">
+                          {carePlan.patient_friendly_plan.doctor_questions.map((item, i) => (
+                            <li key={i} className="flex gap-3 items-start bg-white p-3 rounded-xl border border-amber-100 shadow-sm">
+                              <span className="text-amber-500 font-bold select-none">Q.</span>
+                              <p className="text-slate-800 font-medium text-sm">{item}</p>
+                            </li>
+                          ))}
+                         </ul>
+                       ) : (
+                         <p className="text-amber-700/60 italic text-sm">No specific questions identified.</p>
+                       )}
+                </Card>
             </div>
+            
+            {/* 5. Visualize Recovery (New Feature) */}
+             <Card className="col-span-1 lg:col-span-2 p-8 bg-gradient-to-r from-purple-50 to-pink-50 border-purple-200">
+                <div className="flex flex-col md:flex-row items-center gap-8">
+                    <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-4">
+                            <Icons.Sparkle className="w-6 h-6 text-purple-600" />
+                            <h3 className="text-2xl font-bold text-slate-800">Visualize Your Recovery</h3>
+                        </div>
+                        <p className="text-slate-600 mb-6">
+                            Stay motivated by visualizing your goal. Describe what a full recovery looks like for you (e.g., "Walking my dog on a sunny day"), and our AI will create a personalized video to keep you inspired.
+                        </p>
+                        
+                        {!videoUrl && (
+                             <div className="flex gap-3">
+                                <input 
+                                    value={videoPrompt}
+                                    onChange={(e) => setVideoPrompt(e.target.value)}
+                                    placeholder="E.g. Playing with grandkids in the garden..."
+                                    className="flex-1 px-4 py-3 rounded-xl border border-purple-200 focus:ring-2 focus:ring-purple-500 outline-none"
+                                />
+                                <Button 
+                                    onClick={handleGenerateVideo} 
+                                    disabled={generatingVideo || !videoPrompt}
+                                    className="bg-purple-600 hover:bg-purple-700 text-white shadow-purple-200"
+                                >
+                                    {generatingVideo ? <Icons.Spinner /> : "Generate Video"}
+                                </Button>
+                            </div>
+                        )}
+                    </div>
+                    
+                    <div className="w-full md:w-1/3 aspect-video bg-slate-900 rounded-xl overflow-hidden flex items-center justify-center shadow-lg relative">
+                        {videoUrl ? (
+                            <video src={videoUrl} controls autoPlay loop className="w-full h-full object-cover" />
+                        ) : (
+                            <div className="text-center p-4">
+                                {generatingVideo ? (
+                                    <div className="flex flex-col items-center gap-3">
+                                        <Icons.Spinner className="w-8 h-8 text-purple-500" />
+                                        <p className="text-slate-400 text-sm">Dreaming up your video...</p>
+                                    </div>
+                                ) : (
+                                    <div className="flex flex-col items-center gap-2 opacity-50">
+                                        <Icons.Camera className="w-8 h-8 text-white" />
+                                        <p className="text-slate-400 text-xs">Video Preview</p>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </Card>
+
           </div>
-        </div>
-        ) : (
-          <div className="flex flex-col items-center justify-center p-12 bg-slate-50 border border-dashed border-slate-300 rounded-xl animate-fade-in">
-            <Icons.Clipboard className="w-12 h-12 text-slate-300 mb-4" />
-            <h3 className="text-lg font-bold text-slate-700">Playbook Unavailable</h3>
-            <p className="text-slate-500 text-center max-w-md mb-6">
-              We were able to read the documents, but couldn't generate the simplified playbook. Please check the Clinical Details tab for raw data.
-            </p>
-            <Button variant="secondary" onClick={() => setView('clinical')}>
-              View Clinical Details
+          
+          <div className="flex justify-center pt-8">
+            <Button variant="secondary" onClick={onReset} className="text-red-500 border-red-100 hover:bg-red-50">
+               Start Over
             </Button>
           </div>
-        )
+        </div>
       )}
 
-      {/* --- CLINICAL VIEW (Screen 4) --- */}
+      {/* --- CLINICIAN VIEW --- */}
       {view === 'clinical' && (
         <div className="space-y-8 animate-fade-in">
 
-          {/* Technical Summary (Prominent in Clinical View) */}
-          {carePlan?.technical_summary_for_clinicians && (
-            <div className="bg-slate-800 rounded-xl p-6 text-slate-200 shadow-sm">
-              <div className="flex items-center gap-2 mb-3">
-                <Icons.Note className="text-blue-400" />
-                <h3 className="text-lg font-bold text-white">Clinician Executive Summary</h3>
-              </div>
-              <p className="leading-relaxed text-slate-300">
-                {carePlan.technical_summary_for_clinicians}
-              </p>
+          {/* Clinical Summary */}
+          <Card className="p-8 border-l-4 border-l-blue-500">
+            <div className="flex items-center gap-3 mb-6">
+                <div className="bg-blue-50 p-2.5 rounded-xl text-blue-700">
+                    <Icons.User className="w-6 h-6" />
+                </div>
+                <h2 className="text-2xl font-bold text-slate-900">Clinical Summary</h2>
             </div>
-          )}
+            {carePlan?.technical_summary_for_clinicians ? (
+                <div className="prose prose-slate max-w-none">
+                    <p className="text-lg leading-relaxed text-slate-700">
+                        {carePlan.technical_summary_for_clinicians}
+                    </p>
+                </div>
+            ) : (
+                <p className="text-slate-400 italic">No summary generated.</p>
+            )}
+          </Card>
           
-          {/* Safety Alerts */}
+          {/* Safety Alerts Grid */}
           {hasIssues && (
-            <section className="space-y-4">
-              <div className="flex items-center gap-2">
-                <Icons.Shield className="text-amber-500" />
-                <h2 className="text-xl font-bold text-slate-800">Safety Check & Clarifications</h2>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {[...(consistency?.conflicts || []), ...(consistency?.gaps || [])].map((issue, i) => (
-                  <div key={i} className={`p-5 rounded-xl border-l-4 shadow-sm bg-white ${issue.severity === 'critical' ? 'border-l-red-500' : 'border-l-amber-400'}`}>
+                  <div key={i} className={`p-5 rounded-2xl border border-l-4 shadow-sm bg-white ${issue.severity === 'critical' ? 'border-l-red-500 border-red-100' : 'border-l-amber-400 border-amber-100'}`}>
                     <div className="flex justify-between items-start mb-2">
                       <Badge color={issue.severity === 'critical' ? 'red' : 'amber'}>{issue.type}</Badge>
                     </div>
                     <p className="font-bold text-slate-800 mb-1">{issue.summary}</p>
-                    <p className="text-sm text-slate-600 mb-3">{issue.details}</p>
+                    <p className="text-sm text-slate-600">{issue.details}</p>
                   </div>
                 ))}
-              </div>
-            </section>
+            </div>
           )}
 
-          {/* Main Dashboard Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-            
-            {/* Medications */}
-            <Card className="p-0 overflow-hidden h-full">
-              <div className="bg-slate-50 p-4 border-b border-slate-100 flex items-center gap-2">
-                <div className="bg-white p-1.5 rounded-md text-emerald-700 border border-emerald-100"><Icons.Pill className="w-5 h-5"/></div>
-                <h3 className="font-bold text-slate-800">Medications</h3>
-                <Badge color="slate" >{data.medications.length}</Badge>
-              </div>
-              <div className="divide-y divide-slate-100">
-                {data.medications.length === 0 ? <p className="p-6 text-slate-400 italic text-center">No medications found.</p> : 
-                  data.medications.map((med, i) => (
-                    <div key={i} className="p-4 hover:bg-slate-50 transition-colors">
-                      <div className="flex justify-between items-start">
-                        <h4 className="font-bold text-slate-900">{med.name}</h4>
-                        <Badge color="green">{med.route}</Badge>
-                      </div>
-                      <p className="text-slate-600 text-sm mt-1 font-medium">{med.dose} • {med.frequency}</p>
-                      {med.timing_notes && <p className="text-xs text-slate-500 mt-2 bg-slate-50 p-2 rounded border border-slate-100">📝 {med.timing_notes}</p>}
-                    </div>
-                  ))
-                }
-              </div>
-            </Card>
-
-            {/* Appointments */}
-            <Card className="p-0 overflow-hidden h-full">
-              <div className="bg-slate-50 p-4 border-b border-slate-100 flex items-center gap-2">
-                <div className="bg-white p-1.5 rounded-md text-blue-700 border border-blue-100"><Icons.Check className="w-5 h-5"/></div>
-                <h3 className="font-bold text-slate-800">Follow Up</h3>
-                <Badge color="slate">{data.appointments.length}</Badge>
-              </div>
-              <div className="divide-y divide-slate-100">
-                {data.appointments.length === 0 ? <p className="p-6 text-slate-400 italic text-center">No appointments found.</p> :
-                  data.appointments.map((apt, i) => (
-                    <div key={i} className="p-4 hover:bg-slate-50 transition-colors border-l-4 border-transparent hover:border-l-blue-500">
-                      <p className="text-sm font-bold text-blue-600 uppercase tracking-wide mb-1">{apt.target_date_or_window}</p>
-                      <h4 className="font-bold text-slate-900">{apt.specialty_or_clinic || 'Clinic Visit'}</h4>
-                      {apt.location && <p className="text-sm text-slate-500 mt-1">📍 {apt.location}</p>}
-                    </div>
-                  ))
-                }
-              </div>
-            </Card>
-
-            {/* Warnings & Instructions (Combined Column) */}
-            <div className="space-y-6">
-              <Card className="p-0 overflow-hidden">
-                <div className="bg-slate-50 p-4 border-b border-slate-100 flex items-center gap-2">
-                  <div className="bg-white p-1.5 rounded-md text-red-700 border border-red-100"><Icons.Alert className="w-5 h-5"/></div>
-                  <h3 className="font-bold text-slate-800">Red Flags</h3>
-                </div>
-                <div className="p-4 space-y-3">
-                  {data.warnings.length === 0 ? <p className="text-slate-400 italic text-center">No warnings found.</p> :
-                    data.warnings.map((w, i) => (
-                      <div key={i} className="flex gap-3 items-start bg-red-50 p-3 rounded-lg border border-red-100">
-                        <Icons.Alert className="text-red-500 w-5 h-5 shrink-0 mt-0.5" />
-                        <div>
-                          <span className="text-xs font-bold text-red-600 uppercase">{w.urgency}</span>
-                          <p className="text-sm text-slate-800 font-medium leading-tight">{w.description}</p>
+          {/* Raw Data Tables */}
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            <Card className="overflow-hidden">
+                <div className="bg-slate-50 p-4 border-b border-slate-100 font-bold text-slate-700">Medications ({data.medications.length})</div>
+                <div className="divide-y divide-slate-100">
+                    {data.medications.map((m, i) => (
+                        <div key={i} className="p-4 hover:bg-slate-50">
+                            <div className="flex justify-between"><span className="font-bold text-slate-900">{m.name}</span> <span className="text-sm text-slate-500">{m.dose}</span></div>
+                            <div className="text-sm text-slate-600 mt-1">{m.frequency} • {m.route}</div>
                         </div>
-                      </div>
-                    ))
-                  }
+                    ))}
                 </div>
-              </Card>
-
-              <Card className="p-0 overflow-hidden">
-                <div className="bg-slate-50 p-4 border-b border-slate-100 flex items-center gap-2">
-                  <div className="bg-white p-1.5 rounded-md text-purple-700 border border-purple-100"><Icons.Check className="w-5 h-5"/></div>
-                  <h3 className="font-bold text-slate-800">Instructions</h3>
-                </div>
-                <div className="p-4 space-y-3">
-                    {data.activities.length === 0 ? <p className="text-slate-400 italic text-center">No instructions found.</p> :
-                    data.activities.map((act, i) => (
-                      <div key={i} className="flex gap-3 items-start">
-                        <div className="w-1.5 h-1.5 rounded-full bg-purple-400 mt-2 shrink-0"></div>
-                        <div>
-                          <p className="text-sm text-slate-800 font-medium">{act.instruction}</p>
-                          <span className="text-xs text-purple-500 font-semibold">{act.category}</span>
+            </Card>
+             <Card className="overflow-hidden">
+                <div className="bg-slate-50 p-4 border-b border-slate-100 font-bold text-slate-700">Instructions & Follow-up</div>
+                <div className="divide-y divide-slate-100">
+                    {data.appointments.map((a, i) => (
+                        <div key={i} className="p-4 hover:bg-slate-50">
+                            <div className="font-bold text-blue-600 text-sm mb-1">{a.target_date_or_window}</div>
+                            <div className="text-slate-900">{a.specialty_or_clinic || 'Follow-up'}</div>
                         </div>
-                      </div>
-                    ))
-                  }
+                    ))}
+                    {data.activities.map((a, i) => (
+                        <div key={i} className="p-4 hover:bg-slate-50">
+                             <div className="text-slate-900">{a.instruction}</div>
+                             <div className="text-xs font-bold text-purple-600 mt-1 uppercase">{a.category}</div>
+                        </div>
+                    ))}
                 </div>
-              </Card>
-            </div>
-
+            </Card>
           </div>
         </div>
       )}
 
-      {/* --- DEBUG SECTION (Dev Only) --- */}
-      <div className="mt-12 pt-8 border-t border-slate-300">
-        <button 
-          onClick={() => setShowDebug(!showDebug)}
-          className="text-slate-500 hover:text-slate-700 text-sm font-mono flex items-center gap-2 focus:outline-none"
-        >
-          {showDebug ? '[-] Hide Debug Data' : '[+] Show Debug JSON (Dev Only)'}
+      {/* --- AI ASSISTANT CHAT --- */}
+      {view === 'playbook' && (
+         <div className="fixed bottom-6 right-6 z-40 flex flex-col items-end gap-4">
+             {chatOpen && (
+                 <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-80 md:w-96 h-[500px] flex flex-col overflow-hidden animate-fade-in-up">
+                    <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-4 text-white flex justify-between items-center">
+                        <div className="flex items-center gap-2 font-bold">
+                            <Icons.Sparkle className="w-4 h-4" /> TrueCare Assistant
+                        </div>
+                        <button onClick={() => setChatOpen(false)} className="hover:bg-white/20 p-1 rounded-full"><span className="text-xl leading-none">&times;</span></button>
+                    </div>
+                    <div className="flex-1 p-4 overflow-y-auto bg-slate-50 space-y-3">
+                        {messages.map((m) => (
+                            <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                                <div className={`max-w-[85%] p-3 rounded-2xl text-sm ${m.role === 'user' ? 'bg-blue-600 text-white rounded-br-none' : 'bg-white border border-slate-200 text-slate-800 rounded-bl-none shadow-sm'}`}>
+                                    {m.text}
+                                </div>
+                            </div>
+                        ))}
+                        {isTyping && (
+                            <div className="flex justify-start">
+                                <div className="bg-white border border-slate-200 p-3 rounded-2xl rounded-bl-none shadow-sm flex gap-1">
+                                    <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce"></span>
+                                    <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce delay-100"></span>
+                                    <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce delay-200"></span>
+                                </div>
+                            </div>
+                        )}
+                        <div ref={chatEndRef} />
+                    </div>
+                    <div className="p-3 bg-white border-t border-slate-100 flex gap-2">
+                        <input 
+                            value={input}
+                            onChange={e => setInput(e.target.value)}
+                            onKeyDown={e => e.key === 'Enter' && handleSend()}
+                            placeholder="Ask about your plan..."
+                            className="flex-1 bg-slate-100 rounded-full px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                        <button onClick={handleSend} disabled={!input.trim()} className="p-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 disabled:opacity-50">
+                            <Icons.Send className="w-4 h-4" />
+                        </button>
+                    </div>
+                 </div>
+             )}
+             <button 
+                onClick={() => setChatOpen(!chatOpen)}
+                className="bg-gradient-to-tr from-blue-600 to-purple-600 text-white p-4 rounded-full shadow-xl shadow-blue-500/30 hover:scale-110 transition-transform font-bold flex items-center gap-2"
+             >
+                 {chatOpen ? (
+                     <span className="text-2xl leading-none px-1">&times;</span>
+                 ) : (
+                     <><Icons.Sparkle className="w-6 h-6" /> <span className="hidden md:inline pr-1">Ask AI</span></>
+                 )}
+             </button>
+         </div>
+      )}
+
+      {/* Dev Debug Toggle */}
+      <div className="mt-12 pt-8 border-t border-slate-200">
+        <button onClick={() => setShowDebug(!showDebug)} className="text-slate-400 text-xs hover:text-slate-600">
+          {showDebug ? 'Hide Debug' : 'Show Debug Data'}
         </button>
-        
         {showDebug && (
-          <div className="mt-4 space-y-6 animate-fade-in">
-            <div>
-              <h4 className="font-bold text-slate-700 mb-2">Parsed Episode Data</h4>
-              <pre className="bg-slate-900 text-slate-50 p-4 rounded-xl overflow-x-auto text-xs font-mono max-h-96">
-                {JSON.stringify(data, null, 2)}
-              </pre>
-            </div>
-            {consistency && (
-              <div>
-                <h4 className="font-bold text-slate-700 mb-2">Consistency Report</h4>
-                <pre className="bg-slate-900 text-slate-50 p-4 rounded-xl overflow-x-auto text-xs font-mono max-h-96">
-                  {JSON.stringify(consistency, null, 2)}
-                </pre>
-              </div>
-            )}
-            {carePlan && (
-              <div>
-                <h4 className="font-bold text-slate-700 mb-2">Formatted Care Plan</h4>
-                <pre className="bg-slate-900 text-slate-50 p-4 rounded-xl overflow-x-auto text-xs font-mono max-h-96">
-                  {JSON.stringify(carePlan, null, 2)}
-                </pre>
-              </div>
-            )}
-          </div>
+          <pre className="mt-4 p-4 bg-slate-900 text-slate-300 rounded-xl overflow-auto text-xs max-h-64">
+            {JSON.stringify({ data, consistency, carePlan }, null, 2)}
+          </pre>
         )}
       </div>
 

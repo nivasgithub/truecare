@@ -1,58 +1,67 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { PatientInfo, UploadedFile, ParsedEpisode, ConsistencyReport, FormattedCarePlan } from '../types';
-import { parseDischargeDocuments, checkConsistency, generateCarePlan } from '../api';
+import { generateTrueCarePlan } from '../api';
 
-export function useDischargeAnalysis() {
-  // Input State
-  const [patientInfo, setPatientInfo] = useState<PatientInfo>({
+// Helper for session storage persistence
+function useSessionState<T>(key: string, initialValue: T): [T, React.Dispatch<React.SetStateAction<T>>] {
+  const [state, setState] = useState<T>(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        const item = window.sessionStorage.getItem(key);
+        return item ? JSON.parse(item) : initialValue;
+      }
+    } catch (error) {
+      console.warn(`Error reading ${key} from sessionStorage`, error);
+    }
+    return initialValue;
+  });
+
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        window.sessionStorage.setItem(key, JSON.stringify(state));
+      }
+    } catch (error) {
+      console.warn(`Error writing ${key} to sessionStorage`, error);
+    }
+  }, [key, state]);
+
+  return [state, setState];
+}
+
+export function useTrueCareFlow() {
+  // Input State (Intake Module)
+  const [patientInfo, setPatientInfo] = useSessionState<PatientInfo>('tc_patientInfo', {
     name: '', age: '', primary_condition: '', language_preference: 'English', caregiver_role: ''
   });
-  const [files, setFiles] = useState<UploadedFile[]>([]);
-  const [notes, setNotes] = useState('');
   
-  // Output State
-  const [parsedEpisode, setParsedEpisode] = useState<ParsedEpisode | null>(null);
-  const [consistencyReport, setConsistencyReport] = useState<ConsistencyReport | null>(null);
-  const [carePlan, setCarePlan] = useState<FormattedCarePlan | null>(null);
+  // We do not persist files (images) due to storage quota limits (usually 5MB).
+  const [files, setFiles] = useState<UploadedFile[]>([]);
+  
+  const [notes, setNotes] = useSessionState<string>('tc_notes', '');
+  
+  // Output State (Plan Module)
+  const [parsedEpisode, setParsedEpisode] = useSessionState<ParsedEpisode | null>('tc_parsedEpisode', null);
+  const [consistencyReport, setConsistencyReport] = useSessionState<ConsistencyReport | null>('tc_consistencyReport', null);
+  const [carePlan, setCarePlan] = useSessionState<FormattedCarePlan | null>('tc_carePlan', null);
   
   // UI State
   const [status, setStatus] = useState<'idle' | 'analyzing' | 'done' | 'error'>('idle');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [progressMsg, setProgressMsg] = useState<string>('Initializing...');
 
   const analyze = async () => {
     try {
       setStatus('analyzing');
       setErrorMsg(null);
-      setParsedEpisode(null);
-      setConsistencyReport(null);
-      setCarePlan(null);
-
-      // 1. Parse & Normalize
-      const episode = await parseDischargeDocuments(files, notes, patientInfo);
+      setProgressMsg('Starting analysis...');
       
-      // Check for parsing errors
-      if (episode.status === 'error') {
-        throw new Error(episode.error_message || "Failed to read documents. Please try clearer images.");
-      }
-      setParsedEpisode(episode);
-
-      // 2. Consistency Checker
-      // Initialize default success report ensures downstream steps work if this fails partially
-      let consistency: ConsistencyReport = { status: 'success', error_message: '', conflicts: [], gaps: [] };
-      try {
-        consistency = await checkConsistency(episode);
-        setConsistencyReport(consistency);
-      } catch (e) {
-        console.warn("Consistency check warning:", e);
-      }
-
-      // 3. Care Plan Formatter
-      try {
-        const plan = await generateCarePlan(episode, consistency, patientInfo);
-        setCarePlan(plan);
-      } catch (e) {
-        console.warn("Care plan generation warning:", e);
-      }
+      // Call the TrueCare Orchestration API
+      const result = await generateTrueCarePlan(files, notes, patientInfo, (msg) => setProgressMsg(msg));
+      
+      setParsedEpisode(result.parsedEpisode);
+      setConsistencyReport(result.consistencyReport);
+      setCarePlan(result.carePlan);
 
       setStatus('done');
     } catch (e: any) {
@@ -69,14 +78,25 @@ export function useDischargeAnalysis() {
     setStatus('idle');
     setFiles([]);
     setNotes('');
+    setProgressMsg('');
+    
+    // Clear session storage for these specific keys
+    sessionStorage.removeItem('tc_parsedEpisode');
+    sessionStorage.removeItem('tc_consistencyReport');
+    sessionStorage.removeItem('tc_carePlan');
+    sessionStorage.removeItem('tc_notes');
+    sessionStorage.removeItem('tc_patientInfo');
+    
+    // Reset inputs to default
+    setPatientInfo({ name: '', age: '', primary_condition: '', language_preference: 'English', caregiver_role: '' });
   };
 
   const dismissError = () => setStatus('idle');
 
   return {
-    input: { patientInfo, setPatientInfo, files, setFiles, notes, setNotes },
+    intake: { patientInfo, setPatientInfo, files, setFiles, notes, setNotes },
     results: { parsedEpisode, consistencyReport, carePlan },
-    ui: { status, errorMsg, dismissError },
+    ui: { status, errorMsg, dismissError, progressMsg },
     actions: { analyze, reset }
   };
 }

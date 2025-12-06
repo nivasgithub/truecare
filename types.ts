@@ -1,3 +1,4 @@
+
 export interface PatientInfo {
   name: string;
   age: string;
@@ -89,4 +90,36 @@ export interface FormattedCarePlan {
     doctor_questions: string[];
   };
   technical_summary_for_clinicians: string;
+}
+
+// --- Auth & Dashboard Types ---
+
+export interface UserProfile {
+  id: string;
+  name: string;
+  email: string;
+  avatarUrl?: string;
+}
+
+export interface HistoricalRecord {
+  id: string;
+  hospitalName: string;
+  dischargeDate: string;
+  primaryCondition: string;
+  doctorName: string;
+  status: 'active' | 'archived';
+  medicationCount: number;
+  appointmentCount: number;
+}
+
+export interface ChatMessage {
+  id: string;
+  role: 'user' | 'model';
+  text: string;
+  timestamp: number;
+}
+
+export interface GeneratedVideo {
+  uri: string;
+  expiresAt: string;
 }
