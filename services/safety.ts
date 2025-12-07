@@ -1,11 +1,13 @@
 import { Type } from "@google/genai";
 import { ai } from "./gemini";
 import { cleanAndParseJSON } from "./utils";
-import { AppConfig } from "../config";
+import { AppConfig, SAFETY_GUIDELINES } from "../config";
 import { ParsedEpisode, ConsistencyReport } from "../types";
 
 export async function checkConsistency(episodeData: ParsedEpisode): Promise<ConsistencyReport> {
   const systemPrompt = `
+${SAFETY_GUIDELINES}
+
 You are a medical safety checker for CareTransia. Analyze the parsed discharge instructions.
 1. Identify internal conflicts (e.g., meds list says "stop X", notes say "continue X").
 2. Identify critical gaps (e.g., "follow up in 1 week" but no appointment/clinic listed).

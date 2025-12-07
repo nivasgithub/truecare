@@ -9,40 +9,64 @@ interface AssistantChatProps {
     onClose: () => void;
     carePlan: FormattedCarePlan | null;
     patientName?: string;
+    initialMessage?: string;
 }
 
-export default function AssistantChat({ isOpen, onClose, carePlan, patientName }: AssistantChatProps) {
+export default function AssistantChat({ isOpen, onClose, carePlan, patientName, initialMessage }: AssistantChatProps) {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [input, setInput] = useState('');
     const [isTyping, setIsTyping] = useState(false);
     const [ttsStatus, setTtsStatus] = useState<'idle' | 'generating' | 'playing'>('idle');
     const [isListening, setIsListening] = useState(false);
+    const [userLocation, setUserLocation] = useState<{latitude: number, longitude: number} | undefined>(undefined);
     
     const chatEndRef = useRef<HTMLDivElement>(null);
     const recognitionRef = useRef<any>(null);
 
-    // Initialize greeting when opened or plan changes
+    // Initialize greeting or handle initial message
     useEffect(() => {
-        if (carePlan && messages.length === 0) {
-             setMessages([{ 
-                 id: 'init', 
-                 role: 'model', 
-                 text: `Hi! I have the care plan for ${patientName || 'the patient'}. Ask me anything about medications, appointments, or what to do next.`, 
-                 timestamp: Date.now() 
-             }]);
-        } else if (!carePlan && messages.length === 0) {
-             setMessages([{ 
-                 id: 'init', 
-                 role: 'model', 
-                 text: `Hi! I don't see an active care plan right now. Please select a record or scan new documents so I can help you.`, 
-                 timestamp: Date.now() 
-             }]);
+        if (isOpen && messages.length === 0) {
+            if (initialMessage) {
+                handleSend(initialMessage);
+            } else if (carePlan) {
+                 setMessages([{ 
+                     id: 'init', 
+                     role: 'model', 
+                     text: `Hi! I have the care plan for ${patientName || 'the patient'}. Ask me anything about medications, appointments, or find nearby pharmacies.`, 
+                     timestamp: Date.now() 
+                 }]);
+            } else {
+                 setMessages([{ 
+                     id: 'init', 
+                     role: 'model', 
+                     text: `Hi! I can help you find nearby clinics or answer general questions. Upload a discharge plan for more specific help.`, 
+                     timestamp: Date.now() 
+                 }]);
+            }
         }
-    }, [carePlan, patientName, isOpen]);
+    }, [carePlan, patientName, isOpen, initialMessage]);
 
     useEffect(() => {
         if (isOpen) chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages, isOpen]);
+
+    const getUserLocation = async () => {
+        return new Promise<{latitude: number, longitude: number}>((resolve, reject) => {
+            if (!navigator.geolocation) {
+                reject(new Error("Geolocation not supported"));
+                return;
+            }
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    resolve({
+                        latitude: position.coords.latitude,
+                        longitude: position.coords.longitude
+                    });
+                },
+                (error) => reject(error)
+            );
+        });
+    };
 
     const handleSend = async (text: string = input) => {
         if (!text.trim()) return;
@@ -55,35 +79,55 @@ export default function AssistantChat({ isOpen, onClose, carePlan, patientName }
         setInput('');
         setIsTyping(true);
 
-        if (!carePlan) {
-            setTimeout(() => {
-                setMessages(prev => [...prev, { id: Date.now().toString(), role: 'model', text: "Please open a care plan first so I can answer your questions.", timestamp: Date.now() }]);
-                setIsTyping(false);
-            }, 1000);
-            return;
+        // Determine if we need location
+        let location = userLocation;
+        if (!location && /near|closest|pharmacy|clinic|hospital|emergency|store|location/i.test(text)) {
+            try {
+                // Request location if query implies spatial search
+                location = await getUserLocation();
+                setUserLocation(location);
+            } catch (e) {
+                console.warn("Could not get location", e);
+                // Proceed without location
+            }
         }
 
         try {
-            const result = await queryCarePlan(carePlan, messages, userMsg.text);
-            let groundingText = "";
+            const result = await queryCarePlan(carePlan, messages, userMsg.text, location);
+            
+            // Format Grounding Data (Search/Maps)
+            let richContent = result.text;
+            let mapCards: any[] = [];
+            
             if (result.groundingMetadata?.groundingChunks) {
                 const chunks = result.groundingMetadata.groundingChunks;
-                const links: string[] = [];
+                const searchLinks: string[] = [];
+                
                 chunks.forEach((c: any) => {
-                    if (c.web?.uri) links.push(`[${c.web.title || 'Source'}](${c.web.uri})`);
-                    if (c.maps?.uri) links.push(`[${c.maps.title || 'Map Location'}](${c.maps.uri})`);
+                    if (c.web?.uri) {
+                        searchLinks.push(`[${c.web.title || 'Source'}](${c.web.uri})`);
+                    }
+                    if (c.maps) {
+                        mapCards.push(c.maps);
+                    }
                 });
-                if (links.length > 0) {
-                    groundingText = "\n\n**Sources:**\n" + links.join("\n");
+
+                if (searchLinks.length > 0) {
+                    richContent += "\n\n**Sources:**\n" + searchLinks.join("\n");
                 }
             }
 
             const botMsg: ChatMessage = { 
                 id: (Date.now() + 1).toString(), 
                 role: 'model', 
-                text: result.text + groundingText, 
-                timestamp: Date.now() 
+                text: richContent, 
+                timestamp: Date.now(),
             };
+            
+            if (mapCards.length > 0) {
+                botMsg.text += "___MAPS___" + JSON.stringify(mapCards);
+            }
+
             setMessages(prev => [...prev, botMsg]);
         } catch (e) {
             console.error(e);
@@ -101,7 +145,10 @@ export default function AssistantChat({ isOpen, onClose, carePlan, patientName }
         
         setTtsStatus('generating');
         try {
-             const cleanText = text.replace(/[*#]/g, '').replace(/\[(.*?)\]\(.*?\)/g, '$1');
+             // Remove Maps JSON and Markdown
+             let cleanText = text.split("___MAPS___")[0];
+             cleanText = cleanText.replace(/[*#]/g, '').replace(/\[(.*?)\]\(.*?\)/g, '$1');
+             
              const base64Audio = await generateSpeech(cleanText);
              
              setTtsStatus('playing');
@@ -150,11 +197,43 @@ export default function AssistantChat({ isOpen, onClose, carePlan, patientName }
         recognition.start();
     };
 
+    // --- Message Renderer ---
+    const renderMessage = (m: ChatMessage) => {
+        const [displayText, mapJson] = m.text.split("___MAPS___");
+        const mapCards = mapJson ? JSON.parse(mapJson) : [];
+
+        return (
+            <div className="flex flex-col gap-2">
+                <div dangerouslySetInnerHTML={{ __html: displayText.replace(/\n/g, '<br/>').replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank" class="underline font-bold hover:text-blue-200">$1</a>') }} />
+                
+                {mapCards.length > 0 && (
+                    <div className="flex flex-col gap-2 mt-2">
+                        {mapCards.map((place: any, i: number) => (
+                            <a 
+                                key={i} 
+                                href={place.uri} 
+                                target="_blank" 
+                                rel="noreferrer"
+                                className="block bg-slate-50 border border-slate-200 rounded-xl p-3 hover:bg-blue-50 hover:border-blue-200 transition-colors"
+                            >
+                                <div className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                                    <Icons.Home className="w-4 h-4 text-red-500" />
+                                    {place.title}
+                                </div>
+                                {place.placeId && <div className="text-xs text-slate-400 mt-1">Tap to view on Maps</div>}
+                            </a>
+                        ))}
+                    </div>
+                )}
+            </div>
+        );
+    };
+
     if (!isOpen) return null;
 
     return (
         <div className="fixed bottom-24 right-6 z-50 flex flex-col items-end gap-4 animate-fade-in-up">
-             <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-80 md:w-96 h-[500px] flex flex-col overflow-hidden">
+             <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-80 md:w-96 h-[600px] flex flex-col overflow-hidden">
                 <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-5 text-white flex justify-between items-center">
                     <div className="flex items-center gap-2 font-bold text-lg">
                         <Icons.Sparkle className="w-5 h-5" /> CareTransia Assistant
@@ -166,8 +245,8 @@ export default function AssistantChat({ isOpen, onClose, carePlan, patientName }
                     {messages.map((m) => (
                         <div key={m.id} className={`flex items-end gap-2 ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                             {m.role === 'model' && (
-                                <div className={`max-w-[85%] p-4 rounded-2xl text-base shadow-sm bg-white border border-slate-200 text-slate-800 rounded-bl-none`}>
-                                    <div dangerouslySetInnerHTML={{ __html: m.text.replace(/\n/g, '<br/>').replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank" class="underline font-bold hover:text-blue-200">$1</a>') }} />
+                                <div className={`max-w-[90%] p-4 rounded-2xl text-base shadow-sm bg-white border border-slate-200 text-slate-800 rounded-bl-none`}>
+                                    {renderMessage(m)}
                                 </div>
                             )}
                             {m.role === 'model' && (
@@ -204,13 +283,18 @@ export default function AssistantChat({ isOpen, onClose, carePlan, patientName }
                     <div ref={chatEndRef} />
                 </div>
 
+                {/* Safety Footer */}
+                <div className="p-2 bg-amber-50 text-amber-800 text-[10px] text-center border-t border-amber-100">
+                    AI can make mistakes. Not medical advice. Call 911 for emergencies.
+                </div>
+
                 <div className="p-4 bg-white border-t border-slate-100 flex gap-3">
                     <div className="flex-1 relative">
                         <input 
                             value={input}
                             onChange={e => setInput(e.target.value)}
                             onKeyDown={e => e.key === 'Enter' && handleSend()}
-                            placeholder="Ask about your plan..."
+                            placeholder="Find clinics, ask questions..."
                             className="w-full bg-slate-100 rounded-full pl-5 pr-12 py-3 text-base outline-none focus:ring-2 focus:ring-blue-500 border border-transparent focus:border-blue-200"
                         />
                          <button 

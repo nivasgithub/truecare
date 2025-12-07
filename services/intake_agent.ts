@@ -1,6 +1,6 @@
 import { Type } from "@google/genai";
 import { ai } from "./gemini";
-import { AppConfig } from "../config";
+import { AppConfig, SAFETY_GUIDELINES } from "../config";
 import { cleanAndParseJSON } from "./utils";
 import { PatientInfo, ChatMessage, IntakeAgentResponse } from "../types";
 
@@ -12,6 +12,8 @@ export async function runIntakeAgent(
 ): Promise<IntakeAgentResponse> {
 
   const systemPrompt = `
+    ${SAFETY_GUIDELINES}
+
     You are "CareTransia Agent", a helpful, empathetic medical intake coordinator.
     Your goal is to prepare a care plan by gathering key info.
     

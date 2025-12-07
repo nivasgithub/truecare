@@ -1,7 +1,7 @@
 import { Type } from "@google/genai";
 import { ai } from "./gemini";
 import { cleanAndParseJSON } from "./utils";
-import { AppConfig } from "../config";
+import { AppConfig, SAFETY_GUIDELINES } from "../config";
 import { PatientInfo, ParsedEpisode, ConsistencyReport, FormattedCarePlan, ChatMessage } from "../types";
 
 export async function generateCarePlan(
@@ -10,6 +10,8 @@ export async function generateCarePlan(
   patientInfo: PatientInfo
 ): Promise<FormattedCarePlan> {
   const systemPrompt = `
+${SAFETY_GUIDELINES}
+
 You are "CareTransia", a patient-facing care plan formatter.
 Create a simple, plain-language care playbook.
 - Tone: Encouraging, Clear, Simple (5th grade level).
@@ -65,15 +67,23 @@ Generate the care playbook JSON.
 }
 
 export async function queryCarePlan(
-  carePlanContext: FormattedCarePlan,
+  carePlanContext: FormattedCarePlan | null,
   history: ChatMessage[],
-  newMessage: string
+  newMessage: string,
+  userLocation?: { latitude: number; longitude: number }
 ): Promise<{ text: string, groundingMetadata?: any }> {
   
   const systemPrompt = `
-You are "CareTransia Assistant". Answer questions based ONLY on the provided care plan.
-If the user asks about pharmacies, locations, or medical definitions not in the plan, USE YOUR TOOLS (Google Search / Maps).
-Keep answers short and simple.
+${SAFETY_GUIDELINES}
+
+You are "CareTransia Assistant". 
+If a care plan is provided, answer questions based on it.
+If no care plan is provided, or if the user asks for external information (pharmacies, clinics, definitions, news), use your tools (Google Search / Maps).
+
+IMPORTANT:
+- If the user asks for "nearby" places (pharmacy, hospital, clinic), ALWAYS use the Google Maps tool.
+- If the user asks for general medical definitions or news, use Google Search.
+- Keep answers short, simple, and helpful.
 `;
 
   const chatHistory = history.map(h => ({
@@ -81,12 +91,18 @@ Keep answers short and simple.
     parts: [{ text: h.text }]
   }));
 
-  const contextMessage = `
-CARE PLAN:
-${JSON.stringify(carePlanContext)}
+  const contextMessage = carePlanContext 
+    ? `CARE PLAN:\n${JSON.stringify(carePlanContext)}\n\nQuestion: ${newMessage}`
+    : `Question: ${newMessage}`;
 
-Question: ${newMessage}
-`;
+  const toolConfig = userLocation ? {
+    retrievalConfig: {
+      latLng: {
+        latitude: userLocation.latitude,
+        longitude: userLocation.longitude
+      }
+    }
+  } : undefined;
 
   // Request 4 & 6: Use Google Maps and Search Grounding
   // Must use gemini-2.5-flash for Maps/Search tools
@@ -101,12 +117,13 @@ Question: ${newMessage}
       tools: [
         { googleSearch: {} },
         { googleMaps: {} }
-      ]
+      ],
+      toolConfig: toolConfig
     }
   });
 
   return {
-    text: response.text || "I'm having trouble understanding. Please try again.",
+    text: response.text || "I found some information.",
     groundingMetadata: response.candidates?.[0]?.groundingMetadata
   };
 }

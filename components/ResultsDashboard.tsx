@@ -402,6 +402,60 @@ export default function CareTransiaResults({ data, consistency, carePlan, onRese
           </div>
         </div>
       )}
+
+      {/* --- CLINICAL VIEW --- */}
+      {view === 'clinical' && (
+        <div className="space-y-6 animate-fade-in">
+             <Card className="p-8 border-slate-200">
+                <h3 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
+                    <Icons.Shield className="text-slate-500" /> Clinical Summary
+                </h3>
+                <div className="prose prose-slate max-w-none">
+                    <p className="whitespace-pre-wrap leading-relaxed text-slate-700 font-mono text-sm bg-slate-50 p-4 rounded-xl border border-slate-100">
+                        {carePlan?.technical_summary_for_clinicians || "No technical summary available."}
+                    </p>
+                </div>
+             </Card>
+             
+             {/* Raw Data Verification Tables */}
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <Card className="p-6">
+                    <h4 className="font-bold text-slate-700 mb-4">Extracted Medications</h4>
+                    <div className="space-y-2">
+                        {data.medications.map((m, i) => (
+                            <div key={i} className="text-sm p-2 border-b border-slate-100 last:border-0">
+                                <div className="font-bold">{m.name} {m.dose}</div>
+                                <div className="text-slate-500">{m.frequency} • {m.route}</div>
+                            </div>
+                        ))}
+                         {data.medications.length === 0 && <p className="text-slate-400 italic">None found.</p>}
+                    </div>
+                </Card>
+                 <Card className="p-6">
+                    <h4 className="font-bold text-slate-700 mb-4">Extracted Appointments</h4>
+                    <div className="space-y-2">
+                        {data.appointments.map((a, i) => (
+                            <div key={i} className="text-sm p-2 border-b border-slate-100 last:border-0">
+                                <div className="font-bold">{a.specialty_or_clinic}</div>
+                                <div className="text-slate-500">{a.target_date_or_window}</div>
+                            </div>
+                        ))}
+                        {data.appointments.length === 0 && <p className="text-slate-400 italic">None found.</p>}
+                    </div>
+                </Card>
+             </div>
+        </div>
+      )}
+      
+      {/* Footer Disclaimer */}
+      <div className="mt-16 pt-8 border-t border-slate-200 text-center text-slate-400 text-xs leading-relaxed max-w-2xl mx-auto">
+          <p className="font-bold mb-1">IMPORTANT SAFETY NOTICE</p>
+          <p>
+            CareTransia is an automated tool to organize existing information. It does not provide medical diagnoses, treatment advice, or emergency triage.
+            All extracted information should be verified with your official discharge papers and clinical team. 
+            In case of emergency, call 911 immediately.
+          </p>
+      </div>
       
       {/* Floating Assistant Button (FAB) */}
       <button 

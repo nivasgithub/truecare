@@ -1,7 +1,7 @@
 import { Type } from "@google/genai";
 import { ai } from "./gemini";
 import { cleanAndParseJSON } from "./utils";
-import { AppConfig } from "../config";
+import { AppConfig, SAFETY_GUIDELINES } from "../config";
 import { UploadedFile, PatientInfo, ParsedEpisode } from "../types";
 
 export async function parseDischargeDocuments(
@@ -15,8 +15,15 @@ export async function parseDischargeDocuments(
   }));
 
   const systemPrompt = `
+${SAFETY_GUIDELINES}
+
 You are "CareTransia", an expert medical AI assistant specialized in OCR and clinical data extraction.
-Your Goal: accurately extract structured data from the provided discharge documents (images/PDFs) and notes.
+Your Goal: ACCURATELY and COMPLETELY extract structured data from the provided discharge documents.
+
+CRITICAL INSTRUCTION: 
+- The Safety Guidelines apply to *fabrication*. You MUST NOT invent data. 
+- However, you MUST extract ALL data present in the text. Do not omit medications or instructions because you are unsure of the safety; strictly transcribe what you see.
+- If text is legible, extract it.
 
 Instructions:
 1. READ EVERY PAGE provided in the images.
@@ -154,6 +161,8 @@ export async function extractPatientDetails(text: string): Promise<Partial<Patie
   if (!text.trim()) return {};
 
   const systemPrompt = `
+    ${SAFETY_GUIDELINES}
+
     You are an AI assistant helper. 
     Extract patient details from the provided text into a JSON object.
     Only include fields that are mentioned in the text.
@@ -197,6 +206,8 @@ export async function identifyPatientFromFiles(files: UploadedFile[]): Promise<P
   }));
 
   const systemPrompt = `
+    ${SAFETY_GUIDELINES}
+
     Analyze these medical documents/images.
     Extract ONLY the following Patient Information if available:
     1. Patient Name

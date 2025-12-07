@@ -20,7 +20,10 @@ export default function DashboardScreen({ user, onViewRecord, onNewPlan }: Dashb
   const [showWarnings, setShowWarnings] = useState(false);
   const [showMeds, setShowMeds] = useState(false);
   const [showAppts, setShowAppts] = useState(false);
+  
+  // Assistant State
   const [showAssistant, setShowAssistant] = useState(false);
+  const [assistantInitialQuery, setAssistantInitialQuery] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     const loadData = async () => {
@@ -52,6 +55,11 @@ export default function DashboardScreen({ user, onViewRecord, onNewPlan }: Dashb
       return null;
     }
   }, [activeRecord]);
+
+  const openAssistant = (query?: string) => {
+    setAssistantInitialQuery(query);
+    setShowAssistant(true);
+  };
 
   return (
     <div className="animate-fade-in pb-24 max-w-5xl mx-auto relative">
@@ -188,6 +196,13 @@ export default function DashboardScreen({ user, onViewRecord, onNewPlan }: Dashb
                         <span className="text-sm font-bold">Add Papers</span>
                     </button>
                     <button 
+                        onClick={() => openAssistant("Find pharmacies nearby")}
+                        className="p-4 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-2xl flex flex-col items-center justify-center gap-2 transition-colors"
+                    >
+                         <Icons.Home className="w-6 h-6" />
+                         <span className="text-sm font-bold">Find Care</span>
+                    </button>
+                    <button 
                         onClick={() => setShowReminders(true)}
                         disabled={!activeRecord}
                         className={`p-4 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-2xl flex flex-col items-center justify-center gap-2 transition-colors ${!activeRecord ? 'opacity-50 cursor-not-allowed' : ''}`}
@@ -198,10 +213,10 @@ export default function DashboardScreen({ user, onViewRecord, onNewPlan }: Dashb
                     <button 
                         onClick={() => setShowWarnings(true)}
                         disabled={!activeRecord}
-                        className={`col-span-2 p-4 bg-red-50 hover:bg-red-100 text-red-700 rounded-2xl flex items-center justify-center gap-3 transition-colors ${!activeRecord ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        className={`p-4 bg-red-50 hover:bg-red-100 text-red-700 rounded-2xl flex flex-col items-center justify-center gap-2 transition-colors ${!activeRecord ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
                         <Icons.Alert className="w-6 h-6" />
-                        <span className="text-sm font-bold">View Warning Signs</span>
+                        <span className="text-sm font-bold">Warnings</span>
                     </button>
                 </div>
              </div>
@@ -234,7 +249,7 @@ export default function DashboardScreen({ user, onViewRecord, onNewPlan }: Dashb
 
       {/* Floating Assistant Button (FAB) */}
       <button 
-        onClick={() => setShowAssistant(!showAssistant)}
+        onClick={() => openAssistant()}
         className="fixed bottom-24 right-6 z-40 bg-gradient-to-tr from-blue-600 to-purple-600 text-white p-4 rounded-full shadow-xl shadow-blue-500/40 hover:scale-110 transition-transform active:scale-95"
         title="Chat with Assistant"
       >
@@ -244,12 +259,18 @@ export default function DashboardScreen({ user, onViewRecord, onNewPlan }: Dashb
       {/* --- MODALS --- */}
       
       {/* Assistant Modal */}
-      <AssistantChat 
-          isOpen={showAssistant} 
-          onClose={() => setShowAssistant(false)}
-          carePlan={parsedData?.carePlan || null}
-          patientName={parsedData?.parsedEpisode?.patient?.name || user.name}
-      />
+      {showAssistant && (
+          <AssistantChat 
+              isOpen={showAssistant} 
+              onClose={() => {
+                  setShowAssistant(false);
+                  setAssistantInitialQuery(undefined);
+              }}
+              carePlan={parsedData?.carePlan || null}
+              patientName={parsedData?.parsedEpisode?.patient?.name || user.name}
+              initialMessage={assistantInitialQuery}
+          />
+      )}
 
       {/* Reminders Modal */}
       <SimpleModal 
