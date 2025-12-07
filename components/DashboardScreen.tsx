@@ -18,6 +18,8 @@ export default function DashboardScreen({ user, onViewRecord, onNewPlan }: Dashb
   // UI State for Modals & Assistant
   const [showReminders, setShowReminders] = useState(false);
   const [showWarnings, setShowWarnings] = useState(false);
+  const [showMeds, setShowMeds] = useState(false);
+  const [showAppts, setShowAppts] = useState(false);
   const [showAssistant, setShowAssistant] = useState(false);
 
   useEffect(() => {
@@ -64,7 +66,7 @@ export default function DashboardScreen({ user, onViewRecord, onNewPlan }: Dashb
         </div>
         <div className="mt-4 md:mt-0">
             <Button onClick={onNewPlan} className="shadow-lg shadow-blue-200">
-                <Icons.Sparkle className="w-4 h-4" /> New Scan
+                <Icons.Sparkle className="w-4 h-4" /> New Discharge Plan
             </Button>
         </div>
       </div>
@@ -108,15 +110,27 @@ export default function DashboardScreen({ user, onViewRecord, onNewPlan }: Dashb
                         <p className="text-blue-100 text-lg mb-8">Discharged from {activeRecord.hospitalName} • {activeRecord.dischargeDate}</p>
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/10">
-                                <div className="text-blue-200 text-xs font-bold uppercase mb-1">Medications</div>
+                            <div 
+                                onClick={(e) => { e.stopPropagation(); setShowMeds(true); }}
+                                className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/10 hover:bg-white/20 transition-colors cursor-pointer group/item"
+                            >
+                                <div className="text-blue-200 text-xs font-bold uppercase mb-1 flex items-center justify-between">
+                                    Medications
+                                    <Icons.ArrowRight className="w-3 h-3 opacity-0 group-hover/item:opacity-100 transition-opacity" />
+                                </div>
                                 <div className="font-semibold text-lg flex items-center gap-2">
                                     <Icons.Pill className="w-4 h-4" />
                                     {activeRecord.medicationCount} Prescribed
                                 </div>
                             </div>
-                            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/10">
-                                <div className="text-blue-200 text-xs font-bold uppercase mb-1">Appointments</div>
+                            <div 
+                                onClick={(e) => { e.stopPropagation(); setShowAppts(true); }}
+                                className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/10 hover:bg-white/20 transition-colors cursor-pointer group/item"
+                            >
+                                <div className="text-blue-200 text-xs font-bold uppercase mb-1 flex items-center justify-between">
+                                    Appointments
+                                    <Icons.ArrowRight className="w-3 h-3 opacity-0 group-hover/item:opacity-100 transition-opacity" />
+                                </div>
                                 <div className="font-semibold text-lg flex items-center gap-2">
                                     <Icons.Calendar className="w-4 h-4" />
                                     {activeRecord.appointmentCount} Scheduled
@@ -130,7 +144,7 @@ export default function DashboardScreen({ user, onViewRecord, onNewPlan }: Dashb
                     <Icons.Clipboard className="w-12 h-12 mx-auto text-slate-400 mb-4" />
                     <h3 className="text-xl font-bold text-slate-700 mb-2">No Active Plans</h3>
                     <p className="text-slate-500 mb-6">Scan your discharge papers to generate a new care plan.</p>
-                    <Button onClick={onNewPlan}>Start New Scan</Button>
+                    <Button onClick={onNewPlan}>New Discharge Plan</Button>
                 </div>
             )}
 
@@ -299,6 +313,72 @@ export default function DashboardScreen({ user, onViewRecord, onNewPlan }: Dashb
            </div>
       </SimpleModal>
 
+      {/* Medications Detail Modal */}
+      <SimpleModal 
+          isOpen={showMeds} 
+          onClose={() => setShowMeds(false)} 
+          title="Prescribed Medications" 
+          icon={Icons.Pill}
+          color="blue"
+      >
+           {parsedData?.parsedEpisode?.medications && parsedData.parsedEpisode.medications.length > 0 ? (
+             <div className="space-y-4">
+                 {parsedData.parsedEpisode.medications.map((med, i) => (
+                    <div key={i} className="bg-white border border-slate-100 p-4 rounded-xl shadow-sm hover:border-blue-200 transition-colors">
+                        <div className="flex justify-between items-start mb-2">
+                            <h4 className="font-bold text-slate-900 text-lg">{med.name}</h4>
+                            <span className="text-xs font-bold bg-blue-50 text-blue-700 px-2 py-1 rounded-lg uppercase">{med.route}</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-sm text-slate-600 mb-2">
+                            <div><span className="font-bold text-slate-400 text-xs uppercase block">Dose</span> {med.dose}</div>
+                            <div><span className="font-bold text-slate-400 text-xs uppercase block">Frequency</span> {med.frequency}</div>
+                        </div>
+                        {med.timing_notes && (
+                            <p className="text-xs text-slate-500 bg-slate-50 p-2 rounded-lg italic">
+                                "{med.timing_notes}"
+                            </p>
+                        )}
+                    </div>
+                 ))}
+             </div>
+           ) : (
+             <div className="text-center py-8 text-slate-500">
+                <Icons.Pill className="w-12 h-12 mx-auto text-slate-200 mb-2" />
+                No medications listed in this plan.
+             </div>
+           )}
+      </SimpleModal>
+
+      {/* Appointments Detail Modal (Reusing structure but separate state for clarity) */}
+      <SimpleModal 
+          isOpen={showAppts} 
+          onClose={() => setShowAppts(false)} 
+          title="Scheduled Appointments" 
+          icon={Icons.Calendar}
+          color="blue"
+      >
+          {parsedData?.parsedEpisode?.appointments && parsedData.parsedEpisode.appointments.length > 0 ? (
+             <div className="space-y-4">
+                 {parsedData.parsedEpisode.appointments.map((appt, i) => (
+                    <div key={i} className="bg-white border border-slate-100 p-4 rounded-xl shadow-sm">
+                        <div className="flex justify-between items-start">
+                            <h4 className="font-bold text-slate-900">{appt.specialty_or_clinic || 'Follow-up'}</h4>
+                            <span className="text-xs font-bold bg-blue-50 text-blue-700 px-2 py-1 rounded-lg">{appt.type}</span>
+                        </div>
+                        <p className="text-slate-600 text-sm mt-1 font-semibold">{appt.target_date_or_window}</p>
+                        {appt.location && <p className="text-xs text-slate-500 mt-2 flex items-center gap-1">📍 {appt.location}</p>}
+                        {appt.prep_instructions && <p className="text-xs text-slate-400 mt-1 italic">Note: {appt.prep_instructions}</p>}
+                    </div>
+                 ))}
+             </div>
+          ) : (
+             <div className="text-center py-8 text-slate-500">
+                <Icons.Calendar className="w-12 h-12 mx-auto text-slate-200 mb-2" />
+                No appointments scheduled in this plan.
+             </div>
+          )}
+      </SimpleModal>
+
     </div>
   );
 }
@@ -328,8 +408,8 @@ function SimpleModal({ isOpen, onClose, title, children, icon: Icon, color = "bl
   };
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-       <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden animate-scale-in">
-          <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+       <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden animate-scale-in max-h-[90vh] flex flex-col">
+          <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 flex-shrink-0">
               <div className="flex items-center gap-3">
                   <div className={`p-2 rounded-xl ${colors[color]}`}>
                       {Icon && <Icon className="w-6 h-6" />}
@@ -340,10 +420,10 @@ function SimpleModal({ isOpen, onClose, title, children, icon: Icon, color = "bl
                   <span className="text-2xl leading-none text-slate-400">&times;</span>
               </button>
           </div>
-          <div className="p-6 max-h-[60vh] overflow-y-auto">
+          <div className="p-6 overflow-y-auto flex-1">
               {children}
           </div>
-          <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end">
+          <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end flex-shrink-0">
               <button onClick={onClose} className="px-6 py-2 bg-slate-900 text-white rounded-xl font-bold text-sm hover:bg-slate-800 transition-colors">Close</button>
           </div>
        </div>

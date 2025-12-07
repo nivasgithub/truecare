@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { UserProfile } from '../types';
 import { Icons } from './ui';
 
@@ -14,6 +14,21 @@ interface NavbarProps {
 
 export default function Navbar({ onHomeClick, currentView, user, onSignIn, onLogout, onSettingsClick, onLiveClick }: NavbarProps) {
   
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
   const scrollToSection = (id: string) => {
     const element = document.getElementById(id);
     if (element) {
@@ -23,6 +38,12 @@ export default function Navbar({ onHomeClick, currentView, user, onSignIn, onLog
 
   const handleSettings = () => {
       if (onSettingsClick) onSettingsClick();
+      setIsDropdownOpen(false);
+  };
+
+  const handleLogout = () => {
+      if (onLogout) onLogout();
+      setIsDropdownOpen(false);
   };
 
   return (
@@ -47,7 +68,7 @@ export default function Navbar({ onHomeClick, currentView, user, onSignIn, onLog
                   </>
                 ) : (
                   <button onClick={onHomeClick} className="cursor-pointer hover:text-slate-900 transition-colors">
-                    {user ? 'Dashboard' : 'Home'}
+                    Home
                   </button>
                 )}
               </div>
@@ -64,23 +85,35 @@ export default function Navbar({ onHomeClick, currentView, user, onSignIn, onLog
 
                 {user ? (
                   <div className="flex items-center gap-4">
-                     {/* Settings Button - Only visible if logged in */}
-                    <button 
-                       onClick={handleSettings}
-                       className="p-2 text-slate-400 hover:text-slate-700 transition-colors rounded-full hover:bg-slate-100"
-                       title="Settings & Administration"
-                    >
-                       <Icons.Settings className="w-5 h-5" />
-                    </button>
+                    <div className="relative" ref={dropdownRef}>
+                      <button 
+                          onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                          className="flex items-center gap-3 pl-4 border-l border-slate-200 focus:outline-none group"
+                      >
+                          <div className="flex flex-col items-end hidden sm:flex">
+                              <span className="text-sm font-bold text-slate-900 leading-tight">{user.name}</span>
+                              <span className="text-xs text-slate-500 group-hover:text-blue-600">My Account</span>
+                          </div>
+                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-100 to-cyan-100 border-2 border-white shadow-sm flex items-center justify-center text-blue-700 font-bold overflow-hidden">
+                              {user.avatarUrl ? <img src={user.avatarUrl} alt="User" className="w-full h-full object-cover" /> : user.name[0]}
+                          </div>
+                          <Icons.ChevronDown className="w-4 h-4 text-slate-400 group-hover:text-slate-600 transition-colors" />
+                      </button>
 
-                    <div className="flex items-center gap-3 pl-4 border-l border-slate-200">
-                      <div className="flex flex-col items-end hidden sm:flex">
-                        <span className="text-sm font-bold text-slate-900 leading-tight">{user.name}</span>
-                        <button onClick={onLogout} className="text-xs text-slate-500 hover:text-red-500">Sign Out</button>
-                      </div>
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-100 to-cyan-100 border-2 border-white shadow-sm flex items-center justify-center text-blue-700 font-bold">
-                        {user.avatarUrl ? <img src={user.avatarUrl} alt="User" className="w-full h-full rounded-full" /> : user.name[0]}
-                      </div>
+                      {isDropdownOpen && (
+                          <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-xl shadow-xl border border-slate-100 py-2 z-50 animate-fade-in-up origin-top-right">
+                              <div className="px-4 py-2 border-b border-slate-50 mb-1 sm:hidden">
+                                <p className="font-bold text-slate-900">{user.name}</p>
+                                <p className="text-xs text-slate-500 truncate">{user.email}</p>
+                              </div>
+                              <button onClick={handleSettings} className="w-full text-left px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 flex items-center gap-3 transition-colors">
+                                  <Icons.Settings className="w-4 h-4 text-slate-400" /> Settings
+                              </button>
+                               <button onClick={handleLogout} className="w-full text-left px-4 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 flex items-center gap-3 transition-colors border-t border-slate-50 mt-1">
+                                  <Icons.LogOut className="w-4 h-4" /> Sign Out
+                              </button>
+                          </div>
+                      )}
                     </div>
                   </div>
                 ) : (
