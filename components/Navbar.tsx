@@ -46,7 +46,9 @@ export default function Navbar({ onHomeClick, currentView, user, onSignIn, onLog
                     <button onClick={() => scrollToSection('safety')} className="cursor-pointer hover:text-slate-900 transition-colors">Safety</button>
                   </>
                 ) : (
-                  <button onClick={onHomeClick} className="cursor-pointer hover:text-slate-900 transition-colors">Home</button>
+                  <button onClick={onHomeClick} className="cursor-pointer hover:text-slate-900 transition-colors">
+                    {user ? 'Dashboard' : 'Home'}
+                  </button>
                 )}
               </div>
               

@@ -590,4 +590,24 @@ export default function CareTransiaResults({ data, consistency, carePlan, onRese
                  {chatOpen ? (
                      <span className="text-3xl leading-none px-1">&times;</span>
                  ) : (
-                     <><Icons.Sparkle className="w-7 h-7 group-hover:rotate-12 transition-transform" /> <span className="hidden md:inline pr-1 text-lg">Ask AI</span>
+                     <><Icons.Sparkle className="w-7 h-7 group-hover:rotate-12 transition-transform" /> <span className="hidden md:inline pr-1 text-lg">Ask AI</span></>
+                 )}
+             </button>
+         </div>
+      )}
+
+      {/* Dev Debug Toggle */}
+      <div className="mt-12 pt-8 border-t border-slate-200 opacity-50 hover:opacity-100 transition-opacity">
+        <button onClick={() => setShowDebug(!showDebug)} className="text-slate-400 text-xs hover:text-slate-600">
+          {showDebug ? 'Hide Debug' : 'Show Debug Data'}
+        </button>
+        {showDebug && (
+          <pre className="mt-4 p-4 bg-slate-900 text-slate-300 rounded-xl overflow-auto text-xs max-h-64">
+            {JSON.stringify({ data, consistency, carePlan }, null, 2)}
+          </pre>
+        )}
+      </div>
+
+    </div>
+  );
+}

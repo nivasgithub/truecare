@@ -95,7 +95,7 @@ export default function CareTransiaLandingPage({ onGetStarted }: CareTransiaLand
       </section>
 
       {/* --- 3. HOW IT WORKS --- */}
-      <section className="bg-white py-24 border-y border-slate-100">
+      <section id="how-it-works" className="bg-white py-24 border-y border-slate-100">
           <div className="max-w-7xl mx-auto px-4">
              <div className="text-center mb-16">
                 <h2 className="text-3xl md:text-4xl font-bold text-slate-900">How CareTransia works</h2>
@@ -180,7 +180,7 @@ export default function CareTransiaLandingPage({ onGetStarted }: CareTransiaLand
       </section>
 
       {/* --- 6. SAFETY & TRUST --- */}
-      <section className="max-w-4xl mx-auto px-4 pb-24 text-center">
+      <section id="safety" className="max-w-4xl mx-auto px-4 pb-24 text-center">
           <div className="bg-blue-50/50 border border-blue-100 rounded-3xl p-8 md:p-12">
              <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-6">
                 <Icons.Shield className="w-8 h-8" />
