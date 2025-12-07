@@ -1,9 +1,9 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Card, Badge, Icons, Button } from './ui';
-import { ParsedEpisode, ConsistencyReport, FormattedCarePlan, ChatMessage } from '../types';
-import { queryCarePlan } from '../services/planner';
+import { ParsedEpisode, ConsistencyReport, FormattedCarePlan } from '../types';
 import { generateRecoveryVideo } from '../services/video';
-import { generateSpeech, generateImage, editImage, playRawAudio } from '../services/media';
+import { generateSpeech, generateImage, editImage, playRawAudio, stopAudio } from '../services/media';
+import AssistantChat from './AssistantChat';
 
 interface CareTransiaResultsProps {
   data: ParsedEpisode;
@@ -15,13 +15,10 @@ interface CareTransiaResultsProps {
 export default function CareTransiaResults({ data, consistency, carePlan, onReset }: CareTransiaResultsProps) {
   
   const [view, setView] = useState<'playbook' | 'clinical'>('playbook'); 
-  const [showDebug, setShowDebug] = useState(false);
   const hasIssues = consistency?.status === 'success' && (consistency.conflicts.length > 0 || consistency.gaps.length > 0);
 
   // Deep Safety Fallback for Plan Data
-  // Ensures safePlan is fully populated with arrays even if the API returns partial/malformed data
   const rawFriendlyPlan = (carePlan?.patient_friendly_plan || {}) as any;
-  
   const safePlan = {
     today_and_tomorrow: Array.isArray(rawFriendlyPlan.today_and_tomorrow) ? rawFriendlyPlan.today_and_tomorrow : [],
     daily_routine: Array.isArray(rawFriendlyPlan.daily_routine) ? rawFriendlyPlan.daily_routine : [],
@@ -30,18 +27,8 @@ export default function CareTransiaResults({ data, consistency, carePlan, onRese
     doctor_questions: Array.isArray(rawFriendlyPlan.doctor_questions) ? rawFriendlyPlan.doctor_questions : []
   };
 
-  // If the plan generated an error, show it
   const planError = carePlan?.status === 'error' ? carePlan.error_message : null;
 
-  // Chat State
-  const [chatOpen, setChatOpen] = useState(false);
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    { id: '1', role: 'model', text: `Hi! I've reviewed ${data.patient?.name || 'the patient'}'s discharge plan. Ask me anything about medications, appointments, or what to do next.`, timestamp: Date.now() }
-  ]);
-  const [input, setInput] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
-  const chatEndRef = useRef<HTMLDivElement>(null);
-  
   // Media State
   const [mediaPrompt, setMediaPrompt] = useState('');
   const [isGeneratingMedia, setIsGeneratingMedia] = useState(false);
@@ -52,70 +39,35 @@ export default function CareTransiaResults({ data, consistency, carePlan, onRese
   // TTS State
   const [ttsStatus, setTtsStatus] = useState<'idle' | 'generating' | 'playing'>('idle');
 
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, chatOpen]);
-
-  const handleSend = async () => {
-    if (!input.trim() || !carePlan) return;
-    
-    const userMsg: ChatMessage = { id: Date.now().toString(), role: 'user', text: input, timestamp: Date.now() };
-    setMessages(prev => [...prev, userMsg]);
-    setInput('');
-    setIsTyping(true);
-
-    try {
-      const result = await queryCarePlan(carePlan, messages, userMsg.text);
-      let groundingText = "";
-      if (result.groundingMetadata?.groundingChunks) {
-         const chunks = result.groundingMetadata.groundingChunks;
-         const links: string[] = [];
-         chunks.forEach((c: any) => {
-             if (c.web?.uri) links.push(`[${c.web.title || 'Source'}](${c.web.uri})`);
-             if (c.maps?.uri) links.push(`[${c.maps.title || 'Map Location'}](${c.maps.uri})`);
-         });
-         if (links.length > 0) {
-             groundingText = "\n\n**Sources:**\n" + links.join("\n");
-         }
-      }
-
-      const botMsg: ChatMessage = { 
-          id: (Date.now() + 1).toString(), 
-          role: 'model', 
-          text: result.text + groundingText, 
-          timestamp: Date.now() 
-      };
-      setMessages(prev => [...prev, botMsg]);
-    } catch (e) {
-      console.error(e);
-      setMessages(prev => [...prev, { id: Date.now().toString(), role: 'model', text: "Sorry, I encountered an error. Please try again.", timestamp: Date.now() }]);
-    } finally {
-      setIsTyping(false);
-    }
-  };
+  // Chat State
+  const [chatOpen, setChatOpen] = useState(false);
 
   const playTTS = async (text: string) => {
-    if (ttsStatus !== 'idle') return;
+    if (ttsStatus !== 'idle') {
+        stopAudio();
+        setTtsStatus('idle');
+        return;
+    }
     
     setTtsStatus('generating');
     try {
-         // simplistic strip: remove * and # and links for reading
          const cleanText = text.replace(/[*#]/g, '').replace(/\[(.*?)\]\(.*?\)/g, '$1');
-         
          const base64Audio = await generateSpeech(cleanText);
-         
          setTtsStatus('playing');
          await playRawAudio(base64Audio);
-
+         setTtsStatus('idle'); // Resolved when audio finishes
     } catch(e) {
          console.error("TTS Error", e);
-    } finally {
          setTtsStatus('idle');
     }
   };
 
   const handleMainReadAloud = () => {
-     // Safe access to array join
+     if (ttsStatus === 'playing') {
+         playTTS(""); // Toggle stop
+         return;
+     }
+
      const questions = safePlan.doctor_questions.length > 0 
         ? `Questions you might want to ask your doctor: ${safePlan.doctor_questions.join(". ")}`
         : "";
@@ -195,7 +147,7 @@ export default function CareTransiaResults({ data, consistency, carePlan, onRese
   };
 
   return (
-    <div className="animate-fade-in space-y-8 pb-32 max-w-6xl mx-auto">
+    <div className="animate-fade-in space-y-8 pb-32 max-w-6xl mx-auto relative">
       
       {/* Dashboard Header */}
       <div className="bg-white rounded-3xl p-8 border border-slate-100 shadow-lg shadow-slate-100/50 flex flex-col md:flex-row md:items-end justify-between gap-6">
@@ -213,14 +165,13 @@ export default function CareTransiaResults({ data, consistency, carePlan, onRese
         <div className="flex gap-3">
             <button 
                 onClick={handleMainReadAloud}
-                disabled={ttsStatus !== 'idle'}
-                className="bg-slate-50 hover:bg-slate-100 text-slate-700 p-4 rounded-2xl transition-colors disabled:opacity-50 border border-slate-200"
-                title="Read Aloud Summary"
+                className={`bg-slate-50 hover:bg-slate-100 text-slate-700 p-4 rounded-2xl transition-colors border border-slate-200 ${ttsStatus === 'playing' ? 'text-red-600 border-red-200 hover:bg-red-50' : ''}`}
+                title={ttsStatus === 'playing' ? "Stop Reading" : "Read Aloud Summary"}
             >
                 {ttsStatus === 'generating' ? (
                      <div className="flex items-center gap-2"><Icons.Spinner className="w-6 h-6 text-blue-500" /> <span className="font-bold hidden md:inline">Generating...</span></div>
                 ) : ttsStatus === 'playing' ? (
-                     <div className="flex items-center gap-2"><div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div> <span className="font-bold hidden md:inline">Speaking...</span></div>
+                     <div className="flex items-center gap-2"><Icons.Stop className="w-6 h-6" /> <span className="font-bold hidden md:inline">Stop</span></div>
                 ) : (
                      <div className="flex items-center gap-2"><Icons.Speaker className="w-6 h-6" /> <span className="font-bold hidden md:inline">Read Aloud</span></div>
                 )}
@@ -383,7 +334,6 @@ export default function CareTransiaResults({ data, consistency, carePlan, onRese
                         <Button 
                             variant="secondary" 
                             onClick={() => playTTS(`Questions you should ask your doctor: ${safePlan.doctor_questions.join(". ")}`)}
-                            disabled={ttsStatus !== 'idle'}
                             className="text-indigo-600 text-sm py-2 hover:bg-indigo-50 border-indigo-200"
                         >
                             <Icons.Speaker className="w-4 h-4" /> Listen to Questions
@@ -408,206 +358,66 @@ export default function CareTransiaResults({ data, consistency, carePlan, onRese
                         <div className="space-y-4">
                             <textarea
                                 value={mediaPrompt}
-                                onChange={(e) => setMediaPrompt(e.target.value)}
-                                placeholder="Describe your recovery goal (e.g., 'Playing catch with my dog in the park')..."
-                                className="w-full px-6 py-4 rounded-2xl border border-purple-200 focus:ring-4 focus:ring-purple-100 outline-none h-28 resize-none text-lg placeholder-purple-300"
+                                onChange={e => setMediaPrompt(e.target.value)}
+                                placeholder="Describe your goal (e.g., 'Walking in a sunny park with my dog')"
+                                className="w-full p-4 rounded-xl border border-slate-200 focus:border-purple-400 focus:ring-2 focus:ring-purple-100 outline-none h-28 resize-none bg-white/50 backdrop-blur-sm"
                             />
                             
-                            <div className="flex gap-3">
-                                {generatedImage ? (
-                                    <>
-                                        <Button onClick={handleGenerateImage} disabled={isGeneratingMedia} variant="secondary" className="text-sm py-3">New</Button>
-                                        <Button onClick={handleEditImage} disabled={isGeneratingMedia} variant="secondary" className="text-sm py-3">Edit (Flash)</Button>
-                                        <Button onClick={handleAnimateImage} disabled={isGeneratingMedia} className="bg-purple-600 hover:bg-purple-700 text-white text-sm py-3 px-6 shadow-lg shadow-purple-200">
-                                            {isGeneratingMedia ? "Processing..." : "Animate (Veo)"}
-                                        </Button>
-                                    </>
-                                ) : (
-                                    <Button onClick={handleGenerateImage} disabled={isGeneratingMedia || !mediaPrompt} className="bg-purple-600 hover:bg-purple-700 text-white flex-1 py-4 text-lg font-bold shadow-lg shadow-purple-200 rounded-xl">
-                                        {isGeneratingMedia ? <Icons.Spinner /> : "Generate Image"}
-                                    </Button>
-                                )}
+                            <div className="flex flex-wrap gap-2">
+                                <Button onClick={handleGenerateImage} disabled={!mediaPrompt || isGeneratingMedia}>
+                                    {isGeneratingMedia && !generatedImage ? <Icons.Spinner /> : <Icons.Camera className="w-5 h-5" />} Generate Image
+                                </Button>
+                                <Button onClick={handleEditImage} disabled={!generatedImage || isGeneratingMedia} variant="secondary">
+                                    <Icons.Sparkle className="w-5 h-5 text-purple-500" /> Edit Image
+                                </Button>
+                                <Button onClick={handleAnimateImage} disabled={!generatedImage || isGeneratingMedia} variant="secondary">
+                                    <Icons.Maximize className="w-5 h-5 text-blue-500" /> Animate (Veo)
+                                </Button>
                             </div>
                         </div>
                     </div>
-                    
-                    <div className="w-full md:w-1/3 aspect-video bg-white rounded-2xl overflow-hidden flex items-center justify-center shadow-inner border border-purple-100 relative">
-                        {videoUrl ? (
-                            <video src={videoUrl} controls autoPlay loop className="w-full h-full object-cover" />
-                        ) : generatedImage ? (
-                            <img src={generatedImage} alt="Recovery Goal" className="w-full h-full object-cover" />
-                        ) : (
-                            <div className="text-center p-6 opacity-40">
-                                <Icons.Camera className="w-12 h-12 mx-auto mb-2 text-purple-300" />
-                                <p className="text-purple-400 font-medium">Preview Area</p>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            </Card>
 
-          </div>
-          
-          <div className="flex justify-center pt-10">
-            <Button variant="secondary" onClick={onReset} className="text-red-500 border-red-100 hover:bg-red-50 px-8 py-4 rounded-xl text-lg">
-               Start Over
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {/* --- CLINICIAN VIEW --- */}
-      {view === 'clinical' && (
-        <div className="space-y-8 animate-fade-in">
-           {/* ... existing clinician view code ... */}
-          <Card className="p-8 border-l-8 border-l-blue-600 rounded-3xl">
-            <div className="flex items-center gap-4 mb-6">
-                <div className="bg-blue-50 p-3 rounded-2xl text-blue-700">
-                    <Icons.User className="w-6 h-6" />
-                </div>
-                <h2 className="text-2xl font-bold text-slate-900">Clinical Summary</h2>
-            </div>
-            {carePlan?.technical_summary_for_clinicians ? (
-                <div className="prose prose-slate max-w-none prose-lg">
-                    <p className="leading-relaxed text-slate-700">
-                        {carePlan.technical_summary_for_clinicians}
-                    </p>
-                </div>
-            ) : (
-                <p className="text-slate-400 italic">No summary generated.</p>
-            )}
-          </Card>
-          
-          {hasIssues && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {[...(consistency?.conflicts || []), ...(consistency?.gaps || [])].map((issue, i) => (
-                  <div key={i} className={`p-6 rounded-3xl border-l-8 shadow-sm bg-white ${issue.severity === 'critical' ? 'border-l-red-500 border-red-100' : 'border-l-amber-400 border-amber-100'}`}>
-                    <div className="flex justify-between items-start mb-3">
-                      <Badge color={issue.severity === 'critical' ? 'red' : 'amber'}>{issue.type}</Badge>
-                    </div>
-                    <p className="font-bold text-slate-900 text-lg mb-2">{issue.summary}</p>
-                    <p className="text-base text-slate-600 leading-relaxed">{issue.details}</p>
-                  </div>
-                ))}
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-            <Card className="overflow-hidden rounded-3xl">
-                <div className="bg-slate-50 p-6 border-b border-slate-100 font-bold text-slate-700 text-lg">Medications ({data.medications.length})</div>
-                <div className="divide-y divide-slate-100">
-                    {data.medications.map((m, i) => (
-                        <div key={i} className="p-6 hover:bg-slate-50">
-                            <div className="flex justify-between items-baseline mb-1">
-                                <span className="font-bold text-slate-900 text-xl">{m.name}</span> 
-                                <span className="text-base font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">{m.dose}</span>
-                            </div>
-                            <div className="text-base text-slate-600">{m.frequency} • {m.route}</div>
-                        </div>
-                    ))}
-                </div>
-            </Card>
-             <Card className="overflow-hidden rounded-3xl">
-                <div className="bg-slate-50 p-6 border-b border-slate-100 font-bold text-slate-700 text-lg">Instructions & Follow-up</div>
-                <div className="divide-y divide-slate-100">
-                    {data.appointments.map((a, i) => (
-                        <div key={i} className="p-6 hover:bg-slate-50">
-                            <div className="font-bold text-blue-600 text-sm uppercase tracking-wide mb-1">{a.target_date_or_window}</div>
-                            <div className="text-slate-900 font-bold text-lg">{a.specialty_or_clinic || 'Follow-up'}</div>
-                        </div>
-                    ))}
-                </div>
-            </Card>
-          </div>
-        </div>
-      )}
-
-      {/* --- AI ASSISTANT CHAT --- */}
-      {view === 'playbook' && (
-         <div className="fixed bottom-6 right-6 z-40 flex flex-col items-end gap-4">
-             {chatOpen && (
-                 <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-80 md:w-96 h-[500px] flex flex-col overflow-hidden animate-fade-in-up">
-                    <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-5 text-white flex justify-between items-center">
-                        <div className="flex items-center gap-2 font-bold text-lg">
-                            <Icons.Sparkle className="w-5 h-5" /> CareTransia Assistant
-                        </div>
-                        <button onClick={() => setChatOpen(false)} className="hover:bg-white/20 p-1.5 rounded-full transition-colors"><span className="text-2xl leading-none">&times;</span></button>
-                    </div>
-                    <div className="flex-1 p-5 overflow-y-auto bg-slate-50 space-y-4">
-                        {messages.map((m) => (
-                            <div key={m.id} className={`flex items-end gap-2 ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                                {m.role === 'model' && (
-                                    <div className={`max-w-[85%] p-4 rounded-2xl text-base shadow-sm bg-white border border-slate-200 text-slate-800 rounded-bl-none`}>
-                                        <div dangerouslySetInnerHTML={{ __html: m.text.replace(/\n/g, '<br/>').replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank" class="underline font-bold hover:text-blue-200">$1</a>') }} />
-                                    </div>
-                                )}
-                                {m.role === 'model' && (
-                                   <button 
-                                      onClick={() => playTTS(m.text)} 
-                                      disabled={ttsStatus !== 'idle'} 
-                                      className="p-2 bg-slate-100 rounded-full text-slate-400 hover:text-blue-600 mb-1 hover:bg-blue-50 transition-colors flex-shrink-0"
-                                      title="Read Aloud"
-                                   >
-                                      {ttsStatus === 'generating' ? <Icons.Spinner className="w-4 h-4 text-blue-500" /> : <Icons.Speaker className="w-4 h-4" />}
-                                   </button>
-                                )}
-                                {m.role === 'user' && (
-                                    <div className={`max-w-[85%] p-4 rounded-2xl text-base shadow-sm bg-blue-600 text-white rounded-br-none`}>
-                                        <div dangerouslySetInnerHTML={{ __html: m.text.replace(/\n/g, '<br/>') }} />
-                                    </div>
-                                )}
-                            </div>
-                        ))}
-                        {isTyping && (
-                            <div className="flex justify-start">
-                                <div className="bg-white border border-slate-200 p-4 rounded-2xl rounded-bl-none shadow-sm flex gap-1.5 items-center">
-                                    <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce"></span>
-                                    <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce delay-100"></span>
-                                    <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce delay-200"></span>
+                    <div className="flex-1 w-full flex items-center justify-center">
+                        <div className="w-full aspect-video bg-slate-100 rounded-2xl border-2 border-dashed border-purple-200 flex items-center justify-center overflow-hidden relative shadow-inner">
+                            {isGeneratingMedia ? (
+                                <div className="text-purple-500 animate-pulse flex flex-col items-center">
+                                    <Icons.Sparkle className="w-10 h-10 mb-2 spin-slow" />
+                                    <span className="font-bold">Creating Magic...</span>
                                 </div>
-                            </div>
-                        )}
-                        <div ref={chatEndRef} />
+                            ) : videoUrl ? (
+                                <video src={videoUrl} controls autoPlay loop className="w-full h-full object-cover" />
+                            ) : generatedImage ? (
+                                <img src={generatedImage} alt="Generated Goal" className="w-full h-full object-cover" />
+                            ) : (
+                                <div className="text-slate-400 text-center p-6">
+                                    <Icons.Camera className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                                    <p className="text-sm font-medium">Your vision will appear here</p>
+                                </div>
+                            )}
+                        </div>
                     </div>
-                    <div className="p-4 bg-white border-t border-slate-100 flex gap-3">
-                        <input 
-                            value={input}
-                            onChange={e => setInput(e.target.value)}
-                            onKeyDown={e => e.key === 'Enter' && handleSend()}
-                            placeholder="Ask about your plan..."
-                            className="flex-1 bg-slate-100 rounded-full px-5 py-3 text-base outline-none focus:ring-2 focus:ring-blue-500 border border-transparent focus:border-blue-200"
-                        />
-                        <button onClick={handleSend} disabled={!input.trim()} className="p-3 bg-blue-600 text-white rounded-full hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-lg shadow-blue-200">
-                            <Icons.Send className="w-5 h-5" />
-                        </button>
-                    </div>
-                 </div>
-             )}
-             <button 
-                onClick={() => setChatOpen(!chatOpen)}
-                className="bg-gradient-to-tr from-blue-600 to-purple-600 text-white p-5 rounded-full shadow-2xl shadow-blue-500/40 hover:scale-110 transition-transform font-bold flex items-center gap-3 group"
-             >
-                 {chatOpen ? (
-                     <span className="text-3xl leading-none px-1">&times;</span>
-                 ) : (
-                     <><Icons.Sparkle className="w-7 h-7 group-hover:rotate-12 transition-transform" /> <span className="hidden md:inline pr-1 text-lg">Ask AI</span></>
-                 )}
-             </button>
-         </div>
+                </div>
+            </Card>
+
+          </div>
+        </div>
       )}
+      
+      {/* Floating Assistant Button (FAB) */}
+      <button 
+        onClick={() => setChatOpen(!chatOpen)}
+        className="fixed bottom-24 right-6 z-40 bg-gradient-to-tr from-blue-600 to-purple-600 text-white p-4 rounded-full shadow-xl shadow-blue-500/40 hover:scale-110 transition-transform active:scale-95 animate-fade-in-up"
+        title="Chat with Assistant"
+      >
+        <Icons.Sparkle className="w-6 h-6" />
+      </button>
 
-      {/* Dev Debug Toggle */}
-      <div className="mt-12 pt-8 border-t border-slate-200 opacity-50 hover:opacity-100 transition-opacity">
-        <button onClick={() => setShowDebug(!showDebug)} className="text-slate-400 text-xs hover:text-slate-600">
-          {showDebug ? 'Hide Debug' : 'Show Debug Data'}
-        </button>
-        {showDebug && (
-          <pre className="mt-4 p-4 bg-slate-900 text-slate-300 rounded-xl overflow-auto text-xs max-h-64">
-            {JSON.stringify({ data, consistency, carePlan }, null, 2)}
-          </pre>
-        )}
-      </div>
-
+      <AssistantChat 
+          isOpen={chatOpen} 
+          onClose={() => setChatOpen(false)} 
+          carePlan={carePlan} 
+          patientName={data.patient?.name || undefined}
+      />
     </div>
   );
 }

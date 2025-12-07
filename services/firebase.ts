@@ -19,6 +19,7 @@ import type {
   FormattedCarePlan,
   HistoricalRecord,
 } from "../types";
+import { dbService } from "./db";
 
 // --- Firebase Config ---
 const firebaseConfig = {
@@ -51,8 +52,8 @@ try {
 }
 
 // --- Custom Auth State Management (LocalStorage + Events) ---
+// Auth tokens are small, so LocalStorage is still appropriate here.
 const STORAGE_KEY = 'caretransia_user_session';
-const LOCAL_PLANS_KEY = 'caretransia_local_plans';
 
 export const getCurrentUser = () => {
     try {
@@ -188,7 +189,7 @@ export const signInWithGoogle = async () => { alert("Google Sign-In disabled in 
 export const startPhoneLogin = async () => { alert("Phone Auth disabled in Demo mode."); };
 export const auth = {}; 
 
-// --- Care Plan Persistence (Hybrid: Firestore + LocalStorage Fallback) ---
+// --- Care Plan Persistence (Hybrid: Firestore + IndexedDB Fallback) ---
 
 export const saveCarePlanToDb = async (
   userId: string,
@@ -245,7 +246,8 @@ export const saveCarePlanToDb = async (
       console.log("Firestore not available (db is null). Skipping cloud save.");
   }
 
-  // 2. Fallback to LocalStorage if Firestore failed
+  // 2. Fallback to IndexedDB if Firestore failed
+  // Using IndexedDB ensures we can store large AI context data that might exceed LocalStorage limits
   if (!savedId) {
       try {
           const localId = `local-${Date.now()}`;
@@ -256,15 +258,11 @@ export const saveCarePlanToDb = async (
               createdAt: Date.now() 
           };
           
-          const existingData = localStorage.getItem(LOCAL_PLANS_KEY);
-          const existingRecords = existingData ? JSON.parse(existingData) : [];
-          
-          localStorage.setItem(LOCAL_PLANS_KEY, JSON.stringify([localRecord, ...existingRecords]));
-          
+          await dbService.savePlan(localRecord);
           savedId = localId;
-          console.log("Record saved to LocalStorage successfully.");
+          console.log("Record saved to IndexedDB successfully.");
       } catch (e) {
-          console.error("LocalStorage save failed.", e);
+          console.error("IndexedDB save failed.", e);
       }
   }
 
@@ -298,22 +296,18 @@ export const fetchUserRecords = async (
     }
   }
 
-  // 2. Fetch from LocalStorage and Merge
+  // 2. Fetch from IndexedDB and Merge
   try {
-      const localData = localStorage.getItem(LOCAL_PLANS_KEY);
-      if (localData) {
-          const localRecords = JSON.parse(localData);
-          const userLocalRecords = localRecords
-            .filter((r: any) => r.userId === userId)
-            .map((r: any) => ({
-                ...r,
-                _sortTime: r.createdAt || 0
-            }));
-          
-          combinedRecords = [...combinedRecords, ...userLocalRecords];
-      }
+      const userLocalRecords = await dbService.getUserPlans(userId);
+      // Map to consistent format if needed, adding _sortTime for sorting
+      const mappedLocal = userLocalRecords.map(r => ({
+          ...r,
+          _sortTime: r.createdAt || 0
+      }));
+      
+      combinedRecords = [...combinedRecords, ...mappedLocal];
   } catch (e) {
-      console.error("LocalStorage fetch error", e);
+      console.error("IndexedDB fetch error", e);
   }
 
   // 3. Sort Combined List (Newest First)

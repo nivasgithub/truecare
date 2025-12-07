@@ -8,6 +8,7 @@ export { parseDischargeDocuments, identifyPatientFromFiles } from "./services/ex
 export { checkConsistency } from "./services/safety";
 export { generateCarePlan, queryCarePlan } from "./services/planner";
 export { generateRecoveryVideo } from "./services/video";
+export { dbService } from "./services/db";
 
 // --- CareTransia Orchestration API ---
 

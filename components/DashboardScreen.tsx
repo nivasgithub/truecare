@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { Card, Icons, Button } from './ui';
-import { UserProfile, HistoricalRecord } from '../types';
+import { UserProfile, HistoricalRecord, ParsedEpisode, FormattedCarePlan } from '../types';
 import { fetchUserRecords } from '../services/firebase';
+import AssistantChat from './AssistantChat';
 
 interface DashboardScreenProps {
   user: UserProfile;
@@ -13,6 +14,11 @@ export default function DashboardScreen({ user, onViewRecord, onNewPlan }: Dashb
   
   const [records, setRecords] = useState<HistoricalRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // UI State for Modals & Assistant
+  const [showReminders, setShowReminders] = useState(false);
+  const [showWarnings, setShowWarnings] = useState(false);
+  const [showAssistant, setShowAssistant] = useState(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -30,8 +36,23 @@ export default function DashboardScreen({ user, onViewRecord, onNewPlan }: Dashb
   const activeRecord = records.find(r => r.status === 'active');
   const pastRecords = records.filter(r => r.id !== activeRecord?.id);
 
+  // Parse active record data for Assistant & Modals
+  const parsedData = useMemo(() => {
+    if (!activeRecord?.fullData) return null;
+    try {
+      const json = JSON.parse(activeRecord.fullData);
+      return {
+        parsedEpisode: json.parsed as ParsedEpisode,
+        carePlan: json.plan as FormattedCarePlan
+      };
+    } catch (e) {
+      console.error("Failed to parse active record data", e);
+      return null;
+    }
+  }, [activeRecord]);
+
   return (
-    <div className="animate-fade-in pb-24 max-w-5xl mx-auto">
+    <div className="animate-fade-in pb-24 max-w-5xl mx-auto relative">
       
       {/* 1. Header */}
       <div className="mb-8 md:flex md:items-end md:justify-between">
@@ -72,7 +93,15 @@ export default function DashboardScreen({ user, onViewRecord, onNewPlan }: Dashb
                                 <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
                                 Active Recovery
                             </div>
-                            <Icons.ArrowRight className="w-6 h-6 text-white group-hover:translate-x-1 transition-all" />
+                            <button 
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onViewRecord(activeRecord.id, activeRecord.fullData);
+                                }}
+                                className="p-2 rounded-full hover:bg-white/10 transition-colors"
+                            >
+                                <Icons.ArrowRight className="w-6 h-6 text-white group-hover:translate-x-1 transition-transform" />
+                            </button>
                         </div>
 
                         <h2 className="text-3xl font-bold mb-2">{activeRecord.primaryCondition}</h2>
@@ -105,7 +134,7 @@ export default function DashboardScreen({ user, onViewRecord, onNewPlan }: Dashb
                 </div>
             )}
 
-            {/* 3. Daily Checklist Placeholder - Static for Demo, could be dynamic */}
+            {/* 3. Daily Checklist Placeholder */}
             {activeRecord && (
               <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 md:p-8">
                   <div className="flex items-center gap-3 mb-6">
@@ -119,9 +148,12 @@ export default function DashboardScreen({ user, onViewRecord, onNewPlan }: Dashb
                   </div>
 
                   <div className="space-y-3">
-                      <TaskItem label="Morning Medication" time="8:00 AM" status="pending" />
-                      <TaskItem label="Review Warning Signs" time="10:00 AM" status="completed" />
-                      <TaskItem label="Evening Medication" time="8:00 PM" status="pending" />
+                      {parsedData?.carePlan?.patient_friendly_plan?.daily_routine?.slice(0, 3).map((item, i) => (
+                          <TaskItem key={i} label={item} status="pending" />
+                      ))}
+                      {(!parsedData?.carePlan?.patient_friendly_plan?.daily_routine || parsedData.carePlan.patient_friendly_plan.daily_routine.length === 0) && (
+                          <p className="text-slate-400 italic">No specific daily routine found in the plan.</p>
+                      )}
                   </div>
               </div>
             )}
@@ -142,7 +174,7 @@ export default function DashboardScreen({ user, onViewRecord, onNewPlan }: Dashb
                         <span className="text-sm font-bold">Add Papers</span>
                     </button>
                     <button 
-                        onClick={() => activeRecord && onViewRecord(activeRecord.id, activeRecord.fullData)}
+                        onClick={() => setShowReminders(true)}
                         disabled={!activeRecord}
                         className={`p-4 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-2xl flex flex-col items-center justify-center gap-2 transition-colors ${!activeRecord ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
@@ -150,7 +182,7 @@ export default function DashboardScreen({ user, onViewRecord, onNewPlan }: Dashb
                          <span className="text-sm font-bold">Reminders</span>
                     </button>
                     <button 
-                        onClick={() => activeRecord && onViewRecord(activeRecord.id, activeRecord.fullData)}
+                        onClick={() => setShowWarnings(true)}
                         disabled={!activeRecord}
                         className={`col-span-2 p-4 bg-red-50 hover:bg-red-100 text-red-700 rounded-2xl flex items-center justify-center gap-3 transition-colors ${!activeRecord ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
@@ -160,7 +192,7 @@ export default function DashboardScreen({ user, onViewRecord, onNewPlan }: Dashb
                 </div>
              </div>
 
-             {/* 5. Past Records (Collapsed view) */}
+             {/* 5. Past Records */}
              <div className="bg-slate-50 rounded-3xl border border-slate-200 p-6">
                 <div className="flex items-center justify-between mb-4">
                     <h3 className="font-bold text-slate-700">Past Records</h3>
@@ -184,15 +216,96 @@ export default function DashboardScreen({ user, onViewRecord, onNewPlan }: Dashb
              </div>
 
           </div>
-
       </div>
+
+      {/* Floating Assistant Button (FAB) */}
+      <button 
+        onClick={() => setShowAssistant(!showAssistant)}
+        className="fixed bottom-24 right-6 z-40 bg-gradient-to-tr from-blue-600 to-purple-600 text-white p-4 rounded-full shadow-xl shadow-blue-500/40 hover:scale-110 transition-transform active:scale-95"
+        title="Chat with Assistant"
+      >
+        <Icons.Sparkle className="w-6 h-6" />
+      </button>
+
+      {/* --- MODALS --- */}
+      
+      {/* Assistant Modal */}
+      <AssistantChat 
+          isOpen={showAssistant} 
+          onClose={() => setShowAssistant(false)}
+          carePlan={parsedData?.carePlan || null}
+          patientName={parsedData?.parsedEpisode?.patient?.name || user.name}
+      />
+
+      {/* Reminders Modal */}
+      <SimpleModal 
+          isOpen={showReminders} 
+          onClose={() => setShowReminders(false)} 
+          title="Upcoming Reminders" 
+          icon={Icons.Bell}
+          color="amber"
+      >
+          {parsedData?.parsedEpisode?.appointments && parsedData.parsedEpisode.appointments.length > 0 ? (
+             <div className="space-y-4">
+                 {parsedData.parsedEpisode.appointments.map((appt, i) => (
+                    <div key={i} className="bg-white border border-slate-100 p-4 rounded-xl shadow-sm">
+                        <div className="flex justify-between items-start">
+                            <h4 className="font-bold text-slate-900">{appt.specialty_or_clinic || 'Appointment'}</h4>
+                            <span className="text-xs font-bold bg-amber-100 text-amber-800 px-2 py-1 rounded-lg">{appt.type}</span>
+                        </div>
+                        <p className="text-slate-600 text-sm mt-1">{appt.target_date_or_window}</p>
+                        {appt.location && <p className="text-xs text-slate-400 mt-1 flex items-center gap-1">📍 {appt.location}</p>}
+                    </div>
+                 ))}
+             </div>
+          ) : (
+             <div className="text-center py-8 text-slate-500">
+                <Icons.Check className="w-12 h-12 mx-auto text-slate-200 mb-2" />
+                No specific appointments scheduled in this plan.
+             </div>
+          )}
+      </SimpleModal>
+
+      {/* Warnings Modal */}
+      <SimpleModal 
+          isOpen={showWarnings} 
+          onClose={() => setShowWarnings(false)} 
+          title="Warning Signs" 
+          icon={Icons.Alert}
+          color="red"
+      >
+           <div className="space-y-4">
+             <div className="bg-red-50 p-4 rounded-xl border border-red-100">
+                <p className="font-bold text-red-800 text-sm">Call your doctor immediately if you experience:</p>
+             </div>
+             {parsedData?.parsedEpisode?.warnings && parsedData.parsedEpisode.warnings.length > 0 ? (
+                 <ul className="space-y-3">
+                     {parsedData.parsedEpisode.warnings.map((w, i) => (
+                         <li key={i} className="flex gap-3 items-start p-3 hover:bg-slate-50 rounded-lg">
+                             <Icons.Alert className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+                             <div>
+                                <p className="font-bold text-slate-800">{w.description}</p>
+                                <p className="text-xs text-slate-500 mt-0.5 uppercase tracking-wide font-bold">{w.urgency}</p>
+                             </div>
+                         </li>
+                     ))}
+                 </ul>
+             ) : (
+                <div className="text-center py-8 text-slate-500">
+                    <Icons.Shield className="w-12 h-12 mx-auto text-slate-200 mb-2" />
+                    No critical warnings found. Always call 911 in an emergency.
+                </div>
+             )}
+           </div>
+      </SimpleModal>
+
     </div>
   );
 }
 
 // --- Helper Components ---
 
-function TaskItem({ label, time, status }: { label: string, time: string, status: 'completed' | 'pending' }) {
+function TaskItem({ label, status }: { label: string, status: 'completed' | 'pending' }) {
     const isCompleted = status === 'completed';
     return (
         <div className={`flex items-center p-3 rounded-2xl border transition-all ${isCompleted ? 'bg-slate-50 border-slate-100' : 'bg-white border-slate-200 hover:border-blue-300 cursor-pointer'}`}>
@@ -201,8 +314,39 @@ function TaskItem({ label, time, status }: { label: string, time: string, status
             </div>
             <div className="flex-1">
                 <div className={`font-bold text-base ${isCompleted ? 'text-slate-500 line-through' : 'text-slate-900'}`}>{label}</div>
-                <div className="text-xs font-bold text-slate-400">{time}</div>
             </div>
         </div>
     );
+}
+
+function SimpleModal({ isOpen, onClose, title, children, icon: Icon, color = "blue" }: any) {
+  if (!isOpen) return null;
+  const colors: any = {
+      blue: "bg-blue-50 text-blue-600",
+      red: "bg-red-50 text-red-600",
+      amber: "bg-amber-50 text-amber-600"
+  };
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+       <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden animate-scale-in">
+          <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+              <div className="flex items-center gap-3">
+                  <div className={`p-2 rounded-xl ${colors[color]}`}>
+                      {Icon && <Icon className="w-6 h-6" />}
+                  </div>
+                  <h3 className="text-xl font-bold text-slate-900">{title}</h3>
+              </div>
+              <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+                  <span className="text-2xl leading-none text-slate-400">&times;</span>
+              </button>
+          </div>
+          <div className="p-6 max-h-[60vh] overflow-y-auto">
+              {children}
+          </div>
+          <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end">
+              <button onClick={onClose} className="px-6 py-2 bg-slate-900 text-white rounded-xl font-bold text-sm hover:bg-slate-800 transition-colors">Close</button>
+          </div>
+       </div>
+    </div>
+  );
 }
