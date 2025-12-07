@@ -72,7 +72,7 @@ export default function DashboardScreen({ user, onViewRecord, onNewPlan }: Dashb
                                 <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
                                 Active Recovery
                             </div>
-                            <Icons.ArrowRight className="w-6 h-6 text-white/70 group-hover:text-white group-hover:translate-x-1 transition-all" />
+                            <Icons.ArrowRight className="w-6 h-6 text-white group-hover:translate-x-1 transition-all" />
                         </div>
 
                         <h2 className="text-3xl font-bold mb-2">{activeRecord.primaryCondition}</h2>
@@ -141,11 +141,19 @@ export default function DashboardScreen({ user, onViewRecord, onNewPlan }: Dashb
                         <Icons.Upload className="w-6 h-6" />
                         <span className="text-sm font-bold">Add Papers</span>
                     </button>
-                    <button className="p-4 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-2xl flex flex-col items-center justify-center gap-2 transition-colors">
+                    <button 
+                        onClick={() => activeRecord && onViewRecord(activeRecord.id, activeRecord.fullData)}
+                        disabled={!activeRecord}
+                        className={`p-4 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-2xl flex flex-col items-center justify-center gap-2 transition-colors ${!activeRecord ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    >
                          <Icons.Bell className="w-6 h-6" />
                          <span className="text-sm font-bold">Reminders</span>
                     </button>
-                    <button className="col-span-2 p-4 bg-red-50 hover:bg-red-100 text-red-700 rounded-2xl flex items-center justify-center gap-3 transition-colors">
+                    <button 
+                        onClick={() => activeRecord && onViewRecord(activeRecord.id, activeRecord.fullData)}
+                        disabled={!activeRecord}
+                        className={`col-span-2 p-4 bg-red-50 hover:bg-red-100 text-red-700 rounded-2xl flex items-center justify-center gap-3 transition-colors ${!activeRecord ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    >
                         <Icons.Alert className="w-6 h-6" />
                         <span className="text-sm font-bold">View Warning Signs</span>
                     </button>

@@ -36,7 +36,7 @@ export default function CareTransiaResults({ data, consistency, carePlan, onRese
   // Chat State
   const [chatOpen, setChatOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([
-    { id: '1', role: 'model', text: `Hi! I've reviewed ${data.patient.name || 'the patient'}'s discharge plan. Ask me anything about medications, appointments, or what to do next.`, timestamp: Date.now() }
+    { id: '1', role: 'model', text: `Hi! I've reviewed ${data.patient?.name || 'the patient'}'s discharge plan. Ask me anything about medications, appointments, or what to do next.`, timestamp: Date.now() }
   ]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -123,7 +123,7 @@ export default function CareTransiaResults({ data, consistency, carePlan, onRese
      const actions = safePlan.today_and_tomorrow.length > 0 ? safePlan.today_and_tomorrow.join(". ") : "No immediate actions listed.";
      const warnings = safePlan.warning_signs_card.length > 0 ? safePlan.warning_signs_card.join(". ") : "No specific warnings listed.";
 
-     const textToRead = `Here is the care plan for ${data.patient.name || 'the patient'}. 
+     const textToRead = `Here is the care plan for ${data.patient?.name || 'the patient'}. 
          Today and tomorrow: ${actions}. 
          Remember: ${warnings}.
          ${questions}`;
@@ -206,7 +206,7 @@ export default function CareTransiaResults({ data, consistency, carePlan, onRese
              </span>
            </div>
            <h2 className="text-3xl md:text-5xl font-extrabold text-slate-900 tracking-tight">
-             Care Plan for <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600">{data.patient.name || 'Patient'}</span>
+             Care Plan for <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600">{data.patient?.name || 'Patient'}</span>
            </h2>
         </div>
         
@@ -590,24 +590,4 @@ export default function CareTransiaResults({ data, consistency, carePlan, onRese
                  {chatOpen ? (
                      <span className="text-3xl leading-none px-1">&times;</span>
                  ) : (
-                     <><Icons.Sparkle className="w-7 h-7 group-hover:rotate-12 transition-transform" /> <span className="hidden md:inline pr-1 text-lg">Ask AI</span></>
-                 )}
-             </button>
-         </div>
-      )}
-
-      {/* Dev Debug Toggle */}
-      <div className="mt-12 pt-8 border-t border-slate-200 opacity-50 hover:opacity-100 transition-opacity">
-        <button onClick={() => setShowDebug(!showDebug)} className="text-slate-400 text-xs hover:text-slate-600">
-          {showDebug ? 'Hide Debug' : 'Show Debug Data'}
-        </button>
-        {showDebug && (
-          <pre className="mt-4 p-4 bg-slate-900 text-slate-300 rounded-xl overflow-auto text-xs max-h-64">
-            {JSON.stringify({ data, consistency, carePlan }, null, 2)}
-          </pre>
-        )}
-      </div>
-
-    </div>
-  );
-}
+                     <><Icons.Sparkle className="w-7 h-7 group-hover:rotate-12 transition-transform" /> <span className="hidden md:inline pr-1 text-lg">Ask AI</span>

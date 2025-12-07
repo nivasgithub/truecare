@@ -207,11 +207,11 @@ export const saveCarePlanToDb = async (
       year: "numeric",
     }),
     primaryCondition:
-      data.parsedEpisode.patient.primary_condition || "General Care",
+      data.parsedEpisode.patient?.primary_condition || "General Care",
     doctorName: "Attending Physician", 
     status: "active",
-    medicationCount: data.parsedEpisode.medications.length,
-    appointmentCount: data.parsedEpisode.appointments.length,
+    medicationCount: data.parsedEpisode.medications?.length || 0,
+    appointmentCount: data.parsedEpisode.appointments?.length || 0,
     fullData: JSON.stringify({
       parsed: data.parsedEpisode,
       plan: data.carePlan,

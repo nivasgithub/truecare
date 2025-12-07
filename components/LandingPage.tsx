@@ -7,173 +7,294 @@ interface CareTransiaLandingPageProps {
 
 export default function CareTransiaLandingPage({ onGetStarted }: CareTransiaLandingPageProps) {
   return (
-    <section className="flex flex-col w-full bg-slate-50 pt-10 pb-24 animate-fade-in relative overflow-hidden">
+    <div className="flex flex-col w-full bg-slate-50 relative overflow-hidden">
       
       {/* --- BACKGROUND FX --- */}
-      <div className="absolute top-0 left-0 w-full h-[800px] overflow-hidden pointer-events-none">
+      <div className="absolute top-0 left-0 w-full h-[1200px] overflow-hidden pointer-events-none z-0">
          <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-blue-400/20 rounded-full blur-[120px] animate-pulse-slow"></div>
          <div className="absolute top-[10%] right-[-10%] w-[50%] h-[60%] bg-purple-400/20 rounded-full blur-[120px] animate-pulse-slow delay-1000"></div>
          <div className="absolute bottom-[-10%] left-[20%] w-[40%] h-[40%] bg-cyan-400/20 rounded-full blur-[100px] animate-pulse-slow delay-2000"></div>
       </div>
 
-      {/* --- HERO SECTION --- */}
-      <div className="max-w-7xl px-4 relative z-10 w-full grid grid-cols-1 lg:grid-cols-2 gap-16 items-center mb-24 mx-auto pt-12">
+      {/* --- 1. HERO SECTION --- */}
+      <section className="max-w-7xl mx-auto px-4 pt-16 pb-24 relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
         
-        {/* Left: Text Content */}
-        <div className="text-left space-y-8">
-          <div className="inline-flex items-center gap-2 bg-white/90 backdrop-blur border border-slate-200 text-slate-600 px-4 py-2 rounded-full text-xs font-bold tracking-wide uppercase shadow-sm">
-            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-            System Operational
+        <div className="text-left space-y-6 animate-fade-in-up">
+          <div className="inline-flex items-center gap-2 bg-white/80 backdrop-blur border border-blue-100 text-blue-700 px-3 py-1.5 rounded-full text-xs font-bold tracking-wide uppercase shadow-sm">
+            <Icons.Sparkle className="w-3 h-3 text-blue-500" />
+            Smarter recovery, less overwhelm
           </div>
 
-          <h1 className="text-5xl md:text-7xl font-black text-slate-900 tracking-tight leading-[1.05]">
-            Medical clarity, <br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600">fully activated.</span>
+          <h1 className="text-5xl md:text-6xl font-black text-slate-900 tracking-tight leading-[1.1]">
+            Turn Discharge Paperwork Into a <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600">Clear Care Plan.</span>
           </h1>
 
           <p className="text-xl text-slate-600 max-w-lg leading-relaxed font-medium">
-            Activate CareTransia to transform chaotic discharge papers into a structured, safety-checked recovery plan.
+            CareTransia reads your hospital documents, medications, and notes, then turns them into a simple, step-by-step care plan you and your family can actually follow.
           </p>
 
-          <div className="flex flex-col sm:flex-row items-start gap-4 pt-2">
+          <div className="flex flex-col sm:flex-row items-start gap-4 pt-4">
             <button 
               onClick={onGetStarted}
-              className="group relative px-8 py-4 bg-slate-900 text-white rounded-2xl font-bold text-lg shadow-xl shadow-blue-900/20 hover:shadow-2xl hover:shadow-blue-900/40 hover:-translate-y-1 transition-all overflow-hidden"
+              className="group relative px-8 py-4 bg-slate-900 text-white rounded-2xl font-bold text-lg shadow-xl shadow-blue-900/20 hover:shadow-2xl hover:shadow-blue-900/40 hover:-translate-y-1 transition-all overflow-hidden w-full sm:w-auto"
             >
               <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-purple-600 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-              <span className="relative flex items-center gap-3">
-                Initialize Plan <Icons.ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+              <span className="relative flex items-center justify-center gap-3">
+                Start organizing my papers <Icons.ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
               </span>
             </button>
-            <button className="px-8 py-4 bg-white text-slate-700 border border-slate-200 rounded-2xl font-bold text-lg hover:bg-slate-50 transition-colors">
-                View Demo
+            <button className="px-8 py-4 bg-white text-slate-700 border border-slate-200 rounded-2xl font-bold text-lg hover:bg-slate-50 transition-colors w-full sm:w-auto">
+                See how it works
             </button>
           </div>
+
+          <div className="pt-6 flex items-center gap-4 text-xs font-bold text-slate-400 uppercase tracking-widest border-t border-slate-200/50">
+             <span>Powered by Multimodal AI</span> • <span>For Patients & Clinicians</span>
+          </div>
         </div>
 
-        {/* Right: Abstract UI Representation */}
-        <div className="relative h-[500px] w-full flex items-center justify-center perspective-[2000px]">
+        {/* Hero Visual */}
+        <div className="relative h-[500px] w-full flex items-center justify-center perspective-[2000px] animate-fade-in-right delay-200">
             <HeroDashboardUI />
         </div>
-      </div>
+      </section>
 
-      {/* --- CAPABILITIES BENTO GRID --- */}
-      <div className="max-w-7xl mx-auto px-4 w-full mb-32 relative z-10">
-          <div className="mb-10 flex items-end justify-between">
-              <div>
-                <h2 className="text-3xl font-bold text-slate-900">Active Capabilities</h2>
-                <p className="text-slate-500">Real-time modules powering your recovery.</p>
-              </div>
-              <div className="hidden md:flex gap-2">
-                  <span className="px-2 py-1 rounded bg-blue-100 text-blue-700 text-xs font-bold">GEMINI 2.5</span>
-                  <span className="px-2 py-1 rounded bg-purple-100 text-purple-700 text-xs font-bold">VEO</span>
-                  <span className="px-2 py-1 rounded bg-red-100 text-red-700 text-xs font-bold">LIVE</span>
-              </div>
+      {/* --- 2. KEY BENEFITS --- */}
+      <section className="max-w-7xl mx-auto px-4 py-20 relative z-10">
+          <div className="text-center mb-16 max-w-2xl mx-auto">
+            <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mb-4">Why people rely on CareTransia</h2>
+            <p className="text-lg text-slate-600">One place to understand what to do next after leaving the hospital.</p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 grid-rows-2 gap-5 h-auto lg:h-[500px]">
-              
-              {/* Tile 1: Vision (Large) */}
-              <div className="md:col-span-2 row-span-2 bg-gradient-to-br from-slate-900 to-slate-800 rounded-[2rem] p-8 text-white relative overflow-hidden group shadow-2xl">
-                  <div className="absolute top-0 right-0 p-6 opacity-50 group-hover:opacity-100 transition-opacity">
-                      <Icons.Maximize className="w-12 h-12 text-blue-400" />
-                  </div>
-                  <div className="relative z-10 flex flex-col h-full justify-between">
-                      <div>
-                          <div className="inline-flex items-center gap-1.5 bg-blue-500/20 border border-blue-500/30 px-2 py-1 rounded text-[10px] font-bold tracking-wider mb-4 text-blue-300">
-                              <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse"></span> VISION ENGINE
-                          </div>
-                          <h3 className="text-3xl font-bold mb-2">Clinical OCR</h3>
-                          <p className="text-slate-400 text-sm leading-relaxed max-w-sm">
-                              Advanced computer vision instantly digitizes handwritten notes, pill bottles, and discharge summaries with 99% accuracy.
-                          </p>
-                      </div>
-                      
-                      {/* Visual Graphic */}
-                      <div className="w-full h-32 bg-slate-800/50 rounded-xl border border-white/10 relative overflow-hidden flex items-center gap-2 px-4 mt-6">
-                          <div className="h-20 w-16 bg-white/10 rounded-md animate-pulse"></div>
-                          <div className="flex-1 space-y-2">
-                              <div className="h-2 w-3/4 bg-blue-500/50 rounded-full animate-scan"></div>
-                              <div className="h-2 w-1/2 bg-white/20 rounded-full"></div>
-                              <div className="h-2 w-2/3 bg-white/20 rounded-full"></div>
-                          </div>
-                          <div className="absolute right-4 bottom-4 text-xs font-mono text-green-400">MATCH_FOUND</div>
-                      </div>
-                  </div>
-              </div>
-
-              {/* Tile 2: Safety (Tall) */}
-              <div className="md:col-span-1 row-span-2 bg-white border border-slate-200 rounded-[2rem] p-6 relative overflow-hidden group hover:border-blue-300 transition-colors shadow-lg">
-                  <div className="absolute -right-10 -top-10 w-32 h-32 bg-red-50 rounded-full blur-2xl group-hover:bg-red-100 transition-colors"></div>
-                  <div className="relative z-10 flex flex-col h-full">
-                      <div className="mb-auto">
-                        <div className="inline-flex items-center gap-1.5 bg-red-50 text-red-600 px-2 py-1 rounded text-[10px] font-bold tracking-wider mb-3">
-                            <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span> SAFETY GUARD
-                        </div>
-                        <h3 className="text-xl font-bold text-slate-900 mb-2">Conflict Detection</h3>
-                        <p className="text-slate-500 text-sm">Automatically flags drug interactions and missing instructions.</p>
-                      </div>
-                      
-                      <div className="mt-6 space-y-3">
-                          <div className="p-3 bg-red-50 rounded-xl border border-red-100 flex gap-3 items-center">
-                              <Icons.Alert className="w-5 h-5 text-red-500" />
-                              <div className="flex-1">
-                                  <div className="h-1.5 w-12 bg-red-200 rounded mb-1"></div>
-                                  <div className="h-1.5 w-full bg-red-100 rounded"></div>
-                              </div>
-                          </div>
-                          <div className="p-3 bg-green-50 rounded-xl border border-green-100 flex gap-3 items-center opacity-50">
-                              <Icons.Check className="w-5 h-5 text-green-500" />
-                              <div className="flex-1">
-                                  <div className="h-1.5 w-12 bg-green-200 rounded mb-1"></div>
-                                  <div className="h-1.5 w-20 bg-green-100 rounded"></div>
-                              </div>
-                          </div>
-                      </div>
-                  </div>
-              </div>
-
-              {/* Tile 3: Veo (Wide/Standard) */}
-              <div className="md:col-span-1 lg:col-span-1 bg-gradient-to-br from-purple-50 to-white border border-purple-100 rounded-[2rem] p-6 relative group overflow-hidden shadow-lg">
-                   <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-purple-400 to-pink-400"></div>
-                   <div className="relative z-10">
-                        <div className="flex justify-between items-start mb-2">
-                             <h3 className="text-lg font-bold text-slate-900">Veo Video</h3>
-                             <span className="text-[10px] font-bold bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded">BETA</span>
-                        </div>
-                        <p className="text-xs text-slate-500 mb-4">Visualize recovery goals with AI video.</p>
-                        <div className="w-full aspect-video bg-slate-900 rounded-lg flex items-center justify-center relative overflow-hidden">
-                             <div className="absolute inset-0 bg-gradient-to-tr from-purple-500/20 to-pink-500/20"></div>
-                             <Icons.Sparkle className="text-white w-6 h-6 animate-spin-slow" />
-                        </div>
-                   </div>
-              </div>
-
-              {/* Tile 4: Live (Standard) */}
-              <div className="md:col-span-1 lg:col-span-1 bg-blue-50 border border-blue-100 rounded-[2rem] p-6 relative group hover:bg-blue-100/50 transition-colors shadow-lg">
-                   <div className="relative z-10 flex flex-col h-full justify-between">
-                        <div className="flex items-center justify-between mb-2">
-                            <h3 className="text-lg font-bold text-blue-900">Live Voice</h3>
-                            <Icons.Mic className="w-5 h-5 text-blue-500" />
-                        </div>
-                        <p className="text-xs text-blue-700/70 mb-2">Real-time conversational agent.</p>
-                        <div className="flex gap-1 items-end h-8">
-                             <div className="w-1.5 bg-blue-400 rounded-full h-4 animate-bounce"></div>
-                             <div className="w-1.5 bg-blue-500 rounded-full h-6 animate-bounce delay-75"></div>
-                             <div className="w-1.5 bg-blue-400 rounded-full h-3 animate-bounce delay-150"></div>
-                             <div className="w-1.5 bg-blue-500 rounded-full h-5 animate-bounce delay-300"></div>
-                        </div>
-                   </div>
-              </div>
-
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <BenefitCard 
+                  icon={<Icons.Clipboard className="w-6 h-6 text-blue-600" />}
+                  color="blue"
+                  title="Unified Care Plan"
+                  body="CareTransia pulls meds, follow-ups, and activity limits from scattered papers into a single, easy-to-read plan."
+              />
+              <BenefitCard 
+                  icon={<Icons.Shield className="w-6 h-6 text-amber-600" />}
+                  color="amber"
+                  title="Conflict Checker"
+                  body="If your paperwork contradicts itself, we flag it as a question to ask your doctor—not a guess you have to make."
+              />
+              <BenefitCard 
+                  icon={<Icons.Home className="w-6 h-6 text-emerald-600" />}
+                  color="green"
+                  title="Built for Families"
+                  body="Instructions are rewritten into calm, everyday language with simple checklists anyone can help with."
+              />
+              <BenefitCard 
+                  icon={<Icons.Note className="w-6 h-6 text-purple-600" />}
+                  color="purple"
+                  title="Doctor Summary"
+                  body="Creates a concise 'For Your Clinician' summary you can show at your next visit to align on your care."
+              />
           </div>
-      </div>
+      </section>
 
-    </section>
+      {/* --- 3. HOW IT WORKS --- */}
+      <section className="bg-white py-24 border-y border-slate-100">
+          <div className="max-w-7xl mx-auto px-4">
+             <div className="text-center mb-16">
+                <h2 className="text-3xl md:text-4xl font-bold text-slate-900">How CareTransia works</h2>
+             </div>
+
+             <div className="grid grid-cols-1 md:grid-cols-3 gap-8 relative">
+                 {/* Connector Line (Desktop) */}
+                 <div className="hidden md:block absolute top-12 left-[16%] right-[16%] h-0.5 bg-slate-100 -z-0"></div>
+
+                 <StepCard 
+                    number="1"
+                    title="Upload"
+                    desc="Securely upload photos of discharge papers, pill bottles, and notes."
+                    icon={<Icons.Upload className="w-8 h-8 text-blue-600" />}
+                 />
+                 <StepCard 
+                    number="2"
+                    title="AI Understanding"
+                    desc="Our AI extracts details and checks for conflicting instructions."
+                    icon={<Icons.Sparkle className="w-8 h-8 text-purple-600" />}
+                 />
+                 <StepCard 
+                    number="3"
+                    title="Your Care Plan"
+                    desc="Get a daily schedule, priorities, and a clear list of doctor questions."
+                    icon={<Icons.Check className="w-8 h-8 text-emerald-600" />}
+                 />
+             </div>
+          </div>
+      </section>
+
+      {/* --- 4. WHO IT'S FOR --- */}
+      <section className="max-w-7xl mx-auto px-4 py-24">
+         <div className="text-center mb-16">
+            <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mb-4">Made for the people who carry the load</h2>
+         </div>
+         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <PersonaCard 
+               title="Family Caregivers"
+               desc="Juggling work, kids, and a loved one’s recovery? Get a straightforward plan so you’re not guessing."
+               emoji="🏡"
+            />
+            <PersonaCard 
+               title="Patients w/ Chronic Conditions"
+               desc="When you’re discharged with multiple meds, see everything in one place instead of drowning in paper."
+               emoji="❤️"
+            />
+            <PersonaCard 
+               title="Clinicians & Care Teams"
+               desc="Use it as a conversation tool to make sure your patient truly understands their next steps."
+               emoji="🩺"
+            />
+         </div>
+      </section>
+
+      {/* --- 5. CORE HIGHLIGHTS --- */}
+      <section className="bg-slate-900 text-white py-24 rounded-[3rem] mx-4 md:mx-8 mb-24 relative overflow-hidden">
+          {/* Decorative gradients */}
+          <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-blue-600/20 rounded-full blur-[100px] pointer-events-none"></div>
+          <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-purple-600/20 rounded-full blur-[100px] pointer-events-none"></div>
+
+          <div className="max-w-5xl mx-auto px-4 relative z-10">
+             <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+                 <div>
+                    <h2 className="text-3xl md:text-5xl font-bold mb-8 leading-tight">What CareTransia <br/>does for you</h2>
+                    <p className="text-lg text-slate-400 mb-8">
+                       We translate clinical complexity into daily simplicity.
+                    </p>
+                    <button onClick={onGetStarted} className="px-8 py-4 bg-white text-slate-900 rounded-full font-bold hover:bg-blue-50 transition-colors">
+                       Generate my plan
+                    </button>
+                 </div>
+                 
+                 <div className="space-y-6">
+                    <FeatureItem title="Today & Tomorrow Priorities" desc="Know exactly what needs to happen immediately after discharge." />
+                    <FeatureItem title="Daily & Weekly Routines" desc="Medication timing, wound care, and prep for follow-up visits." />
+                    <FeatureItem title="Warning Sign Cards" desc="A clear list of red flags: when to call the doctor vs. 911." />
+                    <FeatureItem title="Doctor Question List" desc="Auto-generated questions based on missing info in your papers." />
+                 </div>
+             </div>
+          </div>
+      </section>
+
+      {/* --- 6. SAFETY & TRUST --- */}
+      <section className="max-w-4xl mx-auto px-4 pb-24 text-center">
+          <div className="bg-blue-50/50 border border-blue-100 rounded-3xl p-8 md:p-12">
+             <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-6">
+                <Icons.Shield className="w-8 h-8" />
+             </div>
+             <h2 className="text-3xl font-bold text-slate-900 mb-6">Safe by design</h2>
+             <p className="text-slate-600 text-lg mb-8 max-w-2xl mx-auto leading-relaxed">
+                CareTransia is built to clarify what your care team has already told you — not to replace them.
+             </p>
+             
+             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-left mb-8">
+                <TrustPoint title="No New Rx" desc="We organize existing instructions, never inventing new meds." />
+                <TrustPoint title="Transparent" desc="Every recommendation traces back to your original document." />
+                <TrustPoint title="AI as Guide" desc="Conflicts are surfaced as questions, not automated decisions." />
+             </div>
+
+             <div className="text-xs text-slate-400 max-w-lg mx-auto border-t border-blue-100 pt-6">
+                ⚕️ CareTransia is an informational tool and does not provide medical advice, diagnosis, or treatment. Always consult a licensed clinician for medical decisions or emergencies.
+             </div>
+          </div>
+      </section>
+
+      {/* --- 7. FOOTER CTA --- */}
+      <section className="bg-white border-t border-slate-100 py-24">
+         <div className="max-w-3xl mx-auto px-4 text-center space-y-8">
+            <h2 className="text-4xl font-bold text-slate-900">Ready to see your care plan in one place?</h2>
+            <p className="text-xl text-slate-500">
+               Upload your discharge documents and let CareTransia turn them into a clear, step-by-step plan you can share with your family.
+            </p>
+            <div className="flex flex-col sm:flex-row justify-center gap-4">
+               <button 
+                  onClick={onGetStarted}
+                  className="px-10 py-5 bg-gradient-to-r from-blue-600 to-purple-600 text-white text-lg font-bold rounded-full shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all"
+               >
+                  Get started with CareTransia
+               </button>
+            </div>
+            <p className="text-sm font-bold text-blue-600 hover:underline cursor-pointer">Learn more about how it works</p>
+         </div>
+      </section>
+
+    </div>
   );
 }
 
-// --- VISUAL COMPONENTS ---
+// --- SUB-COMPONENTS ---
+
+function BenefitCard({ icon, title, body, color }: { icon: React.ReactNode, title: string, body: string, color: string }) {
+   const colors: any = {
+      blue: "bg-blue-50 border-blue-100 group-hover:border-blue-300",
+      amber: "bg-amber-50 border-amber-100 group-hover:border-amber-300",
+      green: "bg-emerald-50 border-emerald-100 group-hover:border-emerald-300",
+      purple: "bg-purple-50 border-purple-100 group-hover:border-purple-300",
+   };
+
+   return (
+      <div className={`p-8 rounded-3xl border transition-all hover:shadow-lg group bg-white ${colors[color].replace('bg-', 'border-')}`}>
+         <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-6 ${colors[color]}`}>
+            {icon}
+         </div>
+         <h3 className="text-xl font-bold text-slate-900 mb-3">{title}</h3>
+         <p className="text-slate-600 leading-relaxed text-sm">{body}</p>
+      </div>
+   );
+}
+
+function StepCard({ number, title, desc, icon }: { number: string, title: string, desc: string, icon: React.ReactNode }) {
+   return (
+      <div className="relative flex flex-col items-center text-center z-10">
+         <div className="w-20 h-20 bg-white rounded-full border-4 border-slate-50 shadow-xl flex items-center justify-center mb-6 relative">
+             <div className="absolute -top-3 -right-3 w-8 h-8 bg-slate-900 text-white rounded-full flex items-center justify-center font-bold text-sm border-2 border-white">
+                {number}
+             </div>
+             {icon}
+         </div>
+         <h3 className="text-xl font-bold text-slate-900 mb-2">{title}</h3>
+         <p className="text-slate-500 max-w-xs">{desc}</p>
+      </div>
+   );
+}
+
+function PersonaCard({ title, desc, emoji }: { title: string, desc: string, emoji: string }) {
+    return (
+        <div className="bg-slate-50 rounded-3xl p-8 border border-slate-100 hover:bg-white hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group">
+            <div className="text-4xl mb-6 group-hover:scale-110 transition-transform duration-300">{emoji}</div>
+            <h3 className="text-xl font-bold text-slate-900 mb-3">{title}</h3>
+            <p className="text-slate-600 text-sm leading-relaxed">{desc}</p>
+        </div>
+    );
+}
+
+function FeatureItem({ title, desc }: { title: string, desc: string }) {
+    return (
+        <div className="flex gap-4 items-start">
+            <div className="bg-green-500/20 p-1 rounded-full mt-1">
+                <Icons.Check className="w-4 h-4 text-green-400" />
+            </div>
+            <div>
+                <h4 className="font-bold text-white text-lg">{title}</h4>
+                <p className="text-slate-400 text-sm">{desc}</p>
+            </div>
+        </div>
+    );
+}
+
+function TrustPoint({ title, desc }: { title: string, desc: string }) {
+    return (
+        <div className="bg-white p-4 rounded-xl shadow-sm border border-blue-100">
+            <h4 className="font-bold text-slate-900 mb-1">{title}</h4>
+            <p className="text-xs text-slate-500">{desc}</p>
+        </div>
+    );
+}
+
+// --- HERO VISUAL UI ---
 
 function HeroDashboardUI() {
     return (

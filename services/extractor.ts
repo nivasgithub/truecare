@@ -125,7 +125,26 @@ Please parse the attached files and notes.
   });
 
   if (!response.text) throw new Error("No response from AI model");
-  return cleanAndParseJSON<ParsedEpisode>(response.text);
+  
+  // Safe parsing
+  const rawParsed = cleanAndParseJSON<Partial<ParsedEpisode>>(response.text);
+  
+  // Ensure strict adherence to ParsedEpisode structure to prevent UI crashes
+  // We provide default empty objects/arrays if the AI returns null for any section
+  const parsedEpisode: ParsedEpisode = {
+      status: rawParsed.status || 'success',
+      error_message: rawParsed.error_message || '',
+      patient: rawParsed.patient || { 
+          name: null, age: null, primary_condition: null, language_preference: null, caregiver_role: null 
+      },
+      medications: Array.isArray(rawParsed.medications) ? rawParsed.medications : [],
+      appointments: Array.isArray(rawParsed.appointments) ? rawParsed.appointments : [],
+      activities: Array.isArray(rawParsed.activities) ? rawParsed.activities : [],
+      warnings: Array.isArray(rawParsed.warnings) ? rawParsed.warnings : [],
+      additional_notes: rawParsed.additional_notes || ''
+  };
+
+  return parsedEpisode;
 }
 
 /**
