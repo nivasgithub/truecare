@@ -10,7 +10,7 @@ export async function generateCarePlan(
   patientInfo: PatientInfo
 ): Promise<FormattedCarePlan> {
   const systemPrompt = `
-You are "TrueCare", a patient-facing care plan formatter.
+You are "CareTransia", a patient-facing care plan formatter.
 Create a simple, plain-language care playbook.
 - Tone: Encouraging, Clear, Simple (5th grade level).
 - Structure:
@@ -72,7 +72,7 @@ export async function queryCarePlan(
 ): Promise<{ text: string, groundingMetadata?: any }> {
   
   const systemPrompt = `
-You are "TrueCare Assistant". Answer questions based ONLY on the provided care plan.
+You are "CareTransia Assistant". Answer questions based ONLY on the provided care plan.
 If the user asks about pharmacies, locations, or medical definitions not in the plan, USE YOUR TOOLS (Google Search / Maps).
 Keep answers short and simple.
 `;

@@ -110,6 +110,7 @@ export interface HistoricalRecord {
   status: 'active' | 'archived';
   medicationCount: number;
   appointmentCount: number;
+  fullData?: string; // JSON string of ParsedEpisode + CarePlan
 }
 
 export interface ChatMessage {

@@ -1,48 +1,188 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Icons, Card, Button } from './ui';
+import { 
+    auth,
+    signInWithGoogle, 
+    loginWithEmail, 
+    registerWithEmail, 
+    startPhoneLogin, 
+    RecaptchaVerifier, 
+    ConfirmationResult 
+} from '../services/firebase';
 
 interface SignInScreenProps {
   onSignIn: () => void;
 }
 
+declare global {
+  interface Window {
+    recaptchaVerifier: any;
+  }
+}
+
 export default function SignInScreen({ onSignIn }: SignInScreenProps) {
+  const [method, setMethod] = useState<'email' | 'phone'>('email');
   const [isLoading, setIsLoading] = useState(false);
-  const [email, setEmail] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  const handleGoogleSignIn = () => {
+  // Email State
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
+
+  // Phone State
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [otp, setOtp] = useState('');
+  const [verificationId, setVerificationId] = useState<ConfirmationResult | null>(null);
+  const [isRecaptchaReady, setIsRecaptchaReady] = useState(false);
+  
+  // Refs
+  const recaptchaContainerRef = useRef<HTMLDivElement>(null);
+
+  // Clean up existing verifiers on mount/unmount to prevent "re-initialization" errors
+  useEffect(() => {
+    return () => {
+      if (window.recaptchaVerifier) {
+        try {
+          window.recaptchaVerifier.clear();
+          window.recaptchaVerifier = null;
+        } catch (e) {
+          console.warn("Recaptcha cleanup error", e);
+        }
+      }
+    };
+  }, []);
+
+  // Initialize Recaptcha when switching to phone mode
+  useEffect(() => {
+    if (method === 'phone' && recaptchaContainerRef.current) {
+        // Clear previous instance if it exists
+        if (window.recaptchaVerifier) {
+             try { window.recaptchaVerifier.clear(); } catch(e) {}
+             window.recaptchaVerifier = null;
+        }
+
+        try {
+            // Note: RecaptchaVerifier is attached to the auth instance
+            const verifier = new RecaptchaVerifier(auth, recaptchaContainerRef.current, {
+                'size': 'invisible',
+                'callback': () => setIsRecaptchaReady(true),
+                'expired-callback': () => setIsRecaptchaReady(false)
+            });
+            window.recaptchaVerifier = verifier;
+            verifier.render().then(() => setIsRecaptchaReady(true));
+        } catch (e) {
+            console.error("Recaptcha init error", e);
+            setError("Failed to initialize security check. Please refresh the page.");
+        }
+    }
+  }, [method]);
+
+  const handleGoogleSignIn = async () => {
     setIsLoading(true);
-    // Simulate network delay
-    setTimeout(() => {
-      onSignIn();
-      setIsLoading(false);
-    }, 1500);
+    setError(null);
+    try {
+      await signInWithGoogle();
+      onSignIn(); 
+    } catch (e: any) {
+      setError(e.message || "Failed to sign in with Google.");
+    } finally {
+        setIsLoading(false);
+    }
   };
 
-  const validateEmail = (email: string) => {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-  };
-
-  const handleEmailSignIn = (e: React.FormEvent) => {
+  const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-
-    if (!email.trim()) {
-      setError('Please enter your email address.');
-      return;
+    if (!email || !password) {
+        setError("Please enter email and password.");
+        return;
     }
-
-    if (!validateEmail(email)) {
-      setError('Please enter a valid email address.');
-      return;
+    if (isSignUp && !name) {
+        setError("Please enter your name.");
+        return;
     }
 
     setIsLoading(true);
-    // Simulate network delay for email login
-    setTimeout(() => {
-      onSignIn();
-      setIsLoading(false);
-    }, 1500);
+    try {
+        if (isSignUp) {
+            await registerWithEmail(name, email, password);
+        } else {
+            await loginWithEmail(email, password);
+        }
+        onSignIn();
+    } catch (e: any) {
+        let msg = "Authentication failed.";
+        if (e.code === 'auth/email-already-in-use') msg = "Email already registered.";
+        if (e.code === 'auth/wrong-password') msg = "Invalid password.";
+        if (e.code === 'auth/user-not-found') msg = "No account found with this email.";
+        if (e.code === 'auth/weak-password') msg = "Password should be at least 6 characters.";
+        setError(msg);
+    } finally {
+        setIsLoading(false);
+    }
+  };
+
+  const handleSendCode = async () => {
+      if (!phoneNumber || phoneNumber.length < 10) {
+          setError("Please enter a valid phone number with country code (e.g., +15550000000).");
+          return;
+      }
+      if (!window.recaptchaVerifier) {
+          setError("Security check not ready. Please wait a moment or refresh.");
+          return;
+      }
+
+      setIsLoading(true);
+      setError(null);
+      try {
+          const confirmation = await startPhoneLogin(phoneNumber, window.recaptchaVerifier);
+          setVerificationId(confirmation);
+      } catch (e: any) {
+          console.error(e);
+          let msg = "Failed to send code.";
+          if (e.code === 'auth/internal-error') {
+             // Specific message for the common preview environment issue
+             msg = "Configuration Error: This domain may not be authorized for Phone Auth in the Firebase Console. Please add this preview URL to 'Authorized Domains' in Firebase Authentication settings.";
+          } else if (e.code === 'auth/invalid-phone-number') {
+             msg = "Invalid phone number format.";
+          } else if (e.message) {
+             msg = e.message;
+          }
+          setError(msg);
+          
+          // Reset Recaptcha on error so user can try again
+          if (window.recaptchaVerifier) {
+             try {
+                // We re-render/reset to ensure it's fresh
+                window.recaptchaVerifier.render().then((widgetId: any) => {
+                    // grecaptcha is globally available when RecaptchaVerifier is used
+                    if ((window as any).grecaptcha) {
+                        (window as any).grecaptcha.reset(widgetId);
+                    }
+                });
+             } catch (resetErr) {
+                 console.warn("Failed to reset recaptcha", resetErr);
+             }
+          }
+      } finally {
+          setIsLoading(false);
+      }
+  };
+
+  const handleVerifyOtp = async () => {
+      if (!otp || !verificationId) return;
+      setIsLoading(true);
+      setError(null);
+      try {
+          await verificationId.confirm(otp);
+          onSignIn();
+      } catch (e: any) {
+          setError("Invalid code. Please try again.");
+      } finally {
+          setIsLoading(false);
+      }
   };
 
   return (
@@ -54,17 +194,18 @@ export default function SignInScreen({ onSignIn }: SignInScreenProps) {
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20"/><path d="M2 12h20"/></svg>
           </div>
           <h1 className="text-3xl font-bold text-slate-900 mb-2">Welcome Back</h1>
-          <p className="text-slate-500">Sign in to access your care plans and history.</p>
+          <p className="text-slate-500">Sign in to access your care plans.</p>
         </div>
 
-        <Card className="p-8 shadow-xl shadow-slate-200/50 border-slate-100">
+        <Card className="p-8 shadow-xl shadow-slate-200/50 border-slate-100 overflow-visible">
           
+          {/* Google Button (Always available) */}
           <button 
             onClick={handleGoogleSignIn}
             disabled={isLoading}
-            className="w-full flex items-center justify-center gap-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold py-4 rounded-xl transition-all duration-200 shadow-sm hover:shadow-md group relative overflow-hidden disabled:opacity-70 disabled:cursor-not-allowed"
+            className="w-full flex items-center justify-center gap-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold py-4 rounded-xl transition-all duration-200 shadow-sm hover:shadow-md group relative overflow-hidden disabled:opacity-70 disabled:cursor-not-allowed mb-6"
           >
-            {isLoading ? (
+            {isLoading && !method ? (
                <Icons.Spinner className="w-5 h-5 text-blue-600" />
             ) : (
               <>
@@ -79,44 +220,141 @@ export default function SignInScreen({ onSignIn }: SignInScreenProps) {
             )}
           </button>
 
-          <div className="relative my-8">
+          <div className="relative mb-6">
             <div className="absolute inset-0 flex items-center">
               <div className="w-full border-t border-slate-100"></div>
             </div>
             <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-white text-slate-400">or continue with email</span>
+              <span className="px-2 bg-white text-slate-400">or use</span>
             </div>
           </div>
 
-          <form className="space-y-4" onSubmit={handleEmailSignIn} noValidate>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Email address</label>
-              <input 
-                type="email" 
-                value={email}
-                onChange={(e) => {
-                  setEmail(e.target.value);
-                  if (error) setError(null);
-                }}
-                placeholder="you@example.com"
-                className={`w-full px-4 py-3 rounded-xl border ${error ? 'border-red-300 focus:border-red-500 focus:ring-red-200' : 'border-slate-200 focus:border-blue-500 focus:ring-blue-200'} focus:ring-2 outline-none transition-all`}
-              />
-              {error && (
-                <p className="mt-1 text-sm text-red-500 flex items-center gap-1 animate-fade-in">
-                  <span className="inline-block w-1 h-1 rounded-full bg-red-500"></span>
-                  {error}
-                </p>
-              )}
+          {/* Method Tabs */}
+          <div className="flex bg-slate-100 p-1 rounded-xl mb-6">
+              <button 
+                onClick={() => { setMethod('email'); setError(null); }}
+                className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${method === 'email' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+              >
+                  Email
+              </button>
+              <button 
+                onClick={() => { setMethod('phone'); setError(null); }}
+                className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${method === 'phone' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+              >
+                  Phone
+              </button>
+          </div>
+
+          {error && (
+            <div className="mb-4 text-sm text-red-600 bg-red-50 p-3 rounded-xl border border-red-100 flex items-start gap-2 animate-fade-in break-words">
+              <Icons.Alert className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              <span>{error}</span>
             </div>
-            <Button className="w-full py-4 text-base" disabled={isLoading}>
-              {isLoading ? <Icons.Spinner /> : "Sign In"}
-            </Button>
-          </form>
+          )}
+
+          {/* EMAIL FORM */}
+          {method === 'email' && (
+              <form onSubmit={handleEmailAuth} className="space-y-4 animate-fade-in">
+                  {isSignUp && (
+                     <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Full Name</label>
+                        <input 
+                            type="text" 
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                            placeholder="Alex Smith"
+                            className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-blue-200 focus:ring-2 outline-none transition-all"
+                        />
+                     </div>
+                  )}
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Email address</label>
+                    <input 
+                        type="email" 
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="you@example.com"
+                        className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-blue-200 focus:ring-2 outline-none transition-all"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Password</label>
+                    <input 
+                        type="password" 
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-blue-200 focus:ring-2 outline-none transition-all"
+                    />
+                  </div>
+                  
+                  <Button className="w-full py-4 text-base" disabled={isLoading}>
+                    {isLoading ? <Icons.Spinner /> : (isSignUp ? "Create Account" : "Sign In")}
+                  </Button>
+
+                  <div className="text-center mt-4">
+                      <button 
+                        type="button" 
+                        onClick={() => { setIsSignUp(!isSignUp); setError(null); }} 
+                        className="text-sm text-blue-600 font-bold hover:underline"
+                      >
+                          {isSignUp ? "Already have an account? Sign In" : "Don't have an account? Sign Up"}
+                      </button>
+                  </div>
+              </form>
+          )}
+
+          {/* PHONE FORM */}
+          {method === 'phone' && (
+              <div className="space-y-4 animate-fade-in">
+                 {/* Invisible Recaptcha Container */}
+                 <div ref={recaptchaContainerRef}></div>
+
+                 {!verificationId ? (
+                     <>
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">Phone Number</label>
+                            <input 
+                                type="tel" 
+                                value={phoneNumber}
+                                onChange={(e) => setPhoneNumber(e.target.value)}
+                                placeholder="+1 555 555 5555"
+                                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-blue-200 focus:ring-2 outline-none transition-all"
+                            />
+                            <p className="text-xs text-slate-400 mt-2">Include country code (e.g. +1)</p>
+                        </div>
+                        <Button onClick={handleSendCode} className="w-full py-4 text-base" disabled={isLoading}>
+                             {isLoading ? <Icons.Spinner /> : "Send Code"}
+                        </Button>
+                     </>
+                 ) : (
+                     <>
+                        <div className="text-center mb-2">
+                             <p className="text-slate-600 text-sm">Enter code sent to {phoneNumber}</p>
+                             <button onClick={() => { setVerificationId(null); setOtp(''); }} className="text-xs text-blue-600 font-bold mt-1 hover:underline">Change Number</button>
+                        </div>
+                        <div className="flex justify-center">
+                            <input 
+                                type="text" 
+                                value={otp}
+                                onChange={(e) => setOtp(e.target.value)}
+                                placeholder="123456"
+                                className="w-full text-center text-2xl tracking-widest px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-blue-200 focus:ring-2 outline-none transition-all"
+                                maxLength={6}
+                            />
+                        </div>
+                        <Button onClick={handleVerifyOtp} className="w-full py-4 text-base" disabled={isLoading || otp.length < 6}>
+                             {isLoading ? <Icons.Spinner /> : "Verify & Sign In"}
+                        </Button>
+                     </>
+                 )}
+              </div>
+          )}
 
         </Card>
         
         <p className="text-center text-slate-400 text-sm mt-8">
-           Protected by TrueCare Secure. <br/> By signing in, you agree to our Terms and Privacy Policy.
+           Protected by CareTransia Secure. <br/> By signing in, you agree to our Terms and Privacy Policy.
         </p>
 
       </div>

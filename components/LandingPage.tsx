@@ -1,11 +1,11 @@
 import React from 'react';
 import { Icons, Card } from './ui';
 
-interface TrueCareLandingPageProps {
+interface CareTransiaLandingPageProps {
   onGetStarted: () => void;
 }
 
-export default function TrueCareLandingPage({ onGetStarted }: TrueCareLandingPageProps) {
+export default function CareTransiaLandingPage({ onGetStarted }: CareTransiaLandingPageProps) {
   return (
     <section className="flex flex-col w-full bg-slate-50 pt-10 pb-24 animate-fade-in relative overflow-hidden">
       
@@ -32,7 +32,7 @@ export default function TrueCareLandingPage({ onGetStarted }: TrueCareLandingPag
           </h1>
 
           <p className="text-xl text-slate-600 max-w-lg leading-relaxed font-medium">
-            Activate TrueCare to transform chaotic discharge papers into a structured, safety-checked recovery plan.
+            Activate CareTransia to transform chaotic discharge papers into a structured, safety-checked recovery plan.
           </p>
 
           <div className="flex flex-col sm:flex-row items-start gap-4 pt-2">
@@ -188,7 +188,7 @@ function HeroDashboardUI() {
                          <div className="w-3 h-3 rounded-full bg-yellow-400"></div>
                          <div className="w-3 h-3 rounded-full bg-green-400"></div>
                      </div>
-                     <div className="text-xs font-bold text-slate-400 tracking-wider">TRUECARE.AI</div>
+                     <div className="text-xs font-bold text-slate-400 tracking-wider">CARETRANSIA.AI</div>
                  </div>
 
                  {/* Content */}

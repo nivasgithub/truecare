@@ -6,7 +6,7 @@ import { ParsedEpisode, ConsistencyReport } from "../types";
 
 export async function checkConsistency(episodeData: ParsedEpisode): Promise<ConsistencyReport> {
   const systemPrompt = `
-You are a medical safety checker for TrueCare. Analyze the parsed discharge instructions.
+You are a medical safety checker for CareTransia. Analyze the parsed discharge instructions.
 1. Identify internal conflicts (e.g., meds list says "stop X", notes say "continue X").
 2. Identify critical gaps (e.g., "follow up in 1 week" but no appointment/clinic listed).
 3. If everything looks safe, return empty arrays.

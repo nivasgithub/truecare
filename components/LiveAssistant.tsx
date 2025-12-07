@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ai } from '../services/gemini';
 import { AppConfig } from '../config';
-import { Modality, LiveServerMessage } from '@google/genai';
+import { Modality } from '@google/genai';
+import type { LiveServerMessage } from '@google/genai';
 import { Icons } from './ui';
 
 interface LiveAssistantProps {
@@ -12,9 +13,6 @@ interface LiveAssistantProps {
 export default function LiveAssistant({ onClose, isOpen }: LiveAssistantProps) {
   const [status, setStatus] = useState<'connecting' | 'connected' | 'error'>('connecting');
   const [volume, setVolume] = useState(0);
-  
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   
   // Audio Contexts
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -89,7 +87,7 @@ export default function LiveAssistant({ onClose, isOpen }: LiveAssistantProps) {
           },
           config: {
             responseModalities: [Modality.AUDIO],
-            systemInstruction: "You are TrueCare Live, a helpful medical assistant. Be concise, empathetic, and clear.",
+            systemInstruction: "You are CareTransia Live, a helpful medical assistant. Be concise, empathetic, and clear.",
             speechConfig: {
                voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Zephyr' } }
             }

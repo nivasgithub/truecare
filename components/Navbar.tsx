@@ -1,7 +1,6 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { UserProfile } from '../types';
 import { Icons } from './ui';
-import LiveAssistant from './LiveAssistant';
 
 interface NavbarProps {
   onHomeClick?: () => void;
@@ -10,11 +9,11 @@ interface NavbarProps {
   onSignIn?: () => void;
   onLogout?: () => void;
   onSettingsClick?: () => void;
+  onLiveClick?: () => void;
 }
 
-export default function Navbar({ onHomeClick, currentView, user, onSignIn, onLogout, onSettingsClick }: NavbarProps) {
-  const [showLive, setShowLive] = useState(false);
-
+export default function Navbar({ onHomeClick, currentView, user, onSignIn, onLogout, onSettingsClick, onLiveClick }: NavbarProps) {
+  
   const scrollToSection = (id: string) => {
     const element = document.getElementById(id);
     if (element) {
@@ -27,10 +26,7 @@ export default function Navbar({ onHomeClick, currentView, user, onSignIn, onLog
   };
 
   return (
-    <>
-      <LiveAssistant isOpen={showLive} onClose={() => setShowLive(false)} />
-      
-      <nav className="bg-white/80 backdrop-blur-md border-b border-slate-100 sticky top-0 z-50">
+    <nav className="bg-white/80 backdrop-blur-md border-b border-slate-100 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-20">
             <div className="flex items-center gap-3 cursor-pointer group" onClick={onHomeClick}>
@@ -38,7 +34,7 @@ export default function Navbar({ onHomeClick, currentView, user, onSignIn, onLog
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20"/><path d="M2 12h20"/></svg>
               </div>
               <span className="font-bold text-xl md:text-2xl tracking-tight text-slate-900 group-hover:text-blue-900 transition-colors">
-                True<span className="text-blue-600">Care</span>
+                Care<span className="text-blue-600">Transia</span>
               </span>
             </div>
             
@@ -57,11 +53,11 @@ export default function Navbar({ onHomeClick, currentView, user, onSignIn, onLog
               <div className="flex items-center gap-4">
                 {/* Live Help Button */}
                 <button 
-                  onClick={() => setShowLive(true)}
+                  onClick={onLiveClick}
                   className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-red-50 text-red-600 rounded-full text-xs font-bold hover:bg-red-100 transition-colors border border-red-100 animate-pulse"
                 >
                   <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-                  Talk to TrueCare Live
+                  Talk to CareTransia Live
                 </button>
 
                 {user ? (
@@ -99,7 +95,6 @@ export default function Navbar({ onHomeClick, currentView, user, onSignIn, onLog
             </div>
           </div>
         </div>
-      </nav>
-    </>
+    </nav>
   );
 }

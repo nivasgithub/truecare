@@ -15,7 +15,7 @@ export async function parseDischargeDocuments(
   }));
 
   const systemPrompt = `
-You are "TrueCare", an expert medical AI assistant specialized in OCR and clinical data extraction.
+You are "CareTransia", an expert medical AI assistant specialized in OCR and clinical data extraction.
 Your Goal: accurately extract structured data from the provided discharge documents (images/PDFs) and notes.
 
 Instructions:

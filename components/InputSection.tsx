@@ -3,8 +3,9 @@ import { Icons, Card, Button, SectionTitle } from './ui';
 import { PatientInfo, UploadedFile, ChatMessage } from '../types';
 import SmartCamera from './SmartCamera';
 import { runIntakeAgent } from '../services/intake_agent';
+import { generateSpeech, playRawAudio } from '../services/media';
 
-interface TrueCareIntakeProps {
+interface CareTransiaIntakeProps {
   patientInfo: PatientInfo;
   setPatientInfo: React.Dispatch<React.SetStateAction<PatientInfo>>;
   files: UploadedFile[];
@@ -16,13 +17,13 @@ interface TrueCareIntakeProps {
   progressMsg?: string;
 }
 
-export default function TrueCareIntake({ 
+export default function CareTransiaIntake({ 
   patientInfo, setPatientInfo, 
   files, setFiles, 
   notes, setNotes, 
   onAnalyze, isLoading,
   progressMsg = "Processing..."
-}: TrueCareIntakeProps) {
+}: CareTransiaIntakeProps) {
   
   const [mode, setMode] = useState<'agent' | 'manual'>('agent');
   const [showCamera, setShowCamera] = useState(false);
@@ -117,36 +118,72 @@ function AgentIntake({
         { 
             id: 'welcome', 
             role: 'model', 
-            text: "Hi, I'm TrueCare. I can help you build a care plan quickly. Who is this plan for?", 
+            text: "Hi, I'm CareTransia. I can help you build a care plan quickly. Who is this plan for?", 
             timestamp: Date.now() 
         }
     ]);
     const [input, setInput] = useState('');
     const [isThinking, setIsThinking] = useState(false);
     const [suggestions, setSuggestions] = useState<string[]>(["It's for me", "For my parent", "For my spouse"]);
+    
+    // Voice & TTS State
+    const [isListening, setIsListening] = useState(false);
+    const [ttsStatus, setTtsStatus] = useState<'idle' | 'generating' | 'playing'>('idle');
+    const [activeAudioId, setActiveAudioId] = useState<string | null>(null);
+    
     const chatEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
-
+    const recognitionRef = useRef<any>(null);
+    
     // Auto-scroll
     useEffect(() => {
         chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [messages, isThinking]);
+    }, [messages, isThinking, ttsStatus]);
+
+    const playTTS = async (text: string, id?: string) => {
+        if (ttsStatus !== 'idle') return; // Prevent double play
+        
+        setTtsStatus('generating');
+        if (id) setActiveAudioId(id);
+
+        try {
+             const cleanText = text.replace(/[*#]/g, '').replace(/\[(.*?)\]\(.*?\)/g, '$1');
+             const base64Audio = await generateSpeech(cleanText);
+             
+             setTtsStatus('playing');
+             await playRawAudio(base64Audio);
+        } catch(e) {
+             console.error("TTS Error", e);
+             alert("Could not generate audio.");
+        } finally {
+             setTtsStatus('idle');
+             setActiveAudioId(null);
+        }
+    };
 
     const handleSend = async (text: string) => {
         if (!text.trim()) return;
         
-        // 1. Add User Message
+        const autoPlayResponse = isListening;
+
+        if (isListening) {
+             if (recognitionRef.current) {
+                recognitionRef.current.onresult = null;
+                recognitionRef.current.onerror = null;
+                recognitionRef.current.stop();
+            }
+            setIsListening(false);
+        }
+
         const userMsg: ChatMessage = { id: Date.now().toString(), role: 'user', text, timestamp: Date.now() };
         setMessages(prev => [...prev, userMsg]);
         setInput('');
         setIsThinking(true);
-        setSuggestions([]); // Clear old suggestions
+        setSuggestions([]); 
 
         try {
-            // 2. Call Agent Service
             const response = await runIntakeAgent(patientInfo, files.length, messages, text);
             
-            // 3. Update Patient Info if extracted
             if (response.extracted_info) {
                 setPatientInfo(prev => ({
                     ...prev,
@@ -154,7 +191,6 @@ function AgentIntake({
                 }));
             }
 
-            // 4. Add Model Message with Widget
             const botMsg: ChatMessage = {
                 id: (Date.now() + 1).toString(),
                 role: 'model',
@@ -165,6 +201,11 @@ function AgentIntake({
             setMessages(prev => [...prev, botMsg]);
             setSuggestions(response.suggestions || []);
 
+            // Auto Play Logic with Visual Feedback
+            if (autoPlayResponse) {
+                playTTS(response.text, botMsg.id);
+            }
+
         } catch (e) {
             console.error(e);
             setMessages(prev => [...prev, { id: Date.now().toString(), role: 'model', text: "I'm having a little trouble connecting. Please try again.", timestamp: Date.now() }]);
@@ -173,18 +214,59 @@ function AgentIntake({
         }
     };
 
+    // ... (Existing handlers: handleFileSelect, toggleDictation, completionScore) ...
     const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files) {
-            Array.from(e.target.files).forEach(file => {
+            Array.from(e.target.files).forEach((file: File) => {
                 const reader = new FileReader();
                 reader.onload = (ev) => {
                     if(ev.target?.result) addFile(ev.target.result as string, file.type);
                 };
                 reader.readAsDataURL(file);
             });
-            // Inform chat
             handleSend("I've uploaded the files.");
         }
+    };
+
+    const toggleDictation = () => {
+        if (isListening) {
+            if (input.trim()) {
+                handleSend(input);
+            } else {
+                recognitionRef.current?.stop();
+                setIsListening(false);
+            }
+            return;
+        }
+
+        const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            alert("Voice input is not supported in this browser.");
+            return;
+        }
+
+        const baseText = input; 
+        const recognition = new SpeechRecognition();
+        
+        recognition.lang = 'en-US';
+        recognition.interimResults = true;
+        recognition.continuous = true; 
+
+        recognition.onstart = () => setIsListening(true);
+        recognition.onend = () => { };
+        recognition.onerror = (e: any) => {
+            console.error("Speech Error", e);
+            setIsListening(false);
+        };
+        recognition.onresult = (event: any) => {
+             const transcript = Array.from(event.results)
+                .map((result: any) => result[0].transcript)
+                .join('');
+             setInput(transcript);
+        };
+
+        recognitionRef.current = recognition;
+        recognition.start();
     };
 
     const completionScore = calculateProgress(patientInfo, files);
@@ -192,61 +274,101 @@ function AgentIntake({
     return (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[600px] animate-fade-in">
             
-            {/* LEFT: Chat Interface (Takes up 2/3 space) */}
+            {/* LEFT: Chat Interface */}
             <div className="lg:col-span-2 flex flex-col bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden relative">
                 
                 {/* Header */}
-                <div className="p-4 border-b border-slate-100 bg-slate-50/80 backdrop-blur flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-600 to-purple-600 flex items-center justify-center text-white shadow-lg shadow-blue-200">
-                        <Icons.Sparkle className="w-5 h-5" />
+                <div className="p-4 border-b border-slate-100 bg-slate-50/80 backdrop-blur flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-600 to-purple-600 flex items-center justify-center text-white shadow-lg shadow-blue-200">
+                            <Icons.Sparkle className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <h3 className="font-bold text-slate-900">CareTransia Agent</h3>
+                            <p className="text-xs text-slate-500 font-medium">Assisting with intake...</p>
+                        </div>
                     </div>
-                    <div>
-                        <h3 className="font-bold text-slate-900">TrueCare Agent</h3>
-                        <p className="text-xs text-slate-500 font-medium">Assisting with intake...</p>
-                    </div>
+                    {ttsStatus !== 'idle' && (
+                        <div className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-2 ${ttsStatus === 'generating' ? 'bg-amber-50 text-amber-600' : 'bg-green-50 text-green-600'}`}>
+                           {ttsStatus === 'generating' ? (
+                               <><Icons.Spinner className="w-3 h-3" /> Generating Voice...</>
+                           ) : (
+                               <><div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div> Speaking...</>
+                           )}
+                        </div>
+                    )}
                 </div>
 
                 {/* Chat Area */}
                 <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50/50">
                     {messages.map((m) => (
                         <div key={m.id} className={`flex flex-col ${m.role === 'user' ? 'items-end' : 'items-start'}`}>
-                            <div className={`max-w-[85%] p-5 rounded-2xl text-base leading-relaxed shadow-sm ${m.role === 'user' ? 'bg-slate-900 text-white rounded-br-none' : 'bg-white border border-slate-200 text-slate-800 rounded-bl-none'}`}>
-                                {m.text}
+                            
+                            {/* Message Bubble + Actions */}
+                            <div className={`flex items-end gap-2 max-w-[95%] ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                                
+                                {m.role === 'model' && (
+                                    <>
+                                        <div className={`bg-white p-5 rounded-2xl text-base leading-relaxed shadow-sm border text-slate-800 rounded-bl-none transition-colors ${activeAudioId === m.id && ttsStatus === 'playing' ? 'border-green-300 ring-2 ring-green-50' : 'border-slate-200'}`}>
+                                            {m.text}
+                                        </div>
+                                        <button 
+                                            onClick={() => playTTS(m.text, m.id)}
+                                            disabled={ttsStatus !== 'idle'}
+                                            className="p-2 mb-1 bg-white border border-slate-200 text-slate-400 hover:text-blue-600 hover:border-blue-200 rounded-full transition-all shadow-sm flex-shrink-0"
+                                            title="Read Aloud"
+                                        >
+                                            {activeAudioId === m.id && ttsStatus === 'generating' ? (
+                                                <Icons.Spinner className="w-4 h-4 text-blue-500" />
+                                            ) : (
+                                                <Icons.Speaker className={`w-4 h-4 ${activeAudioId === m.id && ttsStatus === 'playing' ? 'text-green-500 animate-pulse' : ''}`} />
+                                            )}
+                                        </button>
+                                    </>
+                                )}
+
+                                {m.role === 'user' && (
+                                    <div className="bg-slate-900 text-white p-5 rounded-2xl text-base leading-relaxed shadow-sm rounded-br-none">
+                                        {m.text}
+                                    </div>
+                                )}
                             </div>
                             
                             {/* WIDGETS */}
-                            {m.widget === 'upload' && (
-                                <div className="mt-3 bg-white p-4 rounded-2xl border border-blue-100 shadow-sm flex gap-3 animate-fade-in-up w-full max-w-[85%]">
-                                    <button 
-                                        onClick={() => fileInputRef.current?.click()}
-                                        className="flex-1 py-3 px-4 bg-blue-50 text-blue-700 font-bold rounded-xl hover:bg-blue-100 transition-colors flex items-center justify-center gap-2"
-                                    >
-                                        <input type="file" multiple ref={fileInputRef} className="hidden" onChange={handleFileSelect} accept="image/*,application/pdf" />
-                                        <Icons.Upload className="w-5 h-5" /> Upload
-                                    </button>
-                                    <button 
-                                        onClick={onCamera}
-                                        className="flex-1 py-3 px-4 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 transition-colors flex items-center justify-center gap-2"
-                                    >
-                                        <Icons.Camera className="w-5 h-5" /> Scan
-                                    </button>
-                                </div>
-                            )}
+                            <div className="w-full">
+                                {m.widget === 'upload' && (
+                                    <div className="mt-3 bg-white p-4 rounded-2xl border border-blue-100 shadow-sm flex gap-3 animate-fade-in-up w-full max-w-[85%]">
+                                        <button 
+                                            onClick={() => fileInputRef.current?.click()}
+                                            className="flex-1 py-3 px-4 bg-blue-50 text-blue-700 font-bold rounded-xl hover:bg-blue-100 transition-colors flex items-center justify-center gap-2"
+                                        >
+                                            <input type="file" multiple ref={fileInputRef} className="hidden" onChange={handleFileSelect} accept="image/*,application/pdf" />
+                                            <Icons.Upload className="w-5 h-5" /> Upload
+                                        </button>
+                                        <button 
+                                            onClick={onCamera}
+                                            className="flex-1 py-3 px-4 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 transition-colors flex items-center justify-center gap-2"
+                                        >
+                                            <Icons.Camera className="w-5 h-5" /> Scan
+                                        </button>
+                                    </div>
+                                )}
 
-                            {m.widget === 'analyze' && (
-                                <div className="mt-3 animate-fade-in-up w-full max-w-[85%]">
-                                    {!isLoading ? (
-                                        <Button onClick={onAnalyze} className="w-full text-lg py-4 shadow-xl shadow-blue-200/50">
-                                            <Icons.Sparkle className="w-5 h-5" /> Generate Care Plan
-                                        </Button>
-                                    ) : (
-                                        <div className="bg-white p-4 rounded-xl border border-blue-100 flex items-center gap-3">
-                                            <Icons.Spinner className="w-5 h-5 text-blue-600" />
-                                            <span className="text-blue-600 font-bold text-sm animate-pulse">{progressMsg}</span>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
+                                {m.widget === 'analyze' && (
+                                    <div className="mt-3 animate-fade-in-up w-full max-w-[85%]">
+                                        {!isLoading ? (
+                                            <Button onClick={onAnalyze} className="w-full text-lg py-4 shadow-xl shadow-blue-200/50">
+                                                <Icons.Sparkle className="w-5 h-5" /> Generate Care Plan
+                                            </Button>
+                                        ) : (
+                                            <div className="bg-white p-4 rounded-xl border border-blue-100 flex items-center gap-3">
+                                                <Icons.Spinner className="w-5 h-5 text-blue-600" />
+                                                <span className="text-blue-600 font-bold text-sm animate-pulse">{progressMsg}</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     ))}
                     
@@ -279,14 +401,26 @@ function AgentIntake({
                     )}
                     
                     <div className="flex gap-3 relative">
-                        <input 
-                            value={input}
-                            onChange={e => setInput(e.target.value)}
-                            onKeyDown={e => e.key === 'Enter' && handleSend(input)}
-                            placeholder="Type your answer..."
-                            className="flex-1 bg-slate-100 rounded-2xl px-5 py-4 text-base outline-none focus:ring-2 focus:ring-blue-500 border border-transparent focus:bg-white transition-all placeholder-slate-400"
-                            disabled={isThinking || isLoading}
-                        />
+                        <div className="flex-1 relative">
+                            <input 
+                                value={input}
+                                onChange={e => setInput(e.target.value)}
+                                onKeyDown={e => e.key === 'Enter' && handleSend(input)}
+                                placeholder="Type your answer..."
+                                className="w-full bg-slate-100 rounded-2xl pl-5 pr-12 py-4 text-base outline-none focus:ring-2 focus:ring-blue-500 border border-transparent focus:bg-white transition-all placeholder-slate-400"
+                                disabled={isThinking || isLoading}
+                            />
+                            {/* Mic Button Inside Input */}
+                            <button
+                                onClick={toggleDictation}
+                                disabled={isThinking || isLoading}
+                                className={`absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-xl transition-all ${isListening ? 'text-red-500 bg-red-50 animate-pulse' : 'text-slate-400 hover:text-blue-600 hover:bg-blue-50'}`}
+                                title={isListening ? "Stop & Send" : "Dictate"}
+                            >
+                                {isListening ? <Icons.Stop className="w-5 h-5" /> : <Icons.Mic className="w-5 h-5" />}
+                            </button>
+                        </div>
+
                         <button 
                             onClick={() => handleSend(input)}
                             disabled={!input.trim() || isThinking || isLoading}
@@ -298,14 +432,10 @@ function AgentIntake({
                 </div>
 
             </div>
-
-            {/* RIGHT: Live Preview Panel */}
-            <div className="hidden lg:flex flex-col h-full animate-fade-in-right delay-100">
+             {/* ... Right side ... */}
+             <div className="hidden lg:flex flex-col h-full animate-fade-in-right delay-100">
                 <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-lg h-full flex flex-col relative overflow-hidden">
-                    
-                    {/* Background decoration */}
                     <div className="absolute top-0 right-0 w-32 h-32 bg-blue-50 rounded-full blur-2xl -mr-16 -mt-16 pointer-events-none"></div>
-
                     <div className="flex items-center gap-3 mb-6 border-b border-slate-100 pb-4 relative z-10">
                         <div className="bg-blue-50 p-2.5 rounded-xl text-blue-600">
                             <Icons.Clipboard className="w-5 h-5" />
@@ -315,12 +445,10 @@ function AgentIntake({
                             <p className="text-xs text-slate-500 font-medium uppercase tracking-wide">Live Context Extraction</p>
                         </div>
                     </div>
-
                     <div className="space-y-4 flex-1 relative z-10">
                         <InfoField label="Patient Name" value={patientInfo.name} placeholder="Waiting..." />
                         <InfoField label="Age" value={patientInfo.age} placeholder="Waiting..." />
                         <InfoField label="Condition" value={patientInfo.primary_condition} placeholder="Waiting..." />
-                        
                         <div className="mt-8 pt-6 border-t border-slate-100">
                             <div className="flex justify-between items-center mb-3">
                                 <span className="text-sm font-bold text-slate-700">Documents</span>
@@ -351,8 +479,6 @@ function AgentIntake({
                             </div>
                         </div>
                     </div>
-
-                    {/* Progress Indicator */}
                     <div className="mt-auto pt-6 relative z-10">
                         <div className="flex justify-between text-xs font-bold text-slate-500 mb-2">
                             <span>Completeness</span>
@@ -365,7 +491,6 @@ function AgentIntake({
                             ></div>
                         </div>
                     </div>
-
                 </div>
             </div>
 
@@ -373,6 +498,7 @@ function AgentIntake({
     );
 }
 
+// ... InfoField, calculateProgress, ManualIntake (Existing)
 function InfoField({ label, value, placeholder }: { label: string, value: string, placeholder: string }) {
     const isSet = !!value && value.length > 0;
     return (
@@ -403,11 +529,6 @@ function calculateProgress(info: PatientInfo, files: UploadedFile[]) {
     return score;
 }
 
-
-// ----------------------------------------------------------------------
-// SUB-COMPONENT: MANUAL FORM (Original Logic)
-// ----------------------------------------------------------------------
-
 function ManualIntake({ 
     patientInfo, setPatientInfo, 
     files, setFiles, 
@@ -426,7 +547,7 @@ function ManualIntake({
 
     const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files) {
-            Array.from(e.target.files).forEach(file => {
+            Array.from(e.target.files).forEach((file: File) => {
                 const reader = new FileReader();
                 reader.onload = (ev) => {
                     if (ev.target?.result) addFile(ev.target.result as string, file.type);

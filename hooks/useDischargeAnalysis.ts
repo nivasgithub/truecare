@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { PatientInfo, UploadedFile, ParsedEpisode, ConsistencyReport, FormattedCarePlan } from '../types';
-import { generateTrueCarePlan } from '../api';
+import { generateCareTransiaPlan } from '../api';
+import { saveCarePlanToDb } from '../services/firebase';
 
 // Helper for session storage persistence
 function useSessionState<T>(key: string, initialValue: T): [T, React.Dispatch<React.SetStateAction<T>>] {
@@ -29,21 +30,21 @@ function useSessionState<T>(key: string, initialValue: T): [T, React.Dispatch<Re
   return [state, setState];
 }
 
-export function useTrueCareFlow() {
+export function useCareTransiaFlow(userId?: string) {
   // Input State (Intake Module)
-  const [patientInfo, setPatientInfo] = useSessionState<PatientInfo>('tc_patientInfo', {
+  const [patientInfo, setPatientInfo] = useSessionState<PatientInfo>('ct_patientInfo', {
     name: '', age: '', primary_condition: '', language_preference: 'English', caregiver_role: ''
   });
   
   // We do not persist files (images) due to storage quota limits (usually 5MB).
   const [files, setFiles] = useState<UploadedFile[]>([]);
   
-  const [notes, setNotes] = useSessionState<string>('tc_notes', '');
+  const [notes, setNotes] = useSessionState<string>('ct_notes', '');
   
   // Output State (Plan Module)
-  const [parsedEpisode, setParsedEpisode] = useSessionState<ParsedEpisode | null>('tc_parsedEpisode', null);
-  const [consistencyReport, setConsistencyReport] = useSessionState<ConsistencyReport | null>('tc_consistencyReport', null);
-  const [carePlan, setCarePlan] = useSessionState<FormattedCarePlan | null>('tc_carePlan', null);
+  const [parsedEpisode, setParsedEpisode] = useSessionState<ParsedEpisode | null>('ct_parsedEpisode', null);
+  const [consistencyReport, setConsistencyReport] = useSessionState<ConsistencyReport | null>('ct_consistencyReport', null);
+  const [carePlan, setCarePlan] = useSessionState<FormattedCarePlan | null>('ct_carePlan', null);
   
   // UI State
   const [status, setStatus] = useState<'idle' | 'analyzing' | 'done' | 'error'>('idle');
@@ -56,12 +57,21 @@ export function useTrueCareFlow() {
       setErrorMsg(null);
       setProgressMsg('Starting analysis...');
       
-      // Call the TrueCare Orchestration API
-      const result = await generateTrueCarePlan(files, notes, patientInfo, (msg) => setProgressMsg(msg));
+      // Call the CareTransia Orchestration API
+      const result = await generateCareTransiaPlan(files, notes, patientInfo, (msg) => setProgressMsg(msg));
       
       setParsedEpisode(result.parsedEpisode);
       setConsistencyReport(result.consistencyReport);
       setCarePlan(result.carePlan);
+      
+      // Save to Firebase if user is logged in
+      if (userId) {
+        setProgressMsg('Saving to profile...');
+        await saveCarePlanToDb(userId, {
+            parsedEpisode: result.parsedEpisode,
+            carePlan: result.carePlan
+        });
+      }
 
       setStatus('done');
     } catch (e: any) {
@@ -81,14 +91,21 @@ export function useTrueCareFlow() {
     setProgressMsg('');
     
     // Clear session storage for these specific keys
-    sessionStorage.removeItem('tc_parsedEpisode');
-    sessionStorage.removeItem('tc_consistencyReport');
-    sessionStorage.removeItem('tc_carePlan');
-    sessionStorage.removeItem('tc_notes');
-    sessionStorage.removeItem('tc_patientInfo');
+    sessionStorage.removeItem('ct_parsedEpisode');
+    sessionStorage.removeItem('ct_consistencyReport');
+    sessionStorage.removeItem('ct_carePlan');
+    sessionStorage.removeItem('ct_notes');
+    sessionStorage.removeItem('ct_patientInfo');
     
     // Reset inputs to default
     setPatientInfo({ name: '', age: '', primary_condition: '', language_preference: 'English', caregiver_role: '' });
+  };
+
+  const loadRecord = (episode: ParsedEpisode, report: ConsistencyReport, plan: FormattedCarePlan) => {
+    setParsedEpisode(episode);
+    setConsistencyReport(report);
+    setCarePlan(plan);
+    setStatus('done');
   };
 
   const dismissError = () => setStatus('idle');
@@ -97,6 +114,6 @@ export function useTrueCareFlow() {
     intake: { patientInfo, setPatientInfo, files, setFiles, notes, setNotes },
     results: { parsedEpisode, consistencyReport, carePlan },
     ui: { status, errorMsg, dismissError, progressMsg },
-    actions: { analyze, reset }
+    actions: { analyze, reset, loadRecord }
   };
 }

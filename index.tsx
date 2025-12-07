@@ -1,16 +1,20 @@
 import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { useTrueCareFlow } from './hooks/useDischargeAnalysis';
-import { UserProfile } from './types';
+import { useCareTransiaFlow } from './hooks/useDischargeAnalysis';
+import type { UserProfile, ParsedEpisode, ConsistencyReport, FormattedCarePlan } from './types';
 import Navbar from './components/Navbar';
-import TrueCareLandingPage from './components/LandingPage';
-import TrueCareIntake from './components/InputSection';
+import BottomNav from './components/BottomNav';
+import LiveAssistant from './components/LiveAssistant';
+import CareTransiaLandingPage from './components/LandingPage';
+import CareTransiaIntake from './components/InputSection';
 import StatusMessage from './components/StatusMessage';
-import TrueCareResults from './components/ResultsDashboard';
+import CareTransiaResults from './components/ResultsDashboard';
 import SignInScreen from './components/SignInScreen';
 import DashboardScreen from './components/DashboardScreen';
 import TestModelsScreen from './components/TestModelsScreen';
 import SettingsScreen from './components/SettingsScreen';
+import { auth, logoutUser } from './services/firebase';
+import { onAuthStateChanged } from 'firebase/auth';
 
 // --- Router Helpers ---
 const getHashPath = () => {
@@ -22,17 +26,15 @@ const navigate = (path: string) => {
   window.location.hash = `#/${path}`;
 };
 
-export default function TrueCareApp() {
-  const { intake, results, ui, actions } = useTrueCareFlow();
-  
+export default function CareTransiaApp() {
   // App State
   const [currentView, setCurrentView] = useState<string>(getHashPath());
-  
-  // User Persistence
-  const [user, setUser] = useState<UserProfile | null>(() => {
-    const saved = localStorage.getItem('truecare_user');
-    return saved ? JSON.parse(saved) : null;
-  });
+  const [showLiveAssistant, setShowLiveAssistant] = useState(false);
+  const [user, setUser] = useState<UserProfile | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  // Initialize hooks with userId (if logged in) for auto-saving
+  const { intake, results, ui, actions } = useCareTransiaFlow(user?.id);
 
   // Handle Routing (Hash Change)
   useEffect(() => {
@@ -41,14 +43,27 @@ export default function TrueCareApp() {
     return () => window.removeEventListener('hashchange', onHashChange);
   }, []);
 
-  // Sync User to Storage
+  // Listen for Auth Changes (Firebase)
   useEffect(() => {
-    if (user) {
-      localStorage.setItem('truecare_user', JSON.stringify(user));
-    } else {
-      localStorage.removeItem('truecare_user');
-    }
-  }, [user]);
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      if (firebaseUser) {
+        setUser({
+          id: firebaseUser.uid,
+          name: firebaseUser.displayName || 'User',
+          email: firebaseUser.email || '',
+          avatarUrl: firebaseUser.photoURL || undefined
+        });
+        // If on landing or signin page, redirect to dashboard
+        if (currentView === 'landing' || currentView === 'signin') {
+           navigate('dashboard');
+        }
+      } else {
+        setUser(null);
+      }
+      setAuthLoading(false);
+    });
+    return () => unsubscribe();
+  }, []); // Only run once on mount
 
   // Auto-navigate to results when analysis is done
   useEffect(() => {
@@ -84,19 +99,8 @@ export default function TrueCareApp() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const performLogin = () => {
-    // Simulate successful login
-    const newUser = {
-      id: 'usr_123',
-      name: 'Alex Johnson',
-      email: 'alex.j@example.com'
-    };
-    setUser(newUser);
-    navigate('dashboard');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await logoutUser();
     setUser(null);
     navigate('landing');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -107,21 +111,42 @@ export default function TrueCareApp() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const handleViewRecord = (id: string, fullData?: string) => {
+    if (fullData) {
+        try {
+            const parsed = JSON.parse(fullData);
+            if (parsed.parsed && parsed.plan) {
+                // Empty report for historical data as it's not stored yet in mock, but useful for structure
+                const mockReport: ConsistencyReport = { status: 'success', error_message: '', conflicts: [], gaps: [] };
+                actions.loadRecord(parsed.parsed, mockReport, parsed.plan);
+            }
+        } catch (e) {
+            console.error("Failed to parse historical record", e);
+        }
+    }
+  };
+
   // Route Guards / Logic
   const activeView = currentView;
   
   // Redirect to landing if results accessed without data (optional, but good UX)
   useEffect(() => {
     if (activeView === 'results' && !results.parsedEpisode && ui.status !== 'analyzing') {
-       if (!sessionStorage.getItem('tc_parsedEpisode')) {
+       if (!sessionStorage.getItem('ct_parsedEpisode')) {
          navigate('landing');
        }
     }
   }, [activeView, results.parsedEpisode, ui.status]);
 
+  if (authLoading) {
+     return <div className="h-screen w-full flex items-center justify-center bg-slate-50"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div></div>;
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900 flex flex-col">
       
+      <LiveAssistant isOpen={showLiveAssistant} onClose={() => setShowLiveAssistant(false)} />
+
       <Navbar 
         onHomeClick={handleHome} 
         currentView={activeView} 
@@ -129,27 +154,29 @@ export default function TrueCareApp() {
         onSignIn={handleSignIn}
         onLogout={handleLogout}
         onSettingsClick={handleSettings}
+        onLiveClick={() => setShowLiveAssistant(true)}
       />
 
-      <main className="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 relative">
         
         {/* VIEW: Landing */}
         {activeView === 'landing' && (
           <div className="animate-fade-in">
-            <TrueCareLandingPage onGetStarted={handleStart} />
+            <CareTransiaLandingPage onGetStarted={handleStart} />
           </div>
         )}
 
         {/* VIEW: Sign In */}
         {activeView === 'signin' && (
-          <SignInScreen onSignIn={performLogin} />
+          <SignInScreen onSignIn={() => {}} /> 
+          /* Navigation handled by auth listener, no-op passed */
         )}
 
         {/* VIEW: Dashboard */}
         {activeView === 'dashboard' && user && (
            <DashboardScreen 
              user={user} 
-             onViewRecord={(id) => console.log('View record', id)}
+             onViewRecord={handleViewRecord}
              onNewPlan={handleStart}
            />
         )}
@@ -163,8 +190,8 @@ export default function TrueCareApp() {
 
         {/* VIEW: Intake */}
         {activeView === 'intake' && (
-          <div className="animate-fade-in-up">
-            <TrueCareIntake 
+          <div className="animate-fade-in-up pb-24">
+            <CareTransiaIntake 
                 patientInfo={intake.patientInfo} setPatientInfo={intake.setPatientInfo}
                 files={intake.files} setFiles={intake.setFiles}
                 notes={intake.notes} setNotes={intake.setNotes}
@@ -178,7 +205,7 @@ export default function TrueCareApp() {
 
         {/* VIEW: Results */}
         {activeView === 'results' && results.parsedEpisode && (
-          <div className="animate-fade-in">
+          <div className="animate-fade-in pb-24">
              <div className="mb-6 flex items-center justify-between">
                 <button onClick={() => navigate('intake')} className="text-sm text-slate-500 hover:text-slate-800 flex items-center gap-1">
                   ← Back to Uploads
@@ -189,7 +216,7 @@ export default function TrueCareApp() {
                    </button>
                 )}
              </div>
-            <TrueCareResults 
+            <CareTransiaResults 
               data={results.parsedEpisode} 
               consistency={results.consistencyReport} 
               carePlan={results.carePlan}
@@ -214,12 +241,28 @@ export default function TrueCareApp() {
 
       </main>
 
-      <footer className="bg-white border-t border-slate-100 py-8 mt-auto">
-        <div className="max-w-7xl mx-auto px-4 text-center text-slate-400 text-sm">
-          <p>© {new Date().getFullYear()} TrueCare. A prototype for demonstration purposes.</p>
-          <p className="mt-2 text-xs">Not for medical emergencies. Always consult your doctor.</p>
-        </div>
-      </footer>
+      {user && (
+         <BottomNav 
+            currentView={activeView} 
+            onNavigate={(path) => {
+                navigate(path);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            onLiveClick={() => setShowLiveAssistant(true)}
+            hasActivePlan={!!results.parsedEpisode}
+            isLiveActive={showLiveAssistant}
+         />
+      )}
+
+      {/* Hide footer on authenticated screens to avoid clutter with bottom nav */}
+      {!user && (
+        <footer className="bg-white border-t border-slate-100 py-8 mt-auto">
+          <div className="max-w-7xl mx-auto px-4 text-center text-slate-400 text-sm">
+            <p>© {new Date().getFullYear()} CareTransia. A prototype for demonstration purposes.</p>
+            <p className="mt-2 text-xs">Not for medical emergencies. Always consult your doctor.</p>
+          </div>
+        </footer>
+      )}
 
     </div>
   );
@@ -227,5 +270,5 @@ export default function TrueCareApp() {
 
 const rootElement = document.getElementById('root');
 if (rootElement) {
-  createRoot(rootElement).render(<TrueCareApp />);
+  createRoot(rootElement).render(<CareTransiaApp />);
 }

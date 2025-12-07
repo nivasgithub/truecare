@@ -22,6 +22,42 @@ export async function generateSpeech(text: string): Promise<string> {
   return base64Audio;
 }
 
+export async function playRawAudio(base64String: string, sampleRate = 24000): Promise<void> {
+  const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate });
+
+  // Decode Base64 to binary
+  const binaryString = atob(base64String);
+  const len = binaryString.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  
+  // Convert Raw PCM (Int16) to AudioBuffer (Float32)
+  // Gemini TTS returns 16-bit PCM, usually 24kHz
+  const dataInt16 = new Int16Array(bytes.buffer);
+  
+  const buffer = audioContext.createBuffer(1, dataInt16.length, sampleRate);
+  const channelData = buffer.getChannelData(0);
+  for (let i = 0; i < dataInt16.length; i++) {
+      // Normalize Int16 to Float32 [-1.0, 1.0]
+      channelData[i] = dataInt16[i] / 32768.0;
+  }
+
+  const source = audioContext.createBufferSource();
+  source.buffer = buffer;
+  source.connect(audioContext.destination);
+  source.start(0);
+
+  return new Promise((resolve) => {
+    source.onended = () => {
+        resolve();
+        // Clean up context to release hardware resources
+        setTimeout(() => audioContext.close(), 100); 
+    };
+  });
+}
+
 // --- Image Generation ---
 export async function generateImage(prompt: string, aspectRatio: string = "16:9"): Promise<string> {
   // Image Gen requires Gemini 3 Pro Image Preview

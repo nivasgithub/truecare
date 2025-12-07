@@ -3,16 +3,16 @@ import { Card, Badge, Icons, Button } from './ui';
 import { ParsedEpisode, ConsistencyReport, FormattedCarePlan, ChatMessage } from '../types';
 import { queryCarePlan } from '../services/planner';
 import { generateRecoveryVideo } from '../services/video';
-import { generateSpeech, generateImage, editImage } from '../services/media';
+import { generateSpeech, generateImage, editImage, playRawAudio } from '../services/media';
 
-interface TrueCareResultsProps {
+interface CareTransiaResultsProps {
   data: ParsedEpisode;
   consistency: ConsistencyReport | null;
   carePlan: FormattedCarePlan | null;
   onReset: () => void;
 }
 
-export default function TrueCareResults({ data, consistency, carePlan, onReset }: TrueCareResultsProps) {
+export default function CareTransiaResults({ data, consistency, carePlan, onReset }: CareTransiaResultsProps) {
   
   const [view, setView] = useState<'playbook' | 'clinical'>('playbook'); 
   const [showDebug, setShowDebug] = useState(false);
@@ -35,7 +35,7 @@ export default function TrueCareResults({ data, consistency, carePlan, onReset }
   const [aspectRatio, setAspectRatio] = useState("16:9");
 
   // TTS State
-  const [isPlayingTTS, setIsPlayingTTS] = useState(false);
+  const [ttsStatus, setTtsStatus] = useState<'idle' | 'generating' | 'playing'>('idle');
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -79,32 +79,39 @@ export default function TrueCareResults({ data, consistency, carePlan, onReset }
     }
   };
 
-  const handleTTS = async () => {
-     if (!carePlan) return;
-     if (isPlayingTTS) return; 
-     setIsPlayingTTS(true);
-     try {
-         const textToRead = `Here is the care plan for ${data.patient.name}. 
-         Today and tomorrow: ${carePlan.patient_friendly_plan.today_and_tomorrow.join(". ")}. 
-         Remember: ${carePlan.patient_friendly_plan.warning_signs_card.join(". ")}.`;
+  const playTTS = async (text: string) => {
+    if (ttsStatus !== 'idle') return;
+    
+    setTtsStatus('generating');
+    try {
+         // simplistic strip: remove * and # and links for reading
+         const cleanText = text.replace(/[*#]/g, '').replace(/\[(.*?)\]\(.*?\)/g, '$1');
          
-         const base64Audio = await generateSpeech(textToRead);
-         const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({sampleRate: 24000});
-         const binaryString = atob(base64Audio);
-         const bytes = new Uint8Array(binaryString.length);
-         for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
+         const base64Audio = await generateSpeech(cleanText);
          
-         const audioBuffer = await audioContext.decodeAudioData(bytes.buffer);
-         const source = audioContext.createBufferSource();
-         source.buffer = audioBuffer;
-         source.connect(audioContext.destination);
-         source.start(0);
-         source.onended = () => setIsPlayingTTS(false);
+         setTtsStatus('playing');
+         await playRawAudio(base64Audio);
 
-     } catch(e) {
+    } catch(e) {
          console.error("TTS Error", e);
-         setIsPlayingTTS(false);
-     }
+    } finally {
+         setTtsStatus('idle');
+    }
+  };
+
+  const handleMainReadAloud = () => {
+     if (!carePlan) return;
+     
+     const questions = carePlan.patient_friendly_plan.doctor_questions && carePlan.patient_friendly_plan.doctor_questions.length > 0 
+        ? `Questions you might want to ask your doctor: ${carePlan.patient_friendly_plan.doctor_questions.join(". ")}`
+        : "";
+
+     const textToRead = `Here is the care plan for ${data.patient.name}. 
+         Today and tomorrow: ${carePlan.patient_friendly_plan.today_and_tomorrow.join(". ")}. 
+         Remember: ${carePlan.patient_friendly_plan.warning_signs_card.join(". ")}.
+         ${questions}`;
+         
+     playTTS(textToRead);
   };
 
   const handleGenerateImage = async () => {
@@ -188,12 +195,18 @@ export default function TrueCareResults({ data, consistency, carePlan, onReset }
         
         <div className="flex gap-3">
             <button 
-                onClick={handleTTS}
-                disabled={isPlayingTTS}
+                onClick={handleMainReadAloud}
+                disabled={ttsStatus !== 'idle'}
                 className="bg-slate-50 hover:bg-slate-100 text-slate-700 p-4 rounded-2xl transition-colors disabled:opacity-50 border border-slate-200"
-                title="Read Aloud"
+                title="Read Aloud Summary"
             >
-                {isPlayingTTS ? <span className="animate-pulse">🔊 Listening...</span> : <div className="flex items-center gap-2"><Icons.Mic className="w-6 h-6" /> <span className="font-bold hidden md:inline">Read Aloud</span></div>}
+                {ttsStatus === 'generating' ? (
+                     <div className="flex items-center gap-2"><Icons.Spinner className="w-6 h-6 text-blue-500" /> <span className="font-bold hidden md:inline">Generating...</span></div>
+                ) : ttsStatus === 'playing' ? (
+                     <div className="flex items-center gap-2"><div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div> <span className="font-bold hidden md:inline">Speaking...</span></div>
+                ) : (
+                     <div className="flex items-center gap-2"><Icons.Speaker className="w-6 h-6" /> <span className="font-bold hidden md:inline">Read Aloud</span></div>
+                )}
             </button>
             <div className="flex bg-slate-100 p-1.5 rounded-2xl">
             <button 
@@ -318,6 +331,38 @@ export default function TrueCareResults({ data, consistency, carePlan, onReset }
                 </ul>
               </div>
             </Card>
+
+            {/* 4. Questions for Doctor (Newly Added) */}
+            {carePlan.patient_friendly_plan.doctor_questions.length > 0 && (
+                <Card className="overflow-hidden border-indigo-100 shadow-xl shadow-indigo-50/50 rounded-3xl">
+                  <div className="bg-gradient-to-r from-indigo-50 to-white p-8 border-b border-indigo-50">
+                    <div className="flex items-center gap-4">
+                      <div className="bg-white p-3 rounded-2xl text-indigo-600 shadow-sm border border-indigo-100"><Icons.Question /></div>
+                      <h3 className="text-2xl font-bold text-indigo-900">Questions for Doctor</h3>
+                    </div>
+                  </div>
+                  <div className="p-8">
+                    <ul className="space-y-4">
+                      {carePlan.patient_friendly_plan.doctor_questions.map((item, i) => (
+                        <li key={i} className="flex gap-4 items-start">
+                           <div className="bg-indigo-100 text-indigo-700 rounded-full w-6 h-6 flex items-center justify-center flex-shrink-0 mt-0.5 text-xs font-bold">?</div>
+                           <p className="text-slate-800 font-medium text-lg leading-relaxed">{item}</p>
+                        </li>
+                      ))}
+                    </ul>
+                    <div className="mt-6 pt-4 border-t border-indigo-50">
+                        <Button 
+                            variant="secondary" 
+                            onClick={() => playTTS(`Questions you should ask your doctor: ${carePlan.patient_friendly_plan.doctor_questions.join(". ")}`)}
+                            disabled={ttsStatus !== 'idle'}
+                            className="text-indigo-600 text-sm py-2 hover:bg-indigo-50 border-indigo-200"
+                        >
+                            <Icons.Speaker className="w-4 h-4" /> Listen to Questions
+                        </Button>
+                    </div>
+                  </div>
+                </Card>
+            )}
 
             {/* 5. Visualize Recovery */}
              <Card className="col-span-1 lg:col-span-2 p-10 bg-gradient-to-br from-purple-50 to-white border-purple-100 rounded-3xl shadow-xl shadow-purple-100/50">
@@ -455,16 +500,33 @@ export default function TrueCareResults({ data, consistency, carePlan, onReset }
                  <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-80 md:w-96 h-[500px] flex flex-col overflow-hidden animate-fade-in-up">
                     <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-5 text-white flex justify-between items-center">
                         <div className="flex items-center gap-2 font-bold text-lg">
-                            <Icons.Sparkle className="w-5 h-5" /> TrueCare Assistant
+                            <Icons.Sparkle className="w-5 h-5" /> CareTransia Assistant
                         </div>
                         <button onClick={() => setChatOpen(false)} className="hover:bg-white/20 p-1.5 rounded-full transition-colors"><span className="text-2xl leading-none">&times;</span></button>
                     </div>
                     <div className="flex-1 p-5 overflow-y-auto bg-slate-50 space-y-4">
                         {messages.map((m) => (
-                            <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                                <div className={`max-w-[85%] p-4 rounded-2xl text-base shadow-sm ${m.role === 'user' ? 'bg-blue-600 text-white rounded-br-none' : 'bg-white border border-slate-200 text-slate-800 rounded-bl-none'}`}>
-                                    <div dangerouslySetInnerHTML={{ __html: m.text.replace(/\n/g, '<br/>').replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank" class="underline font-bold hover:text-blue-200">$1</a>') }} />
-                                </div>
+                            <div key={m.id} className={`flex items-end gap-2 ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                                {m.role === 'model' && (
+                                    <div className={`max-w-[85%] p-4 rounded-2xl text-base shadow-sm bg-white border border-slate-200 text-slate-800 rounded-bl-none`}>
+                                        <div dangerouslySetInnerHTML={{ __html: m.text.replace(/\n/g, '<br/>').replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank" class="underline font-bold hover:text-blue-200">$1</a>') }} />
+                                    </div>
+                                )}
+                                {m.role === 'model' && (
+                                   <button 
+                                      onClick={() => playTTS(m.text)} 
+                                      disabled={ttsStatus !== 'idle'} 
+                                      className="p-2 bg-slate-100 rounded-full text-slate-400 hover:text-blue-600 mb-1 hover:bg-blue-50 transition-colors flex-shrink-0"
+                                      title="Read Aloud"
+                                   >
+                                      {ttsStatus === 'generating' ? <Icons.Spinner className="w-4 h-4 text-blue-500" /> : <Icons.Speaker className="w-4 h-4" />}
+                                   </button>
+                                )}
+                                {m.role === 'user' && (
+                                    <div className={`max-w-[85%] p-4 rounded-2xl text-base shadow-sm bg-blue-600 text-white rounded-br-none`}>
+                                        <div dangerouslySetInnerHTML={{ __html: m.text.replace(/\n/g, '<br/>') }} />
+                                    </div>
+                                )}
                             </div>
                         ))}
                         {isTyping && (

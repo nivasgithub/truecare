@@ -117,7 +117,7 @@ export default function SettingsScreen({ user, onNavigate, onLogout }: SettingsS
 
           <div className="pt-8 border-t border-slate-200">
              <button onClick={onLogout} className="text-red-600 font-bold text-sm hover:text-red-700 flex items-center gap-2">
-                Log Out of TrueCare
+                Log Out of CareTransia
              </button>
              <p className="text-xs text-slate-400 mt-2">Version 2.5.0 (Build 2024.10.25)</p>
           </div>

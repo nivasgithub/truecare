@@ -9,9 +9,9 @@ export { checkConsistency } from "./services/safety";
 export { generateCarePlan, queryCarePlan } from "./services/planner";
 export { generateRecoveryVideo } from "./services/video";
 
-// --- TrueCare Orchestration API ---
+// --- CareTransia Orchestration API ---
 
-export const generateTrueCarePlan = async (
+export const generateCareTransiaPlan = async (
   files: UploadedFile[],
   notes: string,
   patientInfo: PatientInfo,
