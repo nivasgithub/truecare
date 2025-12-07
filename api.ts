@@ -1,10 +1,10 @@
 import { PatientInfo, UploadedFile, ParsedEpisode, ConsistencyReport, FormattedCarePlan } from "./types";
-import { parseDischargeDocuments } from "./services/extractor";
+import { parseDischargeDocuments, identifyPatientFromFiles } from "./services/extractor";
 import { checkConsistency } from "./services/safety";
 import { generateCarePlan } from "./services/planner";
 
 // Re-export services for consumers
-export { parseDischargeDocuments } from "./services/extractor";
+export { parseDischargeDocuments, identifyPatientFromFiles } from "./services/extractor";
 export { checkConsistency } from "./services/safety";
 export { generateCarePlan, queryCarePlan } from "./services/planner";
 export { generateRecoveryVideo } from "./services/video";

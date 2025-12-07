@@ -28,7 +28,8 @@ Safety Report: ${JSON.stringify(consistencyReport)}
 Generate the care playbook JSON.
 `;
 
-  // Request 15: Use thinking mode for complex queries (Care Plan generation is complex)
+  // Request 15: Removed thinking mode to prevent timeouts/hanging.
+  // The task is primarily formatting, so standard generation is sufficient and faster.
   const response = await ai.models.generateContent({
     model: AppConfig.models.planner,
     contents: {
@@ -38,8 +39,6 @@ Generate the care playbook JSON.
     config: {
       systemInstruction: systemPrompt,
       responseMimeType: "application/json",
-      // Thinking Config for deeper reasoning on safety/conflicts
-      thinkingConfig: { thinkingBudget: 1024 }, 
       responseSchema: {
         type: Type.OBJECT,
         properties: {

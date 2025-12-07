@@ -18,6 +18,21 @@ export default function CareTransiaResults({ data, consistency, carePlan, onRese
   const [showDebug, setShowDebug] = useState(false);
   const hasIssues = consistency?.status === 'success' && (consistency.conflicts.length > 0 || consistency.gaps.length > 0);
 
+  // Deep Safety Fallback for Plan Data
+  // Ensures safePlan is fully populated with arrays even if the API returns partial/malformed data
+  const rawFriendlyPlan = (carePlan?.patient_friendly_plan || {}) as any;
+  
+  const safePlan = {
+    today_and_tomorrow: Array.isArray(rawFriendlyPlan.today_and_tomorrow) ? rawFriendlyPlan.today_and_tomorrow : [],
+    daily_routine: Array.isArray(rawFriendlyPlan.daily_routine) ? rawFriendlyPlan.daily_routine : [],
+    weekly_or_followup_tasks: Array.isArray(rawFriendlyPlan.weekly_or_followup_tasks) ? rawFriendlyPlan.weekly_or_followup_tasks : [],
+    warning_signs_card: Array.isArray(rawFriendlyPlan.warning_signs_card) ? rawFriendlyPlan.warning_signs_card : [],
+    doctor_questions: Array.isArray(rawFriendlyPlan.doctor_questions) ? rawFriendlyPlan.doctor_questions : []
+  };
+
+  // If the plan generated an error, show it
+  const planError = carePlan?.status === 'error' ? carePlan.error_message : null;
+
   // Chat State
   const [chatOpen, setChatOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -100,15 +115,17 @@ export default function CareTransiaResults({ data, consistency, carePlan, onRese
   };
 
   const handleMainReadAloud = () => {
-     if (!carePlan) return;
-     
-     const questions = carePlan.patient_friendly_plan.doctor_questions && carePlan.patient_friendly_plan.doctor_questions.length > 0 
-        ? `Questions you might want to ask your doctor: ${carePlan.patient_friendly_plan.doctor_questions.join(". ")}`
+     // Safe access to array join
+     const questions = safePlan.doctor_questions.length > 0 
+        ? `Questions you might want to ask your doctor: ${safePlan.doctor_questions.join(". ")}`
         : "";
 
-     const textToRead = `Here is the care plan for ${data.patient.name}. 
-         Today and tomorrow: ${carePlan.patient_friendly_plan.today_and_tomorrow.join(". ")}. 
-         Remember: ${carePlan.patient_friendly_plan.warning_signs_card.join(". ")}.
+     const actions = safePlan.today_and_tomorrow.length > 0 ? safePlan.today_and_tomorrow.join(". ") : "No immediate actions listed.";
+     const warnings = safePlan.warning_signs_card.length > 0 ? safePlan.warning_signs_card.join(". ") : "No specific warnings listed.";
+
+     const textToRead = `Here is the care plan for ${data.patient.name || 'the patient'}. 
+         Today and tomorrow: ${actions}. 
+         Remember: ${warnings}.
          ${questions}`;
          
      playTTS(textToRead);
@@ -180,7 +197,7 @@ export default function CareTransiaResults({ data, consistency, carePlan, onRese
   return (
     <div className="animate-fade-in space-y-8 pb-32 max-w-6xl mx-auto">
       
-      {/* Dashboard Header - Unified Soothing Style */}
+      {/* Dashboard Header */}
       <div className="bg-white rounded-3xl p-8 border border-slate-100 shadow-lg shadow-slate-100/50 flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
            <div className="flex items-center gap-2 mb-3">
@@ -224,9 +241,20 @@ export default function CareTransiaResults({ data, consistency, carePlan, onRese
             </div>
         </div>
       </div>
+      
+      {planError && (
+          <div className="bg-red-50 p-6 rounded-2xl border border-red-200 text-red-700 flex items-start gap-3">
+              <Icons.Alert className="w-6 h-6 flex-shrink-0 mt-1" />
+              <div>
+                  <h3 className="font-bold text-lg">Plan Generation Issue</h3>
+                  <p>{planError}</p>
+                  <p className="text-sm mt-2">Some sections may be missing. Please review the clinical data directly.</p>
+              </div>
+          </div>
+      )}
 
       {/* --- PATIENT PLAYBOOK VIEW --- */}
-      {view === 'playbook' && carePlan && (
+      {view === 'playbook' && (
         <div className="space-y-8 animate-fade-in">
           
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -242,13 +270,13 @@ export default function CareTransiaResults({ data, consistency, carePlan, onRese
               </div>
               <div className="p-8 md:p-10">
                 <ul className="space-y-6">
-                  {carePlan.patient_friendly_plan.today_and_tomorrow.map((item, i) => (
+                  {safePlan.today_and_tomorrow.map((item, i) => (
                     <li key={i} className="flex gap-5 items-start group p-4 hover:bg-blue-50/50 rounded-2xl transition-colors cursor-default">
                       <div className="w-8 h-8 rounded-full border-4 border-blue-100 bg-white group-hover:border-blue-400 transition-colors flex-shrink-0 mt-1"></div>
                       <p className="text-slate-800 font-medium text-xl leading-relaxed">{item}</p>
                     </li>
                   ))}
-                  {carePlan.patient_friendly_plan.today_and_tomorrow.length === 0 && <p className="text-slate-400 italic text-lg">No immediate actions found.</p>}
+                  {safePlan.today_and_tomorrow.length === 0 && <p className="text-slate-400 italic text-lg">No immediate actions found.</p>}
                 </ul>
               </div>
             </Card>
@@ -300,13 +328,13 @@ export default function CareTransiaResults({ data, consistency, carePlan, onRese
               </div>
               <div className="p-8">
                 <ul className="space-y-6">
-                  {carePlan.patient_friendly_plan.daily_routine.map((item, i) => (
+                  {safePlan.daily_routine.map((item, i) => (
                     <li key={i} className="flex gap-4 items-start p-3 hover:bg-emerald-50/30 rounded-xl transition-colors">
                       <div className="bg-emerald-100 text-emerald-700 rounded-full w-8 h-8 flex items-center justify-center flex-shrink-0 mt-0.5 text-sm font-bold shadow-sm">✓</div>
                       <p className="text-slate-700 font-medium text-lg leading-relaxed">{item}</p>
                     </li>
                   ))}
-                  {carePlan.patient_friendly_plan.daily_routine.length === 0 && <p className="text-slate-400 italic text-lg">No specific daily routine found.</p>}
+                  {safePlan.daily_routine.length === 0 && <p className="text-slate-400 italic text-lg">No specific daily routine found.</p>}
                 </ul>
               </div>
             </Card>
@@ -322,18 +350,19 @@ export default function CareTransiaResults({ data, consistency, carePlan, onRese
               <div className="p-8 bg-red-50/30 h-full">
                 <p className="text-sm font-bold text-red-700 uppercase tracking-wide mb-6 bg-red-100 w-fit px-3 py-1 rounded-full">Call your doctor if:</p>
                 <ul className="space-y-4">
-                  {carePlan.patient_friendly_plan.warning_signs_card.map((item, i) => (
+                  {safePlan.warning_signs_card.map((item, i) => (
                     <li key={i} className="flex gap-4 items-start">
                       <Icons.Alert className="text-red-500 w-6 h-6 flex-shrink-0 mt-0.5" />
                       <p className="text-slate-800 font-medium text-lg leading-relaxed">{item}</p>
                     </li>
                   ))}
+                  {safePlan.warning_signs_card.length === 0 && <p className="text-slate-600 italic">No specific warnings found in the documents.</p>}
                 </ul>
               </div>
             </Card>
 
-            {/* 4. Questions for Doctor (Newly Added) */}
-            {carePlan.patient_friendly_plan.doctor_questions.length > 0 && (
+            {/* 4. Questions for Doctor */}
+            {safePlan.doctor_questions.length > 0 && (
                 <Card className="overflow-hidden border-indigo-100 shadow-xl shadow-indigo-50/50 rounded-3xl">
                   <div className="bg-gradient-to-r from-indigo-50 to-white p-8 border-b border-indigo-50">
                     <div className="flex items-center gap-4">
@@ -343,7 +372,7 @@ export default function CareTransiaResults({ data, consistency, carePlan, onRese
                   </div>
                   <div className="p-8">
                     <ul className="space-y-4">
-                      {carePlan.patient_friendly_plan.doctor_questions.map((item, i) => (
+                      {safePlan.doctor_questions.map((item, i) => (
                         <li key={i} className="flex gap-4 items-start">
                            <div className="bg-indigo-100 text-indigo-700 rounded-full w-6 h-6 flex items-center justify-center flex-shrink-0 mt-0.5 text-xs font-bold">?</div>
                            <p className="text-slate-800 font-medium text-lg leading-relaxed">{item}</p>
@@ -353,7 +382,7 @@ export default function CareTransiaResults({ data, consistency, carePlan, onRese
                     <div className="mt-6 pt-4 border-t border-indigo-50">
                         <Button 
                             variant="secondary" 
-                            onClick={() => playTTS(`Questions you should ask your doctor: ${carePlan.patient_friendly_plan.doctor_questions.join(". ")}`)}
+                            onClick={() => playTTS(`Questions you should ask your doctor: ${safePlan.doctor_questions.join(". ")}`)}
                             disabled={ttsStatus !== 'idle'}
                             className="text-indigo-600 text-sm py-2 hover:bg-indigo-50 border-indigo-200"
                         >

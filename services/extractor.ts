@@ -166,3 +166,47 @@ export async function extractPatientDetails(text: string): Promise<Partial<Patie
   if (!response.text) throw new Error("Failed to extract details");
   return cleanAndParseJSON<Partial<PatientInfo>>(response.text);
 }
+
+/**
+ * Quick extraction of just patient demographics from files
+ */
+export async function identifyPatientFromFiles(files: UploadedFile[]): Promise<Partial<PatientInfo>> {
+  if (files.length === 0) return {};
+
+  const fileParts = files.map(f => ({
+    inlineData: { data: f.data, mimeType: f.mimeType }
+  }));
+
+  const systemPrompt = `
+    Analyze these medical documents/images.
+    Extract ONLY the following Patient Information if available:
+    1. Patient Name
+    2. Patient Age (or Date of Birth converted to age if possible, otherwise just age)
+    3. Primary Condition (Reason for visit/discharge diagnosis)
+    
+    Return strict JSON.
+  `;
+
+  const response = await ai.models.generateContent({
+    model: AppConfig.models.extractor,
+    contents: {
+      role: 'user',
+      parts: [...fileParts, { text: "Extract patient demographics." }]
+    },
+    config: {
+      systemInstruction: systemPrompt,
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          name: { type: Type.STRING, nullable: true },
+          age: { type: Type.STRING, nullable: true },
+          primary_condition: { type: Type.STRING, nullable: true },
+        }
+      }
+    }
+  });
+
+  if (!response.text) return {};
+  return cleanAndParseJSON<Partial<PatientInfo>>(response.text);
+}

@@ -5,8 +5,8 @@ export const AppConfig = {
     extractor: 'gemini-3-pro-preview',
     // Safety Checks
     safety: 'gemini-2.5-flash',
-    // Care Planning (Complex reasoning uses Thinking)
-    planner: 'gemini-3-pro-preview',
+    // Care Planning - Switched to Flash for speed
+    planner: 'gemini-2.5-flash',
     // Chat & Grounding (Maps/Search requires Flash currently)
     chat: 'gemini-2.5-flash',
     // Fast responses (Request 12)
