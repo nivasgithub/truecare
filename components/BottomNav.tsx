@@ -14,8 +14,10 @@ export default function BottomNav({ currentView, onNavigate, onLiveClick, hasAct
   
   const navItems = [
     { id: 'dashboard', label: 'Home', icon: Icons.Home },
-    { id: 'results', label: 'My Plan', icon: Icons.Clipboard, disabled: !hasActivePlan },
-    { id: 'intake', label: 'Scan', icon: Icons.Camera },
+    // Tooltip added for disabled state
+    { id: 'results', label: 'My Plan', icon: Icons.Clipboard, disabled: !hasActivePlan, tooltip: "Complete your first plan to access" },
+    // Label changed from Scan to Add
+    { id: 'intake', label: 'Add', icon: Icons.Camera },
     { id: 'live', label: 'Live Agent', icon: Icons.Mic },
   ];
 
@@ -32,7 +34,7 @@ export default function BottomNav({ currentView, onNavigate, onLiveClick, hasAct
       
       if (item.disabled) {
           // Explicit explanation instead of silent failure
-          alert("Please generate a care plan first to view this section.");
+          alert(item.tooltip || "Please generate a care plan first.");
           return;
       }
       
@@ -62,7 +64,14 @@ export default function BottomNav({ currentView, onNavigate, onLiveClick, hasAct
               const isActive = item.id === 'live' ? isLiveActive : currentView === item.id;
               
               return (
-                 <div key={item.id} className="w-16 flex justify-center pb-2">
+                 <div key={item.id} className="w-16 flex justify-center pb-2 relative group">
+                     {/* Hover Tooltip for disabled items on desktop/touch long press simulation */}
+                     {item.disabled && (
+                         <div className="absolute bottom-full mb-2 bg-slate-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                             {item.tooltip}
+                         </div>
+                     )}
+                     
                      <button
                         onClick={() => handleNavClick(item)}
                         className={`
@@ -73,7 +82,7 @@ export default function BottomNav({ currentView, onNavigate, onLiveClick, hasAct
                             }
                             ${item.disabled ? 'opacity-40' : ''}
                         `}
-                        title={item.disabled ? "Generate a plan first to view this" : item.label}
+                        title={item.tooltip || item.label}
                      >
                         <item.icon className={`${isActive ? 'w-6 h-6' : 'w-5 h-5 mb-1'}`} />
                         {!isActive && <span className="text-[10px] font-bold tracking-wide">{item.label}</span>}

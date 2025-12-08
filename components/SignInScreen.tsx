@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Icons, Card, Button } from './ui';
+import { Icons, Card, Button, Badge } from './ui';
 import { 
     loginWithEmail, 
     registerWithEmail
@@ -10,7 +10,6 @@ interface SignInScreenProps {
 }
 
 export default function SignInScreen({ onSignIn }: SignInScreenProps) {
-  const [method, setMethod] = useState<'email' | 'phone'>('email');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -72,32 +71,21 @@ export default function SignInScreen({ onSignIn }: SignInScreenProps) {
           <p className="text-slate-500">Sign in to access your care plans.</p>
         </div>
 
-        <Card className="p-8 shadow-xl shadow-slate-200/50 border-slate-100 overflow-visible">
+        <Card className="p-8 shadow-xl shadow-slate-200/50 border-slate-100 overflow-visible relative">
           
-          <div className="relative mb-6">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-slate-100"></div>
-            </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-white text-slate-400">Login Method</span>
-            </div>
+          {/* Demo Mode Badge */}
+          <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+              <Badge color="amber" className="bg-amber-100 text-amber-800 border-amber-200 shadow-sm">Demo Mode Active</Badge>
           </div>
 
-          {/* Method Tabs */}
-          <div className="flex bg-slate-100 p-1 rounded-xl mb-6">
-              <button 
-                onClick={() => { setMethod('email'); setError(null); }}
-                className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${method === 'email' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-              >
-                  Demo / Email
-              </button>
-              <button 
-                disabled={true}
-                className="flex-1 py-2 text-sm font-bold rounded-lg text-slate-300 cursor-not-allowed"
-                title="Disabled in this demo version"
-              >
-                  Phone (Off)
-              </button>
+          <div className="mb-6 mt-2">
+             <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 flex items-start gap-3">
+                 <Icons.Info className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
+                 <div className="text-xs text-amber-800">
+                     <span className="font-bold block mb-1">For Review Purposes:</span>
+                     Credentials are pre-filled. Passwords are simulated for this demo session. Do NOT use real passwords.
+                 </div>
+             </div>
           </div>
 
           {error && (
@@ -159,11 +147,6 @@ export default function SignInScreen({ onSignIn }: SignInScreenProps) {
 
         </Card>
         
-        <p className="text-center text-slate-400 text-sm mt-8">
-           Note: Passwords are stored in Firestore for this demo.<br/>
-           Do not use real passwords.
-        </p>
-
       </div>
     </div>
   );

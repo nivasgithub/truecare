@@ -95,11 +95,12 @@ export default function Navbar({ onHomeClick, currentView, user, onSignIn, onLog
                     >
                       My Plan
                     </button>
+                    {/* Changed label from Scan to Add */}
                     <button 
                         onClick={() => handleNav('intake')}
                         className={`cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-md px-3 py-2 ${currentView === 'intake' ? 'text-blue-600 bg-blue-50' : 'hover:text-slate-900 hover:bg-slate-50'}`}
                     >
-                      Scan
+                      Add
                     </button>
                   </>
                 )}

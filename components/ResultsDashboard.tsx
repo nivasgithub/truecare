@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, Badge, Icons, Button, HelpTip, Breadcrumbs } from './ui';
 import { ParsedEpisode, ConsistencyReport, FormattedCarePlan, PlanItem } from '../types';
 import { generateRecoveryVideo } from '../services/video';
@@ -25,7 +25,8 @@ function normalizePlanItems(items: any[]): PlanItem[] {
 
 // Helper Component for Instructions with Citation
 const InstructionRow = ({ item, type }: { item: PlanItem, type: 'checkbox' | 'bullet' | 'warning' }) => {
-    const [showSource, setShowSource] = useState(false);
+    // Recommendation: Default to showing sources for trust
+    const [showSource, setShowSource] = useState(true);
     const isWarning = type === 'warning';
     
     return (
@@ -48,23 +49,22 @@ const InstructionRow = ({ item, type }: { item: PlanItem, type: 'checkbox' | 'bu
                     
                     {/* Citation Toggle - Improved Visibility */}
                     {item.source && (
-                        <div className="mt-2">
-                             <button 
-                                onClick={() => setShowSource(!showSource)}
-                                className={`text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 rounded-md px-2 py-1 ${
-                                    isWarning 
-                                    ? 'bg-red-50 text-red-600 hover:bg-red-100' 
-                                    : 'bg-slate-50 text-blue-600 hover:bg-blue-50'
-                                }`}
-                             >
-                                <Icons.FileText className="w-3 h-3" />
-                                {showSource ? 'Hide Source' : 'Verify Source'}
-                             </button>
-                             
-                             {showSource && (
-                                <div className={`mt-2 p-3 rounded-lg text-xs border leading-relaxed ${isWarning ? 'bg-red-50 border-red-100 text-red-800' : 'bg-slate-50 border-slate-200 text-slate-600'} italic`}>
-                                    "{item.source}"
+                        <div className="mt-1">
+                             {showSource ? (
+                                <div className="flex items-start gap-2 mt-1 animate-fade-in">
+                                    <div className={`text-[10px] uppercase font-bold tracking-wider mt-0.5 ${isWarning ? 'text-red-400' : 'text-slate-400'}`}>Source:</div>
+                                    <div className={`text-xs leading-relaxed italic ${isWarning ? 'text-red-600' : 'text-slate-500'}`}>
+                                        "{item.source}"
+                                        <button onClick={() => setShowSource(false)} className="ml-2 underline opacity-50 hover:opacity-100">Hide</button>
+                                    </div>
                                 </div>
+                             ) : (
+                                <button 
+                                    onClick={() => setShowSource(true)}
+                                    className="text-[10px] font-bold uppercase tracking-wider text-blue-600 hover:text-blue-800 flex items-center gap-1 mt-1 opacity-60 hover:opacity-100 transition-opacity"
+                                >
+                                    <Icons.FileText className="w-3 h-3" /> Verify Source
+                                </button>
                              )}
                         </div>
                     )}
@@ -74,9 +74,12 @@ const InstructionRow = ({ item, type }: { item: PlanItem, type: 'checkbox' | 'bu
     );
 };
 
-export default function CareTransiaResults({ data, consistency, carePlan, onReset, simpleMode = false }: CareTransiaResultsProps) {
+export default function CareTransiaResults({ data, consistency, carePlan, onReset, simpleMode: initialSimpleMode = false }: CareTransiaResultsProps) {
   
   const [activeTab, setActiveTab] = useState<'plan' | 'clinical' | 'tools'>('plan');
+  // Progressive Disclosure: Local toggle for simple mode
+  const [isSimpleMode, setIsSimpleMode] = useState(initialSimpleMode);
+  
   const hasIssues = consistency?.status === 'success' && (consistency.conflicts.length > 0 || consistency.gaps.length > 0);
 
   // Deep Safety Fallback for Plan Data with Normalization
@@ -103,6 +106,25 @@ export default function CareTransiaResults({ data, consistency, carePlan, onRese
 
   // Chat State
   const [chatOpen, setChatOpen] = useState(false);
+  
+  // Scroll Awareness for FAB
+  const [showFab, setShowFab] = useState(true);
+  const lastScrollY = useRef(0);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+      if (currentScrollY > lastScrollY.current && currentScrollY > 100) {
+        setShowFab(false); // Hide on scroll down
+      } else {
+        setShowFab(true); // Show on scroll up
+      }
+      lastScrollY.current = currentScrollY;
+    };
+    
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   const playTTS = async (text: string) => {
     if (ttsStatus !== 'idle') {
@@ -251,34 +273,58 @@ export default function CareTransiaResults({ data, consistency, carePlan, onRese
            </p>
         </div>
         
-        <div className="flex flex-wrap gap-3 print:hidden">
-            <button 
-                onClick={handleShare}
-                className="bg-white hover:bg-slate-50 text-slate-700 p-3 rounded-2xl transition-colors border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center gap-2 font-bold text-sm"
-                title="Share with Family"
-            >
-                <Icons.Share className="w-5 h-5" /> Share
-            </button>
-            <button 
-                onClick={handlePrint}
-                className="bg-white hover:bg-slate-50 text-slate-700 p-3 rounded-2xl transition-colors border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center gap-2 font-bold text-sm"
-                title="Print Friendly View"
-            >
-                <Icons.Printer className="w-5 h-5" /> Print
-            </button>
-            <button 
-                onClick={handleMainReadAloud}
-                className={`bg-slate-50 hover:bg-slate-100 text-slate-700 p-3 rounded-2xl transition-colors border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center gap-2 font-bold text-sm ${ttsStatus === 'playing' ? 'text-red-600 border-red-200 hover:bg-red-50' : ''}`}
-                title={ttsStatus === 'playing' ? "Stop Reading" : "Read Aloud Summary"}
-            >
-                {ttsStatus === 'generating' ? (
-                     <><Icons.Spinner className="w-5 h-5 text-blue-500" /> Generating...</>
-                ) : ttsStatus === 'playing' ? (
-                     <><Icons.Stop className="w-5 h-5" /> Stop</>
-                ) : (
-                     <><Icons.Speaker className="w-5 h-5" /> Listen</>
-                )}
-            </button>
+        <div className="flex flex-col items-end gap-4 print:hidden">
+            <div className="flex flex-wrap gap-3">
+                <button 
+                    onClick={handleShare}
+                    className="bg-white hover:bg-slate-50 text-slate-700 p-3 rounded-2xl transition-colors border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center gap-2 font-bold text-sm"
+                    title="Share with Family"
+                >
+                    <Icons.Share className="w-5 h-5" /> Share
+                </button>
+                <button 
+                    onClick={handlePrint}
+                    className="bg-white hover:bg-slate-50 text-slate-700 p-3 rounded-2xl transition-colors border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center gap-2 font-bold text-sm"
+                    title="Print Friendly View"
+                >
+                    <Icons.Printer className="w-5 h-5" /> Print
+                </button>
+                
+                {/* Recommendation: Make more prominent for accessibility */}
+                <button 
+                    onClick={handleMainReadAloud}
+                    className={`p-3 rounded-2xl transition-all border focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center gap-2 font-bold text-sm shadow-md ${
+                        ttsStatus === 'playing' 
+                        ? 'bg-red-50 text-red-600 border-red-200 animate-pulse' 
+                        : 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700 hover:shadow-lg'
+                    }`}
+                    title={ttsStatus === 'playing' ? "Stop Reading" : "Read Aloud Summary"}
+                >
+                    {ttsStatus === 'generating' ? (
+                        <><Icons.Spinner className="w-5 h-5 text-white/80" /> Generating...</>
+                    ) : ttsStatus === 'playing' ? (
+                        <><Icons.Stop className="w-5 h-5" /> Stop Audio</>
+                    ) : (
+                        <><Icons.Speaker className="w-5 h-5" /> Listen to Plan</>
+                    )}
+                </button>
+            </div>
+            
+            {/* View Toggle (Progressive Disclosure) */}
+            <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-lg">
+                <button 
+                    onClick={() => setIsSimpleMode(false)}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${!isSimpleMode ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                    Detailed
+                </button>
+                <button 
+                    onClick={() => setIsSimpleMode(true)}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${isSimpleMode ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                    Simple
+                </button>
+            </div>
         </div>
       </div>
       
@@ -576,16 +622,18 @@ export default function CareTransiaResults({ data, consistency, carePlan, onRese
         </div>
       )}
 
-      {!simpleMode && <TechnicalInsightPanel runTrace={carePlan?.runTrace} selfEvalSummary={carePlan?.selfEvalSummary} />}
+      {!isSimpleMode && <TechnicalInsightPanel runTrace={carePlan?.runTrace} selfEvalSummary={carePlan?.selfEvalSummary} />}
       
-      {/* FAB for Chat */}
-      <button 
-        onClick={() => setChatOpen(true)}
-        className="fixed bottom-6 right-6 z-40 bg-slate-900 text-white p-4 rounded-full shadow-xl hover:scale-110 transition-transform active:scale-95 md:bottom-12 md:right-12 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 print:hidden"
-        aria-label="Open AI Assistant Chat"
-      >
-        <Icons.Sparkle className="w-6 h-6" />
-      </button>
+      {/* FAB for Chat - Hide on Scroll Down, Show on Scroll Up */}
+      <div className={`fixed bottom-6 right-6 z-40 transition-transform duration-300 ${showFab ? 'translate-y-0' : 'translate-y-24'} md:bottom-12 md:right-12 print:hidden`}>
+          <button 
+            onClick={() => setChatOpen(true)}
+            className="bg-slate-900 text-white p-4 rounded-full shadow-xl hover:scale-110 transition-transform active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            aria-label="Open AI Assistant Chat"
+          >
+            <Icons.Sparkle className="w-6 h-6" />
+          </button>
+      </div>
 
       {chatOpen && (
           <AssistantChat 

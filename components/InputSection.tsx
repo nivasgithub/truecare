@@ -42,6 +42,7 @@ export default function CareTransiaIntake({
   
   const [showCamera, setShowCamera] = useState(false);
   const [hasCamera, setHasCamera] = useState(false);
+  const [showSuccessToast, setShowSuccessToast] = useState(false);
 
   // Check for camera availability
   useEffect(() => {
@@ -66,6 +67,10 @@ export default function CareTransiaIntake({
       mimeType: mimeType,
       preview: dataUrl
     }]);
+    
+    // Trigger Success Feedback
+    setShowSuccessToast(true);
+    setTimeout(() => setShowSuccessToast(false), 3000);
   };
 
   const handleSelection = (type: string) => {
@@ -78,8 +83,16 @@ export default function CareTransiaIntake({
   };
 
   return (
-    <div className="max-w-6xl mx-auto pb-12">
+    <div className="max-w-6xl mx-auto pb-12 relative">
       
+      {/* Toast Notification */}
+      {showSuccessToast && (
+          <div className="fixed top-24 right-6 z-50 bg-emerald-600 text-white px-6 py-3 rounded-full shadow-xl flex items-center gap-3 animate-slide-in">
+              <div className="bg-white/20 p-1 rounded-full"><Icons.Check className="w-4 h-4" /></div>
+              <span className="font-bold text-sm">File Uploaded Successfully!</span>
+          </div>
+      )}
+
       {/* Navigation Breadcrumb - Visual Progress */}
       <Breadcrumbs steps={['Home', 'Upload & Review', 'Care Plan']} currentStep="Upload & Review" />
 
@@ -176,19 +189,25 @@ export default function CareTransiaIntake({
       {mode !== 'selection' && (
           <div className="flex flex-col items-center mb-8">
             <div className="relative">
-                <div className="bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm inline-flex">
-                <button 
-                    onClick={() => setMode('agent')}
-                    className={`flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-bold transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${mode === 'agent' ? 'bg-slate-900 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}
-                >
-                    <Icons.Sparkle className="w-4 h-4" /> AI Assistant
-                </button>
-                <button 
-                    onClick={() => setMode('manual')}
-                    className={`flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-bold transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${mode === 'manual' ? 'bg-slate-900 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}
-                >
-                    <Icons.Note className="w-4 h-4" /> Manual Form
-                </button>
+                <div className="bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm inline-flex items-stretch">
+                    <button 
+                        onClick={() => setMode('agent')}
+                        className={`flex flex-col items-center justify-center gap-1 px-6 py-3 rounded-xl transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${mode === 'agent' ? 'bg-slate-900 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}
+                    >
+                        <div className="flex items-center gap-2 font-bold text-sm">
+                            <Icons.Sparkle className="w-4 h-4" /> AI Assistant
+                        </div>
+                        <span className={`text-[10px] ${mode === 'agent' ? 'text-slate-300' : 'text-slate-400'}`}>Interactive Help</span>
+                    </button>
+                    <button 
+                        onClick={() => setMode('manual')}
+                        className={`flex flex-col items-center justify-center gap-1 px-6 py-3 rounded-xl transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${mode === 'manual' ? 'bg-slate-900 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}
+                    >
+                        <div className="flex items-center gap-2 font-bold text-sm">
+                            <Icons.Note className="w-4 h-4" /> Manual Form
+                        </div>
+                        <span className={`text-[10px] ${mode === 'manual' ? 'text-slate-300' : 'text-slate-400'}`}>Direct Upload</span>
+                    </button>
                 </div>
             </div>
             <button onClick={() => setMode('selection')} className="mt-2 text-xs text-slate-400 hover:text-slate-600 underline">
@@ -198,16 +217,28 @@ export default function CareTransiaIntake({
       )}
 
       {mode === 'agent' && (
-        <AgentIntake 
-           patientInfo={patientInfo} setPatientInfo={setPatientInfo}
-           files={files} addFile={addFile}
-           onCamera={() => setShowCamera(true)}
-           onAnalyze={onAnalyze}
-           isLoading={isLoading}
-           progressMsg={progressMsg}
-           hasCamera={hasCamera}
-           initialContext={agentContext}
-        />
+        <>
+            <AgentIntake 
+                patientInfo={patientInfo} setPatientInfo={setPatientInfo}
+                files={files} addFile={addFile}
+                onCamera={() => setShowCamera(true)}
+                onAnalyze={onAnalyze}
+                isLoading={isLoading}
+                progressMsg={progressMsg}
+                hasCamera={hasCamera}
+                initialContext={agentContext}
+            />
+            {files.length === 0 && (
+                <div className="text-center mt-4">
+                    <button 
+                        onClick={() => setMode('manual')} 
+                        className="text-xs font-bold text-slate-400 hover:text-slate-600 underline"
+                    >
+                        Skip chat, just let me upload
+                    </button>
+                </div>
+            )}
+        </>
       )}
 
       {mode === 'manual' && (

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Icons, Card } from './ui';
 
 interface CareTransiaLandingPageProps {
@@ -51,7 +51,7 @@ export default function CareTransiaLandingPage({ onGetStarted }: CareTransiaLand
                 Start organizing my papers <Icons.ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
               </span>
             </button>
-            <button onClick={scrollToHowItWorks} className="px-8 py-4 bg-white text-slate-700 border border-slate-200 rounded-2xl font-bold text-lg hover:bg-slate-50 transition-colors w-full sm:w-auto">
+            <button onClick={scrollToHowItWorks} className="px-8 py-4 bg-white text-slate-700 border border-slate-200 rounded-2xl font-bold text-lg hover:bg-slate-50 transition-colors w-full sm:w-auto focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
                 See how it works
             </button>
           </div>
@@ -64,13 +64,35 @@ export default function CareTransiaLandingPage({ onGetStarted }: CareTransiaLand
         {/* Hero Visual */}
         <div className="relative w-full flex items-center justify-center perspective-[2000px] animate-fade-in-right delay-200 py-10 md:py-0 md:h-[500px]">
             {/* Added max-w-full to prevent overflow on very small devices */}
-            <div className="w-full max-w-[320px] xs:max-w-[380px] sm:max-w-[420px]">
+            <div className="w-full max-w-[320px] xs:max-w-[380px] sm:max-w-[420px] cursor-pointer" onClick={onGetStarted} title="Click to try demo">
                 <HeroDashboardUI />
             </div>
         </div>
       </section>
 
-      {/* --- 2. KEY BENEFITS --- */}
+      {/* --- 2. SAFETY & TRUST (Moved Up) --- */}
+      <section id="safety" className="max-w-4xl mx-auto px-4 py-12 relative z-20">
+          <div className="bg-white/60 backdrop-blur-md border border-blue-100 rounded-3xl p-8 shadow-sm">
+             <div className="flex flex-col md:flex-row items-center gap-6 text-center md:text-left">
+                 <div className="bg-blue-100 p-4 rounded-full text-blue-600 flex-shrink-0">
+                    <Icons.Shield className="w-8 h-8" />
+                 </div>
+                 <div className="flex-1">
+                     <h2 className="text-2xl font-bold text-slate-900 mb-2">Safe by Design</h2>
+                     <p className="text-slate-600 text-sm leading-relaxed">
+                        CareTransia organizes existing instructions and never invents new medical advice. 
+                        We flag conflicts for your doctor rather than guessing.
+                     </p>
+                 </div>
+                 <div className="flex gap-4 text-xs font-bold text-slate-500 uppercase tracking-wide">
+                    <span className="flex items-center gap-1"><Icons.Check className="w-4 h-4 text-green-500" /> No New Rx</span>
+                    <span className="flex items-center gap-1"><Icons.Check className="w-4 h-4 text-green-500" /> Traceable</span>
+                 </div>
+             </div>
+          </div>
+      </section>
+
+      {/* --- 3. KEY BENEFITS --- */}
       <section className="max-w-7xl mx-auto px-4 py-20 relative z-10">
           <div className="text-center mb-16 max-w-2xl mx-auto">
             <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mb-4">Why people rely on CareTransia</h2>
@@ -105,7 +127,7 @@ export default function CareTransiaLandingPage({ onGetStarted }: CareTransiaLand
           </div>
       </section>
 
-      {/* --- 3. HOW IT WORKS --- */}
+      {/* --- 4. HOW IT WORKS --- */}
       <section id="how-it-works" className="bg-white py-24 border-y border-slate-100">
           <div className="max-w-7xl mx-auto px-4">
              <div className="text-center mb-16">
@@ -138,7 +160,7 @@ export default function CareTransiaLandingPage({ onGetStarted }: CareTransiaLand
           </div>
       </section>
 
-      {/* --- 4. WHO IT'S FOR --- */}
+      {/* --- 5. WHO IT'S FOR --- */}
       <section className="max-w-7xl mx-auto px-4 py-24">
          <div className="text-center mb-16">
             <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mb-4">Made for the people who carry the load</h2>
@@ -162,7 +184,7 @@ export default function CareTransiaLandingPage({ onGetStarted }: CareTransiaLand
          </div>
       </section>
 
-      {/* --- 5. CORE HIGHLIGHTS --- */}
+      {/* --- 6. CORE HIGHLIGHTS --- */}
       <section className="bg-slate-900 text-white py-24 rounded-[3rem] mx-4 md:mx-8 mb-24 relative overflow-hidden">
           {/* Decorative gradients */}
           <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-blue-600/20 rounded-full blur-[100px] pointer-events-none"></div>
@@ -190,58 +212,7 @@ export default function CareTransiaLandingPage({ onGetStarted }: CareTransiaLand
           </div>
       </section>
 
-      {/* --- 6. TESTIMONIALS (NEW) --- */}
-      <section className="max-w-7xl mx-auto px-4 pb-24">
-          <div className="text-center mb-16">
-             <div className="inline-flex items-center gap-2 bg-purple-50 text-purple-700 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide mb-4">
-                <Icons.User className="w-3 h-3" /> Trusted by Families
-             </div>
-             <h2 className="text-3xl md:text-4xl font-bold text-slate-900">Real stories from recovery</h2>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              <TestimonialCard 
-                  quote="The discharge instructions were 20 pages long and overwhelming. CareTransia turned it into a single-page checklist I could actually use."
-                  author="Sarah J."
-                  role="Daughter & Caregiver"
-              />
-              <TestimonialCard 
-                  quote="I was so confused about which meds to stop and which to continue. The app flagged the conflict instantly so I could ask my doctor."
-                  author="Michael T."
-                  role="Heart Surgery Patient"
-              />
-              <TestimonialCard 
-                  quote="Finally, a tool that helps me coordinate with my siblings. We all look at the same plan now instead of arguing over notes."
-                  author="Elena R."
-                  role="Managing Mom's Care"
-              />
-          </div>
-      </section>
-
-      {/* --- 7. SAFETY & TRUST --- */}
-      <section id="safety" className="max-w-4xl mx-auto px-4 pb-24 text-center">
-          <div className="bg-blue-50/50 border border-blue-100 rounded-3xl p-8 md:p-12">
-             <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-6">
-                <Icons.Shield className="w-8 h-8" />
-             </div>
-             <h2 className="text-3xl font-bold text-slate-900 mb-6">Safe by design</h2>
-             <p className="text-slate-600 text-lg mb-8 max-w-2xl mx-auto leading-relaxed">
-                CareTransia is built to clarify what your care team has already told you — not to replace them.
-             </p>
-             
-             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-left mb-8">
-                <TrustPoint title="No New Rx" desc="We organize existing instructions, never inventing new meds." />
-                <TrustPoint title="Transparent" desc="Every recommendation traces back to your original document." />
-                <TrustPoint title="AI as Guide" desc="Conflicts are surfaced as questions, not automated decisions." />
-             </div>
-
-             <div className="text-xs text-slate-400 max-w-lg mx-auto border-t border-blue-100 pt-6">
-                ⚕️ CareTransia is an informational tool and does not provide medical advice, diagnosis, or treatment. Always consult a licensed clinician for medical decisions or emergencies.
-             </div>
-          </div>
-      </section>
-
-      {/* --- 8. FOOTER CTA --- */}
+      {/* --- 7. FOOTER CTA --- */}
       <section className="bg-white border-t border-slate-100 py-24">
          <div className="max-w-3xl mx-auto px-4 text-center space-y-8">
             <h2 className="text-4xl font-bold text-slate-900">Ready to see your care plan in one place?</h2>
@@ -265,21 +236,6 @@ export default function CareTransiaLandingPage({ onGetStarted }: CareTransiaLand
 }
 
 // --- SUB-COMPONENTS ---
-
-function TestimonialCard({ quote, author, role }: { quote: string, author: string, role: string }) {
-    return (
-        <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow relative">
-            <div className="text-4xl text-blue-200 font-serif absolute top-6 left-6">“</div>
-            <p className="text-slate-600 italic mb-6 relative z-10 pt-4 leading-relaxed">
-                {quote}
-            </p>
-            <div>
-                <div className="font-bold text-slate-900">{author}</div>
-                <div className="text-xs font-bold text-slate-400 uppercase tracking-wide">{role}</div>
-            </div>
-        </div>
-    );
-}
 
 function BenefitCard({ icon, title, body, color }: { icon: React.ReactNode, title: string, body: string, color: string }) {
    const colors: any = {
@@ -339,20 +295,17 @@ function FeatureItem({ title, desc }: { title: string, desc: string }) {
     );
 }
 
-function TrustPoint({ title, desc }: { title: string, desc: string }) {
-    return (
-        <div className="bg-white p-4 rounded-xl shadow-sm border border-blue-100">
-            <h4 className="font-bold text-slate-900 mb-1">{title}</h4>
-            <p className="text-xs text-slate-500">{desc}</p>
-        </div>
-    );
-}
-
 // --- HERO VISUAL UI ---
 
 function HeroDashboardUI() {
+    const [active, setActive] = useState(false);
+
     return (
-        <div className="relative w-full aspect-[4/5] mx-auto rotate-[-5deg] hover:rotate-0 transition-transform duration-700 ease-out">
+        <div 
+            className={`relative w-full aspect-[4/5] mx-auto transition-transform duration-700 ease-out ${active ? 'rotate-0 scale-105' : 'rotate-[-5deg] hover:rotate-0'}`}
+            onMouseEnter={() => setActive(true)}
+            onMouseLeave={() => setActive(false)}
+        >
              {/* Main Card */}
              <div className="absolute inset-0 bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col">
                  
@@ -370,24 +323,24 @@ function HeroDashboardUI() {
                  <div className="flex-1 p-6 space-y-6 bg-white">
                      
                      {/* Status Tile */}
-                     <div className="bg-blue-50 rounded-2xl p-4 flex items-center gap-4">
-                         <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center text-blue-600">
+                     <div className="bg-blue-50 rounded-2xl p-4 flex items-center gap-4 transition-colors hover:bg-blue-100 cursor-default group">
+                         <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center text-blue-600 group-hover:bg-white group-hover:shadow-sm">
                              <Icons.Sparkle className="w-6 h-6" />
                          </div>
                          <div>
                              <div className="text-xs font-bold text-blue-400 uppercase">Analysis Status</div>
                              <div className="text-lg font-bold text-slate-800">Processing Complete</div>
                          </div>
-                         <div className="ml-auto w-2 h-2 rounded-full bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]"></div>
+                         <div className="ml-auto w-2 h-2 rounded-full bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)] animate-pulse"></div>
                      </div>
 
                      {/* Stats Grid */}
                      <div className="grid grid-cols-2 gap-4">
-                         <div className="bg-slate-50 rounded-2xl p-4">
+                         <div className="bg-slate-50 rounded-2xl p-4 hover:scale-105 transition-transform cursor-default">
                              <div className="text-2xl font-bold text-slate-900">4</div>
                              <div className="text-xs text-slate-500 font-medium mt-1">Medications Detected</div>
                          </div>
-                         <div className="bg-slate-50 rounded-2xl p-4">
+                         <div className="bg-slate-50 rounded-2xl p-4 hover:scale-105 transition-transform cursor-default">
                              <div className="text-2xl font-bold text-slate-900">2</div>
                              <div className="text-xs text-slate-500 font-medium mt-1">Warnings Found</div>
                          </div>
@@ -395,7 +348,7 @@ function HeroDashboardUI() {
 
                      {/* Plan Preview */}
                      <div className="border border-slate-100 rounded-2xl p-4 space-y-3">
-                         <div className="flex items-center gap-3">
+                         <div className="flex items-center gap-3 opacity-50 group hover:opacity-100 transition-opacity">
                              <div className="w-5 h-5 rounded-full border-2 border-slate-200"></div>
                              <div className="h-2 w-32 bg-slate-100 rounded-full"></div>
                          </div>
@@ -405,7 +358,7 @@ function HeroDashboardUI() {
                              </div>
                              <div className="h-2 w-24 bg-slate-200 rounded-full"></div>
                          </div>
-                         <div className="flex items-center gap-3">
+                         <div className="flex items-center gap-3 opacity-50 group hover:opacity-100 transition-opacity">
                              <div className="w-5 h-5 rounded-full border-2 border-slate-200"></div>
                              <div className="h-2 w-40 bg-slate-100 rounded-full"></div>
                          </div>
