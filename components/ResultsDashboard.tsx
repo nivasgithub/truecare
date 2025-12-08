@@ -12,6 +12,8 @@ interface CareTransiaResultsProps {
   carePlan: FormattedCarePlan | null;
   onReset: () => void;
   simpleMode?: boolean;
+  onBack: () => void;
+  onDashboard?: () => void;
 }
 
 // Helper to normalize data from potentially old string[] records to new PlanItem[]
@@ -74,7 +76,7 @@ const InstructionRow = ({ item, type }: { item: PlanItem, type: 'checkbox' | 'bu
     );
 };
 
-export default function CareTransiaResults({ data, consistency, carePlan, onReset, simpleMode: initialSimpleMode = false }: CareTransiaResultsProps) {
+export default function CareTransiaResults({ data, consistency, carePlan, onReset, simpleMode: initialSimpleMode = false, onBack, onDashboard }: CareTransiaResultsProps) {
   
   const [activeTab, setActiveTab] = useState<'plan' | 'clinical' | 'tools'>('plan');
   // Progressive Disclosure: Local toggle for simple mode
@@ -125,6 +127,13 @@ export default function CareTransiaResults({ data, consistency, carePlan, onRese
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  // Effect to reset active tab if hidden by simple mode
+  useEffect(() => {
+      if (isSimpleMode && activeTab === 'clinical') {
+          setActiveTab('plan');
+      }
+  }, [isSimpleMode, activeTab]);
 
   const playTTS = async (text: string) => {
     if (ttsStatus !== 'idle') {
@@ -246,12 +255,24 @@ export default function CareTransiaResults({ data, consistency, carePlan, onRese
       window.print();
   };
 
+  // Define tabs available based on mode
+  const tabs = [
+      { id: 'plan', label: 'My Care Plan', icon: Icons.Clipboard },
+      { id: 'clinical', label: 'Clinical Details', icon: Icons.Shield, hidden: isSimpleMode },
+      { id: 'tools', label: 'Visuals & Tools', icon: Icons.Tools }
+  ].filter(t => !t.hidden);
+
   return (
     <div className="animate-fade-in space-y-6 pb-32 max-w-6xl mx-auto relative print:pb-0">
       
-      {/* Navigation Breadcrumb */}
-      <div className="print:hidden">
-        <Breadcrumbs steps={['Home', 'Upload', 'Results']} currentStep="Results" />
+      {/* Integrated Back Navigation */}
+      <div className="flex items-center justify-between print:hidden">
+        <button 
+            onClick={onBack}
+            className="flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-800 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-lg px-2 py-1"
+        >
+            <Icons.ArrowRight className="w-4 h-4 rotate-180" /> Back to Uploads
+        </button>
       </div>
 
       {/* Dashboard Header */}
@@ -273,8 +294,19 @@ export default function CareTransiaResults({ data, consistency, carePlan, onRese
            </p>
         </div>
         
-        <div className="flex flex-col items-end gap-4 print:hidden">
-            <div className="flex flex-wrap gap-3">
+        <div className="flex flex-col items-end gap-4 print:hidden w-full lg:w-auto">
+            <div className="flex flex-wrap gap-3 justify-end">
+                {/* Done/Dashboard Button - High Priority Action */}
+                {onDashboard && (
+                    <button 
+                        onClick={onDashboard}
+                        className="bg-slate-900 hover:bg-slate-800 text-white p-3 rounded-2xl transition-colors shadow-lg shadow-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 flex items-center gap-2 font-bold text-sm"
+                        title="Finish and go to Dashboard"
+                    >
+                        <Icons.Check className="w-5 h-5" /> Done
+                    </button>
+                )}
+
                 <button 
                     onClick={handleShare}
                     className="bg-white hover:bg-slate-50 text-slate-700 p-3 rounded-2xl transition-colors border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center gap-2 font-bold text-sm"
@@ -282,15 +314,8 @@ export default function CareTransiaResults({ data, consistency, carePlan, onRese
                 >
                     <Icons.Share className="w-5 h-5" /> Share
                 </button>
-                <button 
-                    onClick={handlePrint}
-                    className="bg-white hover:bg-slate-50 text-slate-700 p-3 rounded-2xl transition-colors border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center gap-2 font-bold text-sm"
-                    title="Print Friendly View"
-                >
-                    <Icons.Printer className="w-5 h-5" /> Print
-                </button>
                 
-                {/* Recommendation: Make more prominent for accessibility */}
+                {/* TTS Button */}
                 <button 
                     onClick={handleMainReadAloud}
                     className={`p-3 rounded-2xl transition-all border focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center gap-2 font-bold text-sm shadow-md ${
@@ -341,24 +366,15 @@ export default function CareTransiaResults({ data, consistency, carePlan, onRese
 
       {/* --- TABS NAVIGATION --- */}
       <div className="flex border-b border-slate-200 gap-1 overflow-x-auto print:hidden">
-          <button 
-            onClick={() => setActiveTab('plan')}
-            className={`px-6 py-4 font-bold text-sm transition-all border-b-2 flex items-center gap-2 ${activeTab === 'plan' ? 'border-blue-600 text-blue-700 bg-blue-50/50' : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50'}`}
-          >
-             <Icons.Clipboard className="w-4 h-4" /> My Care Plan
-          </button>
-          <button 
-            onClick={() => setActiveTab('clinical')}
-            className={`px-6 py-4 font-bold text-sm transition-all border-b-2 flex items-center gap-2 ${activeTab === 'clinical' ? 'border-blue-600 text-blue-700 bg-blue-50/50' : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50'}`}
-          >
-             <Icons.Shield className="w-4 h-4" /> Clinical Details
-          </button>
-          <button 
-            onClick={() => setActiveTab('tools')}
-            className={`px-6 py-4 font-bold text-sm transition-all border-b-2 flex items-center gap-2 ${activeTab === 'tools' ? 'border-blue-600 text-blue-700 bg-blue-50/50' : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50'}`}
-          >
-             <Icons.Tools className="w-4 h-4" /> Visuals & Tools
-          </button>
+          {tabs.map(tab => (
+              <button 
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
+                className={`px-6 py-4 font-bold text-sm transition-all border-b-2 flex items-center gap-2 whitespace-nowrap ${activeTab === tab.id ? 'border-blue-600 text-blue-700 bg-blue-50/50' : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50'}`}
+              >
+                 <tab.icon className="w-4 h-4" /> {tab.label}
+              </button>
+          ))}
       </div>
 
       {/* --- TAB CONTENT: MY CARE PLAN --- */}

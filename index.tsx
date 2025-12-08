@@ -357,28 +357,14 @@ function CareTransiaApp() {
         {/* VIEW: Results */}
         {activeView === 'results' && results.parsedEpisode && (
           <div className="animate-fade-in pb-24">
-            <div className="mb-6 flex items-center justify-between">
-              <button
-                onClick={() => navigate('intake')}
-                className="text-sm text-slate-500 hover:text-slate-800 flex items-center gap-1 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-lg px-2 py-1 min-h-[44px]"
-              >
-                ← Back to Uploads
-              </button>
-              {user && (
-                <button
-                  onClick={() => navigate('dashboard')}
-                  className="text-sm font-bold text-blue-600 hover:text-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-lg px-2 py-1 min-h-[44px]"
-                >
-                  Go to Dashboard
-                </button>
-              )}
-            </div>
             <CareTransiaResults
               data={results.parsedEpisode}
               consistency={results.consistencyReport}
               carePlan={results.carePlan}
               onReset={handleReset}
               simpleMode={appSettings.simpleMode}
+              onBack={() => navigate('intake')}
+              onDashboard={user ? () => navigate('dashboard') : undefined}
             />
           </div>
         )}
