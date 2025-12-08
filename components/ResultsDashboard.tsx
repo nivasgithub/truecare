@@ -4,6 +4,7 @@ import { ParsedEpisode, ConsistencyReport, FormattedCarePlan } from '../types';
 import { generateRecoveryVideo } from '../services/video';
 import { generateSpeech, generateImage, editImage, playRawAudio, stopAudio } from '../services/media';
 import AssistantChat from './AssistantChat';
+import TechnicalInsightPanel from './TechnicalInsightPanel';
 
 interface CareTransiaResultsProps {
   data: ParsedEpisode;
@@ -209,269 +210,284 @@ export default function CareTransiaResults({ data, consistency, carePlan, onRese
         <div className="space-y-8 animate-fade-in">
           
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            
-            {/* 1. Immediate Actions (Hero Card) */}
-            <Card className="col-span-1 lg:col-span-2 overflow-hidden border-blue-100 shadow-xl shadow-blue-100/50 rounded-3xl">
-              <div className="bg-gradient-to-r from-blue-50 to-white p-8 border-b border-blue-50">
-                <div className="flex items-center gap-4 mb-2">
-                  <div className="bg-white p-3 rounded-2xl text-blue-600 shadow-sm border border-blue-100"><Icons.Calendar /></div>
-                  <h3 className="text-3xl font-extrabold text-slate-900">Today & Tomorrow</h3>
-                </div>
-                <p className="text-slate-600 ml-[4.25rem] text-lg font-medium">The most important things to do right now.</p>
-              </div>
-              <div className="p-8 md:p-10">
-                <ul className="space-y-6">
-                  {safePlan.today_and_tomorrow.map((item, i) => (
-                    <li key={i} className="flex gap-5 items-start group p-4 hover:bg-blue-50/50 rounded-2xl transition-colors cursor-default">
-                      <div className="w-8 h-8 rounded-full border-4 border-blue-100 bg-white group-hover:border-blue-400 transition-colors flex-shrink-0 mt-1"></div>
-                      <p className="text-slate-800 font-medium text-xl leading-relaxed">{item}</p>
-                    </li>
-                  ))}
-                  {safePlan.today_and_tomorrow.length === 0 && <p className="text-slate-400 italic text-lg">No immediate actions found.</p>}
-                </ul>
-              </div>
-            </Card>
-            
-            {/* Upcoming Appointments */}
-            {data.appointments.length > 0 && (
-                <Card className="col-span-1 lg:col-span-2 overflow-hidden border-amber-100 shadow-xl shadow-amber-50/50 rounded-3xl">
-                    <div className="bg-gradient-to-r from-amber-50 to-white p-8 border-b border-amber-50 flex justify-between items-center">
-                        <div className="flex items-center gap-4">
-                            <div className="bg-white p-3 rounded-2xl text-amber-600 shadow-sm border border-amber-100"><Icons.Bell /></div>
-                            <h3 className="text-2xl font-bold text-slate-900">Upcoming Appointments</h3>
-                        </div>
-                    </div>
-                    <div className="p-8">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            {data.appointments.map((appt, i) => (
-                                <div key={i} className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm hover:border-amber-300 hover:shadow-md transition-all flex flex-col justify-between gap-4">
-                                    <div>
-                                        <div className="flex items-center gap-3 mb-2">
-                                            <span className="text-xs font-bold uppercase text-amber-700 bg-amber-50 px-3 py-1 rounded-full tracking-wide border border-amber-100">
-                                                {appt.type || 'Visit'}
-                                            </span>
-                                            <span className="text-base font-bold text-slate-600">{appt.target_date_or_window}</span>
-                                        </div>
-                                        <h4 className="font-extrabold text-xl text-slate-900 leading-tight">{appt.specialty_or_clinic || 'Follow-up'}</h4>
-                                        {appt.location && <p className="text-base text-slate-500 mt-2 flex items-center gap-1">📍 {appt.location}</p>}
-                                    </div>
-                                    <Button 
-                                        onClick={() => handleSetReminder(appt)} 
-                                        variant="secondary" 
-                                        className="w-full text-sm py-3 h-auto"
-                                    >
-                                        <Icons.Bell className="w-4 h-4" /> Set Reminder
-                                    </Button>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </Card>
-            )}
+            {/* Immediate Actions */}
+            <div className="space-y-4">
+               <h3 className="font-bold text-xl text-slate-800 flex items-center gap-2">
+                 <div className="p-2 bg-blue-100 rounded-lg text-blue-600"><Icons.Check className="w-5 h-5" /></div>
+                 Today & Tomorrow
+               </h3>
+               {safePlan.today_and_tomorrow.length > 0 ? (
+                 <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
+                    {safePlan.today_and_tomorrow.map((task: string, i: number) => (
+                      <div key={i} className="flex items-start gap-3">
+                        <input type="checkbox" className="mt-1.5 w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+                        <span className="text-slate-700 leading-relaxed">{task}</span>
+                      </div>
+                    ))}
+                 </div>
+               ) : (
+                 <div className="bg-slate-50 rounded-2xl p-6 text-slate-500 italic">No immediate tasks listed.</div>
+               )}
+            </div>
 
-            {/* 2. Daily Routine */}
-            <Card className="overflow-hidden border-emerald-100 shadow-xl shadow-emerald-50/50 rounded-3xl">
-              <div className="bg-gradient-to-r from-emerald-50 to-white p-8 border-b border-emerald-50">
-                <div className="flex items-center gap-4">
-                  <div className="bg-white p-3 rounded-2xl text-emerald-600 shadow-sm border border-emerald-100"><Icons.Check /></div>
-                  <h3 className="text-2xl font-bold text-slate-900">Daily Routine</h3>
-                </div>
-              </div>
-              <div className="p-8">
-                <ul className="space-y-6">
-                  {safePlan.daily_routine.map((item, i) => (
-                    <li key={i} className="flex gap-4 items-start p-3 hover:bg-emerald-50/30 rounded-xl transition-colors">
-                      <div className="bg-emerald-100 text-emerald-700 rounded-full w-8 h-8 flex items-center justify-center flex-shrink-0 mt-0.5 text-sm font-bold shadow-sm">✓</div>
-                      <p className="text-slate-700 font-medium text-lg leading-relaxed">{item}</p>
-                    </li>
-                  ))}
-                  {safePlan.daily_routine.length === 0 && <p className="text-slate-400 italic text-lg">No specific daily routine found.</p>}
-                </ul>
-              </div>
-            </Card>
-
-            {/* 3. Warning Signs */}
-            <Card className="overflow-hidden border-red-100 shadow-xl shadow-red-50/50 rounded-3xl">
-              <div className="bg-gradient-to-r from-red-50 to-white p-8 border-b border-red-50">
-                <div className="flex items-center gap-4">
-                  <div className="bg-white p-3 rounded-2xl text-red-600 shadow-sm border border-red-100"><Icons.Alert /></div>
-                  <h3 className="text-2xl font-bold text-red-900">Warning Signs</h3>
-                </div>
-              </div>
-              <div className="p-8 bg-red-50/30 h-full">
-                <p className="text-sm font-bold text-red-700 uppercase tracking-wide mb-6 bg-red-100 w-fit px-3 py-1 rounded-full">Call your doctor if:</p>
-                <ul className="space-y-4">
-                  {safePlan.warning_signs_card.map((item, i) => (
-                    <li key={i} className="flex gap-4 items-start">
-                      <Icons.Alert className="text-red-500 w-6 h-6 flex-shrink-0 mt-0.5" />
-                      <p className="text-slate-800 font-medium text-lg leading-relaxed">{item}</p>
-                    </li>
-                  ))}
-                  {safePlan.warning_signs_card.length === 0 && <p className="text-slate-600 italic">No specific warnings found in the documents.</p>}
-                </ul>
-              </div>
-            </Card>
-
-            {/* 4. Questions for Doctor */}
-            {safePlan.doctor_questions.length > 0 && (
-                <Card className="overflow-hidden border-indigo-100 shadow-xl shadow-indigo-50/50 rounded-3xl">
-                  <div className="bg-gradient-to-r from-indigo-50 to-white p-8 border-b border-indigo-50">
-                    <div className="flex items-center gap-4">
-                      <div className="bg-white p-3 rounded-2xl text-indigo-600 shadow-sm border border-indigo-100"><Icons.Question /></div>
-                      <h3 className="text-2xl font-bold text-indigo-900">Questions for Doctor</h3>
-                    </div>
-                  </div>
-                  <div className="p-8">
-                    <ul className="space-y-4">
-                      {safePlan.doctor_questions.map((item, i) => (
-                        <li key={i} className="flex gap-4 items-start">
-                           <div className="bg-indigo-100 text-indigo-700 rounded-full w-6 h-6 flex items-center justify-center flex-shrink-0 mt-0.5 text-xs font-bold">?</div>
-                           <p className="text-slate-800 font-medium text-lg leading-relaxed">{item}</p>
-                        </li>
-                      ))}
-                    </ul>
-                    <div className="mt-6 pt-4 border-t border-indigo-50">
-                        <Button 
-                            variant="secondary" 
-                            onClick={() => playTTS(`Questions you should ask your doctor: ${safePlan.doctor_questions.join(". ")}`)}
-                            className="text-indigo-600 text-sm py-2 hover:bg-indigo-50 border-indigo-200"
-                        >
-                            <Icons.Speaker className="w-4 h-4" /> Listen to Questions
-                        </Button>
-                    </div>
-                  </div>
-                </Card>
-            )}
-
-            {/* 5. Visualize Recovery */}
-             <Card className="col-span-1 lg:col-span-2 p-10 bg-gradient-to-br from-purple-50 to-white border-purple-100 rounded-3xl shadow-xl shadow-purple-100/50">
-                <div className="flex flex-col md:flex-row items-start gap-10">
-                    <div className="flex-1 w-full">
-                        <div className="flex items-center gap-3 mb-4">
-                            <Icons.Sparkle className="w-8 h-8 text-purple-600" />
-                            <h3 className="text-3xl font-extrabold text-slate-800">Visualize Your Recovery</h3>
-                        </div>
-                        <p className="text-slate-600 mb-8 text-lg font-medium">
-                            Create a motivational image of your recovery goal to stay inspired.
-                        </p>
-                        
-                        <div className="space-y-4">
-                            <textarea
-                                value={mediaPrompt}
-                                onChange={e => setMediaPrompt(e.target.value)}
-                                placeholder="Describe your goal (e.g., 'Walking in a sunny park with my dog')"
-                                className="w-full p-4 rounded-xl border border-slate-200 focus:border-purple-400 focus:ring-2 focus:ring-purple-100 outline-none h-28 resize-none bg-white/50 backdrop-blur-sm"
-                            />
-                            
-                            <div className="flex flex-wrap gap-2">
-                                <Button onClick={handleGenerateImage} disabled={!mediaPrompt || isGeneratingMedia}>
-                                    {isGeneratingMedia && !generatedImage ? <Icons.Spinner /> : <Icons.Camera className="w-5 h-5" />} Generate Image
-                                </Button>
-                                <Button onClick={handleEditImage} disabled={!generatedImage || isGeneratingMedia} variant="secondary">
-                                    <Icons.Sparkle className="w-5 h-5 text-purple-500" /> Edit Image
-                                </Button>
-                                <Button onClick={handleAnimateImage} disabled={!generatedImage || isGeneratingMedia} variant="secondary">
-                                    <Icons.Maximize className="w-5 h-5 text-blue-500" /> Animate (Veo)
-                                </Button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="flex-1 w-full flex items-center justify-center">
-                        <div className="w-full aspect-video bg-slate-100 rounded-2xl border-2 border-dashed border-purple-200 flex items-center justify-center overflow-hidden relative shadow-inner">
-                            {isGeneratingMedia ? (
-                                <div className="text-purple-500 animate-pulse flex flex-col items-center">
-                                    <Icons.Sparkle className="w-10 h-10 mb-2 spin-slow" />
-                                    <span className="font-bold">Creating Magic...</span>
-                                </div>
-                            ) : videoUrl ? (
-                                <video src={videoUrl} controls autoPlay loop className="w-full h-full object-cover" />
-                            ) : generatedImage ? (
-                                <img src={generatedImage} alt="Generated Goal" className="w-full h-full object-cover" />
-                            ) : (
-                                <div className="text-slate-400 text-center p-6">
-                                    <Icons.Camera className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                                    <p className="text-sm font-medium">Your vision will appear here</p>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            </Card>
-
+            {/* Daily Routine */}
+            <div className="space-y-4">
+               <h3 className="font-bold text-xl text-slate-800 flex items-center gap-2">
+                 <div className="p-2 bg-purple-100 rounded-lg text-purple-600"><Icons.Calendar className="w-5 h-5" /></div>
+                 Daily Routine
+               </h3>
+               {safePlan.daily_routine.length > 0 ? (
+                 <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
+                    {safePlan.daily_routine.map((task: string, i: number) => (
+                      <div key={i} className="flex items-start gap-3">
+                        <div className="w-2 h-2 rounded-full bg-purple-400 mt-2 flex-shrink-0"></div>
+                        <span className="text-slate-700 leading-relaxed">{task}</span>
+                      </div>
+                    ))}
+                 </div>
+               ) : (
+                 <div className="bg-slate-50 rounded-2xl p-6 text-slate-500 italic">No daily routine listed.</div>
+               )}
+            </div>
           </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {/* Warnings */}
+            <div className="space-y-4">
+               <h3 className="font-bold text-xl text-slate-800 flex items-center gap-2">
+                 <div className="p-2 bg-red-100 rounded-lg text-red-600"><Icons.Alert className="w-5 h-5" /></div>
+                 Warning Signs
+               </h3>
+               {safePlan.warning_signs_card.length > 0 ? (
+                 <div className="bg-red-50 rounded-2xl border border-red-100 p-6 space-y-3">
+                    <p className="font-bold text-red-800 text-sm mb-2">Call your doctor if:</p>
+                    {safePlan.warning_signs_card.map((warning: string, i: number) => (
+                      <div key={i} className="flex items-start gap-3 text-red-700">
+                         <span className="mt-1.5 w-1.5 h-1.5 bg-red-500 rounded-full flex-shrink-0"></span>
+                         <span>{warning}</span>
+                      </div>
+                    ))}
+                 </div>
+               ) : (
+                 <div className="bg-slate-50 rounded-2xl p-6 text-slate-500 italic">No specific warnings listed.</div>
+               )}
+            </div>
+
+            {/* Questions */}
+            <div className="space-y-4">
+               <h3 className="font-bold text-xl text-slate-800 flex items-center gap-2">
+                 <div className="p-2 bg-amber-100 rounded-lg text-amber-600"><Icons.Question className="w-5 h-5" /></div>
+                 Questions for Doctor
+               </h3>
+               {safePlan.doctor_questions.length > 0 ? (
+                 <div className="bg-amber-50 rounded-2xl border border-amber-100 p-6 space-y-3">
+                    <p className="font-bold text-amber-800 text-sm mb-2">Ask these at your follow-up:</p>
+                    {safePlan.doctor_questions.map((q: string, i: number) => (
+                      <div key={i} className="flex items-start gap-3 text-amber-900">
+                         <span className="mt-1.5 font-bold text-amber-500">?</span>
+                         <span>{q}</span>
+                      </div>
+                    ))}
+                 </div>
+               ) : (
+                 <div className="bg-slate-50 rounded-2xl p-6 text-slate-500 italic">No questions identified.</div>
+               )}
+            </div>
+          </div>
+
         </div>
       )}
 
       {/* --- CLINICAL VIEW --- */}
       {view === 'clinical' && (
-        <div className="space-y-6 animate-fade-in">
-             <Card className="p-8 border-slate-200">
-                <h3 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
-                    <Icons.Shield className="text-slate-500" /> Clinical Summary
+        <div className="space-y-8 animate-fade-in">
+           
+           {hasIssues && (
+             <div className="bg-amber-50 border border-amber-100 rounded-2xl p-6">
+                <h3 className="font-bold text-amber-800 text-lg mb-4 flex items-center gap-2">
+                  <Icons.Alert className="w-5 h-5" /> Safety & Consistency Check
                 </h3>
-                <div className="prose prose-slate max-w-none">
-                    <p className="whitespace-pre-wrap leading-relaxed text-slate-700 font-mono text-sm bg-slate-50 p-4 rounded-xl border border-slate-100">
-                        {carePlan?.technical_summary_for_clinicians || "No technical summary available."}
-                    </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                   {consistency?.conflicts.length ? (
+                     <div>
+                       <h4 className="font-bold text-amber-700 text-xs uppercase mb-2">Conflicts Detected</h4>
+                       <ul className="space-y-2">
+                         {consistency.conflicts.map((c, i) => (
+                           <li key={i} className="text-sm bg-white p-3 rounded-lg border border-amber-100 shadow-sm">
+                             <span className="font-bold block text-slate-800">{c.summary}</span>
+                             <span className="text-slate-500">{c.details}</span>
+                           </li>
+                         ))}
+                       </ul>
+                     </div>
+                   ) : null}
+                   {consistency?.gaps.length ? (
+                     <div>
+                       <h4 className="font-bold text-amber-700 text-xs uppercase mb-2">Information Gaps</h4>
+                       <ul className="space-y-2">
+                         {consistency.gaps.map((c, i) => (
+                           <li key={i} className="text-sm bg-white p-3 rounded-lg border border-amber-100 shadow-sm">
+                             <span className="font-bold block text-slate-800">{c.summary}</span>
+                             <span className="text-slate-500">{c.details}</span>
+                           </li>
+                         ))}
+                       </ul>
+                     </div>
+                   ) : null}
                 </div>
-             </Card>
-             
-             {/* Raw Data Verification Tables */}
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <Card className="p-6">
-                    <h4 className="font-bold text-slate-700 mb-4">Extracted Medications</h4>
-                    <div className="space-y-2">
-                        {data.medications.map((m, i) => (
-                            <div key={i} className="text-sm p-2 border-b border-slate-100 last:border-0">
-                                <div className="font-bold">{m.name} {m.dose}</div>
-                                <div className="text-slate-500">{m.frequency} • {m.route}</div>
-                            </div>
-                        ))}
-                         {data.medications.length === 0 && <p className="text-slate-400 italic">None found.</p>}
-                    </div>
-                </Card>
-                 <Card className="p-6">
-                    <h4 className="font-bold text-slate-700 mb-4">Extracted Appointments</h4>
-                    <div className="space-y-2">
-                        {data.appointments.map((a, i) => (
-                            <div key={i} className="text-sm p-2 border-b border-slate-100 last:border-0">
-                                <div className="font-bold">{a.specialty_or_clinic}</div>
-                                <div className="text-slate-500">{a.target_date_or_window}</div>
-                            </div>
-                        ))}
-                        {data.appointments.length === 0 && <p className="text-slate-400 italic">None found.</p>}
-                    </div>
-                </Card>
              </div>
+           )}
+
+           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+             <div className="p-6 border-b border-slate-100">
+                <h3 className="font-bold text-lg text-slate-900">Extracted Medications</h3>
+             </div>
+             <div className="overflow-x-auto">
+               <table className="w-full text-left text-sm">
+                 <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-xs">
+                   <tr>
+                     <th className="p-4">Drug</th>
+                     <th className="p-4">Dose</th>
+                     <th className="p-4">Freq</th>
+                     <th className="p-4">Instructions</th>
+                   </tr>
+                 </thead>
+                 <tbody className="divide-y divide-slate-100">
+                   {data.medications.length > 0 ? data.medications.map((med, i) => (
+                     <tr key={i} className="hover:bg-slate-50">
+                       <td className="p-4 font-bold text-slate-900">{med.name}</td>
+                       <td className="p-4">{med.dose}</td>
+                       <td className="p-4">{med.frequency}</td>
+                       <td className="p-4 text-slate-600 max-w-xs truncate" title={med.timing_notes}>{med.timing_notes || '-'}</td>
+                     </tr>
+                   )) : (
+                     <tr><td colSpan={4} className="p-8 text-center text-slate-400 italic">No medications found</td></tr>
+                   )}
+                 </tbody>
+               </table>
+             </div>
+           </div>
+
+           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+             <div className="p-6 border-b border-slate-100">
+                <h3 className="font-bold text-lg text-slate-900">Appointments</h3>
+             </div>
+             <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                 <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-xs">
+                   <tr>
+                     <th className="p-4">Type</th>
+                     <th className="p-4">Date/Window</th>
+                     <th className="p-4">Location</th>
+                     <th className="p-4">Action</th>
+                   </tr>
+                 </thead>
+                 <tbody className="divide-y divide-slate-100">
+                   {data.appointments.length > 0 ? data.appointments.map((appt, i) => (
+                     <tr key={i} className="hover:bg-slate-50">
+                       <td className="p-4 font-bold text-slate-900">{appt.type}</td>
+                       <td className="p-4">{appt.target_date_or_window}</td>
+                       <td className="p-4 text-slate-600 max-w-xs">{appt.location || 'TBD'}</td>
+                       <td className="p-4">
+                           <button onClick={() => handleSetReminder(appt)} className="text-blue-600 font-bold hover:underline">
+                               Set Reminder
+                           </button>
+                       </td>
+                     </tr>
+                   )) : (
+                     <tr><td colSpan={4} className="p-8 text-center text-slate-400 italic">No appointments found</td></tr>
+                   )}
+                 </tbody>
+               </table>
+             </div>
+           </div>
+           
+           {/* Technical Summary */}
+           {carePlan?.technical_summary_for_clinicians && (
+               <div className="bg-slate-900 text-slate-200 rounded-2xl p-6 font-mono text-xs leading-relaxed overflow-x-auto">
+                   <h4 className="font-bold text-slate-400 uppercase mb-2">Technical Clinical Summary</h4>
+                   {carePlan.technical_summary_for_clinicians}
+               </div>
+           )}
+
         </div>
       )}
-      
-      {/* Footer Disclaimer */}
-      <div className="mt-16 pt-8 border-t border-slate-200 text-center text-slate-400 text-xs leading-relaxed max-w-2xl mx-auto">
-          <p className="font-bold mb-1">IMPORTANT SAFETY NOTICE</p>
-          <p>
-            CareTransia is an automated tool to organize existing information. It does not provide medical diagnoses, treatment advice, or emergency triage.
-            All extracted information should be verified with your official discharge papers and clinical team. 
-            In case of emergency, call 911 immediately.
-          </p>
+
+      {/* --- MEDIA GENERATION (Recovery Visualization) --- */}
+      <div className="bg-white rounded-3xl p-8 border border-slate-100 shadow-sm">
+          <div className="flex items-center gap-3 mb-6">
+              <div className="bg-pink-50 p-2.5 rounded-xl text-pink-600">
+                  <Icons.Camera className="w-6 h-6" />
+              </div>
+              <div>
+                  <h3 className="text-xl font-bold text-slate-900">Recovery Visualization</h3>
+                  <p className="text-xs text-slate-500 font-bold uppercase tracking-wide">Visualize your healing process</p>
+              </div>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="space-y-4">
+                  <textarea 
+                    value={mediaPrompt}
+                    onChange={(e) => setMediaPrompt(e.target.value)}
+                    placeholder="Describe a scene (e.g., 'A peaceful garden with a comfortable chair for recovery')..."
+                    className="w-full p-4 rounded-xl border border-slate-200 focus:border-pink-300 focus:ring-2 focus:ring-pink-100 outline-none resize-none h-32"
+                  />
+                  <div className="flex flex-wrap gap-2">
+                      <Button onClick={handleGenerateImage} disabled={isGeneratingMedia || !mediaPrompt}>
+                          {isGeneratingMedia ? <Icons.Spinner /> : "Generate Image"}
+                      </Button>
+                      <Button onClick={handleEditImage} disabled={isGeneratingMedia || !generatedImage} variant="secondary">
+                          Edit
+                      </Button>
+                      <Button onClick={handleAnimateImage} disabled={isGeneratingMedia || !generatedImage} variant="secondary">
+                          Animate (Video)
+                      </Button>
+                  </div>
+              </div>
+              
+              <div className="bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-center min-h-[300px] overflow-hidden relative group">
+                  {videoUrl ? (
+                      <video src={videoUrl} controls autoPlay loop className="w-full h-full object-cover" />
+                  ) : generatedImage ? (
+                      <img src={generatedImage} alt="Generated" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+                  ) : (
+                      <div className="text-center p-8">
+                          <Icons.Camera className="w-12 h-12 text-slate-200 mx-auto mb-2" />
+                          <p className="text-slate-400 text-sm">Generated visuals will appear here</p>
+                      </div>
+                  )}
+                  {isGeneratingMedia && (
+                      <div className="absolute inset-0 bg-white/80 backdrop-blur-sm flex items-center justify-center">
+                          <div className="flex flex-col items-center gap-2">
+                             <Icons.Spinner className="w-8 h-8 text-pink-500" />
+                             <span className="font-bold text-pink-600 animate-pulse">Creating...</span>
+                          </div>
+                      </div>
+                  )}
+              </div>
+          </div>
       </div>
+
+      <TechnicalInsightPanel runTrace={carePlan?.runTrace} selfEvalSummary={carePlan?.selfEvalSummary} />
       
-      {/* Floating Assistant Button (FAB) */}
+      {/* FAB for Chat */}
       <button 
-        onClick={() => setChatOpen(!chatOpen)}
-        className="fixed bottom-24 right-6 z-40 bg-gradient-to-tr from-blue-600 to-purple-600 text-white p-4 rounded-full shadow-xl shadow-blue-500/40 hover:scale-110 transition-transform active:scale-95 animate-fade-in-up"
-        title="Chat with Assistant"
+        onClick={() => setChatOpen(true)}
+        className="fixed bottom-6 right-6 z-40 bg-slate-900 text-white p-4 rounded-full shadow-xl hover:scale-110 transition-transform active:scale-95 md:bottom-12 md:right-12"
       >
         <Icons.Sparkle className="w-6 h-6" />
       </button>
 
-      <AssistantChat 
-          isOpen={chatOpen} 
-          onClose={() => setChatOpen(false)} 
-          carePlan={carePlan} 
-          patientName={data.patient?.name || undefined}
-      />
+      {chatOpen && (
+          <AssistantChat 
+             isOpen={chatOpen} 
+             onClose={() => setChatOpen(false)}
+             carePlan={carePlan}
+             patientName={data.patient?.name || 'Patient'}
+          />
+      )}
+
     </div>
   );
 }

@@ -9,25 +9,25 @@ export const SAFETY_GUIDELINES = `
 export const AppConfig = {
   apiKey: process.env.API_KEY,
   models: {
-    // Analysis & OCR (Request 11: Use Gemini 3 Pro Preview)
-    extractor: 'gemini-3-pro-preview',
+    // Analysis & OCR - Switched to Flash for reliability/speed over Pro Preview
+    extractor: 'gemini-2.5-flash',
     // Safety Checks
     safety: 'gemini-2.5-flash',
-    // Care Planning - Switched to Flash for speed
+    // Care Planning
     planner: 'gemini-2.5-flash',
-    // Chat & Grounding (Maps/Search requires Flash currently)
+    // Chat & Grounding
     chat: 'gemini-2.5-flash',
-    // Fast responses (Request 12)
+    // Fast responses
     fast: 'gemini-2.5-flash-lite',
-    // Video Generation (Request 3, 9)
+    // Video Generation
     video: 'veo-3.1-fast-generate-preview',
-    // Image Generation (Request 5)
+    // Image Generation
     imageGen: 'gemini-3-pro-image-preview',
-    // Image Editing (Request 1)
+    // Image Editing
     imageEdit: 'gemini-2.5-flash-image',
-    // TTS (Request 16)
+    // TTS
     tts: 'gemini-2.5-flash-preview-tts',
-    // Live API (Request 2)
+    // Live API
     live: 'gemini-2.5-flash-native-audio-preview-09-2025'
   },
   video: {

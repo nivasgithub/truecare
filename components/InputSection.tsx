@@ -646,12 +646,10 @@ function AgentIntake({
                                 onKeyDown={e => e.key === 'Enter' && handleSend(input)}
                                 placeholder="Type your answer..."
                                 className="w-full bg-slate-100 rounded-2xl pl-5 pr-12 py-4 text-base outline-none focus:ring-2 focus:ring-blue-500 border border-transparent focus:bg-white transition-all placeholder-slate-400"
-                                disabled={isThinking || isLoading}
                             />
                             {/* Mic Button Inside Input */}
                             <button
                                 onClick={toggleDictation}
-                                disabled={isThinking || isLoading}
                                 className={`absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-xl transition-all ${isListening ? 'text-red-500 bg-red-50 animate-pulse' : 'text-slate-400 hover:text-blue-600 hover:bg-blue-50'}`}
                                 title={isListening ? "Stop & Send" : "Dictate"}
                             >
@@ -661,7 +659,7 @@ function AgentIntake({
 
                         <button 
                             onClick={() => handleSend(input)}
-                            disabled={!input.trim() || isThinking || isLoading}
+                            disabled={!input.trim()}
                             className="bg-slate-900 text-white p-4 rounded-2xl hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-slate-200"
                         >
                             <Icons.Send className="w-5 h-5" />

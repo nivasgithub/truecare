@@ -1,7 +1,7 @@
-import { Type } from "@google/genai";
+import { Type, HarmCategory, HarmBlockThreshold } from "@google/genai";
 import { ai } from "./gemini";
 import { cleanAndParseJSON } from "./utils";
-import { AppConfig, SAFETY_GUIDELINES } from "../config";
+import { AppConfig } from "../config";
 import { UploadedFile, PatientInfo, ParsedEpisode } from "../types";
 
 export async function parseDischargeDocuments(
@@ -15,37 +15,39 @@ export async function parseDischargeDocuments(
   }));
 
   const systemPrompt = `
-${SAFETY_GUIDELINES}
+You are "CareTransia", a specialized medical data extraction engine.
+Your Goal: Extract structured data from the provided images into strict JSON.
 
-You are "CareTransia", an expert medical AI assistant specialized in OCR and clinical data extraction.
-Your Goal: ACCURATELY and COMPLETELY extract structured data from the provided discharge documents.
+INPUT TYPES:
+The images may be:
+1. **Single Pill Bottles or Medication Labels** (Photos).
+2. Multi-page Discharge Summaries.
+3. Handwritten Notes.
 
-CRITICAL INSTRUCTION: 
-- The Safety Guidelines apply to *fabrication*. You MUST NOT invent data. 
-- However, you MUST extract ALL data present in the text. Do not omit medications or instructions because you are unsure of the safety; strictly transcribe what you see.
-- If text is legible, extract it.
+CRITICAL RULES FOR PILL BOTTLES:
+- If the image shows a pill bottle or box, YOU MUST EXTRACT:
+  - **Name**: The largest text on the label (e.g., "Lisinopril", "Metformin").
+  - **Dose**: Numbers with units (e.g., "10mg", "500 mg").
+  - **Frequency**: Instructions like "Take 1 tablet daily" or "Twice a day".
+- Do not ignore the image because it is "just a bottle". 
+- If patient details are visible, extract them. If not, leave patient fields null.
 
-Instructions:
-1. READ EVERY PAGE provided in the images.
-2. Extract the following sections:
-   - Medications (Name, Dose, Route, Frequency, Start/End dates).
-   - Appointments (Date, Clinic/Specialty, Location).
-   - Activity Restrictions (e.g., "no lifting > 10lbs").
-   - Warning Signs (When to call 911 vs Doctor).
-3. If a medication list is present, extract it precisely.
-4. If handwriting is difficult, use context to infer, but mark uncertain items in 'source_snippet'.
-5. Normalize frequencies (e.g., "BID" -> "2 times a day").
-6. Output STRICT JSON only.
+GENERAL RULES:
+1. Extract all sections as they appear.
+2. If a section is missing, return an empty array [].
+3. **JSON Only**: Output pure JSON. No markdown fences if possible, but I will parse them if you add them.
+
+MANDATORY FIELDS:
+- Medications (Name, Dose, Frequency) - PRIORITIZE THIS.
 `;
 
   const userPrompt = `
-Patient Context:
-${JSON.stringify(patientInfo)}
+Context:
+Patient Name (from user): ${patientInfo.name}
+Caregiver Notes: ${notes}
 
-Caregiver Notes:
-${notes}
-
-Please parse the attached files and notes.
+Task: Parse the attached images. 
+If it is a medication bottle, extract the drug details immediately.
 `;
 
   const response = await ai.models.generateContent({
@@ -56,6 +58,13 @@ Please parse the attached files and notes.
     },
     config: {
       systemInstruction: systemPrompt,
+      // Relax safety filters to allow medical drug names and instructions
+      safetySettings: [
+        { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+        { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+        { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+        { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+      ],
       responseMimeType: "application/json",
       responseSchema: {
         type: Type.OBJECT,
@@ -133,16 +142,18 @@ Please parse the attached files and notes.
 
   if (!response.text) throw new Error("No response from AI model");
   
-  // Safe parsing
-  const rawParsed = cleanAndParseJSON<Partial<ParsedEpisode>>(response.text);
+  // Safe parsing with default fallbacks. Guard against null returns.
+  const rawParsed = cleanAndParseJSON<Partial<ParsedEpisode>>(response.text) || {};
   
-  // Ensure strict adherence to ParsedEpisode structure to prevent UI crashes
-  // We provide default empty objects/arrays if the AI returns null for any section
   const parsedEpisode: ParsedEpisode = {
       status: rawParsed.status || 'success',
       error_message: rawParsed.error_message || '',
       patient: rawParsed.patient || { 
-          name: null, age: null, primary_condition: null, language_preference: null, caregiver_role: null 
+          name: patientInfo.name || null, 
+          age: patientInfo.age || null, 
+          primary_condition: patientInfo.primary_condition || null, 
+          language_preference: null, 
+          caregiver_role: null 
       },
       medications: Array.isArray(rawParsed.medications) ? rawParsed.medications : [],
       appointments: Array.isArray(rawParsed.appointments) ? rawParsed.appointments : [],
@@ -161,12 +172,9 @@ export async function extractPatientDetails(text: string): Promise<Partial<Patie
   if (!text.trim()) return {};
 
   const systemPrompt = `
-    ${SAFETY_GUIDELINES}
-
-    You are an AI assistant helper. 
-    Extract patient details from the provided text into a JSON object.
-    Only include fields that are mentioned in the text.
-    If age is mentioned as a number or a string (e.g., "eighty two"), convert to a string number (e.g., "82").
+    You are a data extraction helper. 
+    Extract patient details from the provided text into JSON.
+    Fields: name, age, primary_condition.
   `;
 
   const response = await ai.models.generateContent({
@@ -192,7 +200,7 @@ export async function extractPatientDetails(text: string): Promise<Partial<Patie
   });
 
   if (!response.text) throw new Error("Failed to extract details");
-  return cleanAndParseJSON<Partial<PatientInfo>>(response.text);
+  return cleanAndParseJSON<Partial<PatientInfo>>(response.text) || {};
 }
 
 /**
@@ -206,15 +214,9 @@ export async function identifyPatientFromFiles(files: UploadedFile[]): Promise<P
   }));
 
   const systemPrompt = `
-    ${SAFETY_GUIDELINES}
-
-    Analyze these medical documents/images.
-    Extract ONLY the following Patient Information if available:
-    1. Patient Name
-    2. Patient Age (or Date of Birth converted to age if possible, otherwise just age)
-    3. Primary Condition (Reason for visit/discharge diagnosis)
-    
-    Return strict JSON.
+    Analyze these medical documents.
+    Extract ONLY: Patient Name, Age, Primary Condition.
+    Return JSON.
   `;
 
   const response = await ai.models.generateContent({
@@ -238,5 +240,5 @@ export async function identifyPatientFromFiles(files: UploadedFile[]): Promise<P
   });
 
   if (!response.text) return {};
-  return cleanAndParseJSON<Partial<PatientInfo>>(response.text);
+  return cleanAndParseJSON<Partial<PatientInfo>>(response.text) || {};
 }

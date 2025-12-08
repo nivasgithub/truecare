@@ -4,6 +4,54 @@ import { UserProfile, HistoricalRecord, ParsedEpisode, FormattedCarePlan } from 
 import { fetchUserRecords } from '../services/firebase';
 import AssistantChat from './AssistantChat';
 
+// --- Helper Components ---
+
+const TaskItem: React.FC<{ label: string, status: 'completed' | 'pending' }> = ({ label, status }) => {
+    const isCompleted = status === 'completed';
+    return (
+        <div className={`flex items-center p-3 rounded-2xl border transition-all ${isCompleted ? 'bg-slate-50 border-slate-100' : 'bg-white border-slate-200 hover:border-blue-300 cursor-pointer'}`}>
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center mr-4 transition-colors ${isCompleted ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-300'}`}>
+                {isCompleted ? <Icons.Check className="w-6 h-6" /> : <div className="w-4 h-4 rounded-full border-2 border-slate-300"></div>}
+            </div>
+            <div className="flex-1">
+                <div className={`font-bold text-base ${isCompleted ? 'text-slate-500 line-through' : 'text-slate-900'}`}>{label}</div>
+            </div>
+        </div>
+    );
+};
+
+function SimpleModal({ isOpen, onClose, title, children, icon: Icon, color = "blue" }: any) {
+  if (!isOpen) return null;
+  const colors: any = {
+      blue: "bg-blue-50 text-blue-600",
+      red: "bg-red-50 text-red-600",
+      amber: "bg-amber-50 text-amber-600"
+  };
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+       <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden animate-scale-in max-h-[90vh] flex flex-col">
+          <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 flex-shrink-0">
+              <div className="flex items-center gap-3">
+                  <div className={`p-2 rounded-xl ${colors[color]}`}>
+                      {Icon && <Icon className="w-6 h-6" />}
+                  </div>
+                  <h3 className="text-xl font-bold text-slate-900">{title}</h3>
+              </div>
+              <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+                  <span className="text-2xl leading-none text-slate-400">&times;</span>
+              </button>
+          </div>
+          <div className="p-6 overflow-y-auto flex-1">
+              {children}
+          </div>
+          <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end flex-shrink-0">
+              <button onClick={onClose} className="px-6 py-2 bg-slate-900 text-white rounded-xl font-bold text-sm hover:bg-slate-800 transition-colors">Close</button>
+          </div>
+       </div>
+    </div>
+  );
+}
+
 interface DashboardScreenProps {
   user: UserProfile;
   onViewRecord: (recordId: string, fullData?: string) => void;
@@ -400,54 +448,6 @@ export default function DashboardScreen({ user, onViewRecord, onNewPlan }: Dashb
           )}
       </SimpleModal>
 
-    </div>
-  );
-}
-
-// --- Helper Components ---
-
-function TaskItem({ label, status }: { label: string, status: 'completed' | 'pending' }) {
-    const isCompleted = status === 'completed';
-    return (
-        <div className={`flex items-center p-3 rounded-2xl border transition-all ${isCompleted ? 'bg-slate-50 border-slate-100' : 'bg-white border-slate-200 hover:border-blue-300 cursor-pointer'}`}>
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center mr-4 transition-colors ${isCompleted ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-300'}`}>
-                {isCompleted ? <Icons.Check className="w-6 h-6" /> : <div className="w-4 h-4 rounded-full border-2 border-slate-300"></div>}
-            </div>
-            <div className="flex-1">
-                <div className={`font-bold text-base ${isCompleted ? 'text-slate-500 line-through' : 'text-slate-900'}`}>{label}</div>
-            </div>
-        </div>
-    );
-}
-
-function SimpleModal({ isOpen, onClose, title, children, icon: Icon, color = "blue" }: any) {
-  if (!isOpen) return null;
-  const colors: any = {
-      blue: "bg-blue-50 text-blue-600",
-      red: "bg-red-50 text-red-600",
-      amber: "bg-amber-50 text-amber-600"
-  };
-  return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-       <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden animate-scale-in max-h-[90vh] flex flex-col">
-          <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 flex-shrink-0">
-              <div className="flex items-center gap-3">
-                  <div className={`p-2 rounded-xl ${colors[color]}`}>
-                      {Icon && <Icon className="w-6 h-6" />}
-                  </div>
-                  <h3 className="text-xl font-bold text-slate-900">{title}</h3>
-              </div>
-              <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
-                  <span className="text-2xl leading-none text-slate-400">&times;</span>
-              </button>
-          </div>
-          <div className="p-6 overflow-y-auto flex-1">
-              {children}
-          </div>
-          <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end flex-shrink-0">
-              <button onClick={onClose} className="px-6 py-2 bg-slate-900 text-white rounded-xl font-bold text-sm hover:bg-slate-800 transition-colors">Close</button>
-          </div>
-       </div>
     </div>
   );
 }

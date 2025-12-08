@@ -18,6 +18,7 @@ import SignInScreen from './components/SignInScreen';
 import DashboardScreen from './components/DashboardScreen';
 import TestModelsScreen from './components/TestModelsScreen';
 import SettingsScreen from './components/SettingsScreen';
+import FAQScreen from './components/FAQScreen';
 import { logoutUser, getCurrentUser } from './services/firebase'; // Updated imports
 
 // Helpful for Firebase Authorized Domains config
@@ -90,6 +91,8 @@ function CareTransiaApp() {
 
   // Handlers
   const handleStart = () => {
+    // Crucial: Reset state to ensure no old data (files/info) persists when starting a new plan
+    actions.reset();
     navigate('intake');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -287,6 +290,11 @@ function CareTransiaApp() {
         {/* VIEW: Test Models (Sub-view of Settings) */}
         {activeView === 'test' && user && (
           <TestModelsScreen onBack={handleSettings} />
+        )}
+
+        {/* VIEW: FAQ / Support */}
+        {activeView === 'faq' && user && (
+          <FAQScreen onBack={handleSettings} />
         )}
       </main>
 

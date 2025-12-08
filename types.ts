@@ -79,6 +79,30 @@ export interface ConsistencyReport {
   gaps: ConsistencyIssue[];
 }
 
+// --- Technical Trace Types ---
+
+export interface RunStep {
+  name: string;
+  model: string;
+  input_summary: string;
+  output_summary: string;
+  status: 'success' | 'error';
+  timestamp: string;
+}
+
+export interface RunTrace {
+  execution_id: string;
+  timestamp: string;
+  steps: RunStep[];
+}
+
+export interface SelfEvalSummary {
+  score: number; // 0-100
+  user_facing_message: string;
+  coverage_gaps: string[];
+  confidence: 'high' | 'medium' | 'low';
+}
+
 export interface FormattedCarePlan {
   status: 'success' | 'error';
   error_message: string;
@@ -90,6 +114,9 @@ export interface FormattedCarePlan {
     doctor_questions: string[];
   };
   technical_summary_for_clinicians: string;
+  // Optional technical fields
+  runTrace?: RunTrace;
+  selfEvalSummary?: SelfEvalSummary;
 }
 
 // --- Auth & Dashboard Types ---

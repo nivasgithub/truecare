@@ -60,8 +60,16 @@ export default function SettingsScreen({ user, onNavigate, onLogout }: SettingsS
       ]
     },
     {
-      title: "Security",
+      title: "Help & Support",
       items: [
+        {
+          id: 'faq',
+          icon: <Icons.Question className="w-5 h-5 text-cyan-600" />,
+          label: "Frequently Asked Questions",
+          desc: "Learn about Care Nearby, messaging, and safety features.",
+          actionLabel: "View FAQ",
+          onClick: () => onNavigate('faq')
+        },
         {
           id: 'security',
           icon: <Icons.Shield className="w-5 h-5 text-slate-600" />,
