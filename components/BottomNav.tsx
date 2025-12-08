@@ -19,6 +19,26 @@ export default function BottomNav({ currentView, onNavigate, onLiveClick, hasAct
     { id: 'live', label: 'Live Agent', icon: Icons.Mic },
   ];
 
+  const handleNavClick = (item: typeof navItems[0]) => {
+      // Haptic Feedback
+      if (typeof navigator !== 'undefined' && navigator.vibrate) {
+          navigator.vibrate(10); 
+      }
+
+      if (item.id === 'live') {
+          onLiveClick();
+          return;
+      }
+      
+      if (item.disabled) {
+          // Explicit explanation instead of silent failure
+          alert("Please generate a care plan first to view this section.");
+          return;
+      }
+      
+      onNavigate(item.id);
+  };
+
   return (
     <div 
       className="fixed bottom-0 left-0 w-full z-40 flex flex-col items-center justify-end pb-4 md:pb-6 pointer-events-none"
@@ -39,12 +59,8 @@ export default function BottomNav({ currentView, onNavigate, onLiveClick, hasAct
              /* Mobile: Always visible, fixed bar style */
              w-[92%] rounded-2xl h-20 opacity-100 scale-100 translate-y-0 relative
 
-             /* Desktop: Auto-hide dock style */
-             md:rounded-full md:h-24 md:px-6 md:gap-4 md:w-auto md:min-w-[360px]
-             ${isHovered 
-                ? 'md:opacity-100 md:scale-100 md:translate-y-0' 
-                : 'md:opacity-0 md:scale-50 md:translate-y-12 md:absolute md:bottom-0'
-             }
+             /* Desktop: Always visible dock style */
+             md:rounded-full md:h-24 md:px-6 md:gap-4 md:w-auto md:min-w-[360px] md:opacity-100 md:scale-100 md:translate-y-0 md:bottom-6
           `}
         >
             {navItems.map((item) => {
@@ -53,37 +69,23 @@ export default function BottomNav({ currentView, onNavigate, onLiveClick, hasAct
               return (
                  <div key={item.id} className="w-16 md:w-20 flex justify-center pb-2">
                      <button
-                        onClick={() => item.id === 'live' ? onLiveClick() : (!item.disabled && onNavigate(item.id))}
-                        disabled={item.disabled}
+                        onClick={() => handleNavClick(item)}
                         className={`
                             transition-all duration-300 ease-out flex flex-col items-center justify-center
                             ${isActive 
                                 ? 'relative -top-5 md:-top-6 w-14 h-14 md:w-16 md:h-16 rounded-2xl bg-gradient-to-tr from-blue-600 to-cyan-500 text-white shadow-xl shadow-blue-500/30 scale-110 border-4 border-white' 
                                 : 'w-full h-full text-slate-500 hover:text-slate-800 hover:bg-slate-50 rounded-xl py-2'
                             }
-                            ${item.disabled ? 'opacity-40 cursor-not-allowed' : ''}
+                            ${item.disabled ? 'opacity-40' : ''}
                         `}
+                        title={item.disabled ? "Generate a plan first to view this" : item.label}
                      >
                         <item.icon className={`${isActive ? 'w-6 h-6 md:w-8 md:h-8' : 'w-5 h-5 md:w-6 md:h-6 mb-1'}`} />
-                        {!isActive && <span className="text-[9px] md:text-[10px] font-bold tracking-wide">{item.label}</span>}
+                        {!isActive && <span className="text-[10px] md:text-xs font-bold tracking-wide">{item.label}</span>}
                      </button>
                  </div>
               );
             })}
-        </div>
-
-        {/* Minimized Trigger Icon (Little Icon) - Desktop Only */}
-        <div 
-            className={`
-               hidden md:flex
-               bg-white/80 backdrop-blur-md border border-slate-200 shadow-lg rounded-full w-14 h-14
-               items-center justify-center cursor-pointer absolute bottom-0
-               transition-all duration-300 ease-out
-               hover:scale-110 hover:bg-white
-               ${isHovered ? 'md:opacity-0 md:scale-0 md:pointer-events-none' : 'md:opacity-100 md:scale-100 md:delay-100'}
-            `}
-        >
-            <Icons.Grip className="w-6 h-6 text-slate-600" />
         </div>
 
       </div>

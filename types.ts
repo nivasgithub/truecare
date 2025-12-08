@@ -167,3 +167,10 @@ export interface IntakeAgentResponse {
   suggestions: string[];
   extracted_info: Partial<PatientInfo>;
 }
+
+// --- App Settings ---
+export interface AppSettings {
+  fontSize: 'normal' | 'large';
+  simpleMode: boolean;
+  calmMode: boolean;
+}

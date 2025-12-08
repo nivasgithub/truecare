@@ -1,10 +1,11 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { Icons, Card, Button, SectionTitle } from './ui';
+import { Icons, Card, Button, SectionTitle, HelpTip, Breadcrumbs } from './ui';
 import { PatientInfo, UploadedFile, ChatMessage } from '../types';
 import SmartCamera from './SmartCamera';
 import { runIntakeAgent } from '../services/intake_agent';
 import { identifyPatientFromFiles } from '../api';
 import { generateSpeech, playRawAudio } from '../services/media';
+import StatusMessage from './StatusMessage';
 
 interface CareTransiaIntakeProps {
   patientInfo: PatientInfo;
@@ -16,18 +17,46 @@ interface CareTransiaIntakeProps {
   onAnalyze: () => void;
   isLoading: boolean;
   progressMsg?: string;
+  onLoadDemo?: () => void;
+  status?: 'idle' | 'analyzing' | 'done' | 'error';
+  errorMsg?: string | null;
+  onDismissError?: () => void;
+  isOffline?: boolean;
 }
+
+type IntakeMode = 'selection' | 'agent' | 'manual';
 
 export default function CareTransiaIntake({ 
   patientInfo, setPatientInfo, 
   files, setFiles, 
   notes, setNotes, 
   onAnalyze, isLoading,
-  progressMsg = "Processing..."
+  progressMsg = "Processing...",
+  onLoadDemo,
+  status, errorMsg, onDismissError, isOffline
 }: CareTransiaIntakeProps) {
   
-  const [mode, setMode] = useState<'agent' | 'manual'>('agent');
+  // Default to selection unless files already exist (returning user/state)
+  const [mode, setMode] = useState<IntakeMode>(files.length > 0 ? 'agent' : 'selection');
+  const [agentContext, setAgentContext] = useState<'papers' | 'bottles' | 'mixed' | null>(null);
+  
   const [showCamera, setShowCamera] = useState(false);
+  const [hasCamera, setHasCamera] = useState(false);
+
+  // Check for camera availability
+  useEffect(() => {
+    if (navigator.mediaDevices?.enumerateDevices) {
+        navigator.mediaDevices.enumerateDevices()
+            .then(devices => {
+                const videoInputs = devices.filter(d => d.kind === 'videoinput');
+                setHasCamera(videoInputs.length > 0);
+            })
+            .catch(e => {
+                console.warn("Camera check failed", e);
+                setHasCamera(false);
+            });
+    }
+  }, []);
 
   // --- Common Handlers ---
   const addFile = (dataUrl: string, mimeType: string) => {
@@ -39,9 +68,32 @@ export default function CareTransiaIntake({
     }]);
   };
 
+  const handleSelection = (type: string) => {
+      if (type === 'manual') {
+          setMode('manual');
+      } else {
+          setAgentContext(type as any);
+          setMode('agent');
+      }
+  };
+
   return (
     <div className="max-w-6xl mx-auto pb-12">
       
+      {/* Navigation Breadcrumb - Visual Progress */}
+      <Breadcrumbs steps={['Home', 'Upload & Review', 'Care Plan']} currentStep="Upload & Review" />
+
+      {/* Enhanced Error / Status Message */}
+      {(status === 'error' || isOffline) && (
+          <StatusMessage
+            status={status || 'idle'}
+            errorMsg={errorMsg || null}
+            onDismiss={onDismissError || (() => {})}
+            onRetry={onAnalyze}
+            isOffline={isOffline}
+          />
+      )}
+
       {showCamera && (
         <SmartCamera 
           onCapture={(dataUrl) => {
@@ -52,25 +104,100 @@ export default function CareTransiaIntake({
         />
       )}
 
-      {/* Mode Switcher */}
-      <div className="flex justify-center mb-8">
-        <div className="bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm inline-flex">
-          <button 
-            onClick={() => setMode('agent')}
-            className={`flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-bold transition-all ${mode === 'agent' ? 'bg-slate-900 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}
-          >
-            <Icons.Sparkle className="w-4 h-4" /> AI Assistant
-          </button>
-          <button 
-            onClick={() => setMode('manual')}
-            className={`flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-bold transition-all ${mode === 'manual' ? 'bg-slate-900 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}
-          >
-            <Icons.Note className="w-4 h-4" /> Manual Form
-          </button>
-        </div>
-      </div>
+      {/* VIEW: Selection Screen */}
+      {mode === 'selection' && (
+          <div className="max-w-4xl mx-auto py-8 animate-fade-in">
+            <div className="text-center mb-10">
+                <h2 className="text-3xl font-bold text-slate-900 mb-3">What do you have with you?</h2>
+                <p className="text-slate-500 text-lg">Select your documents to get started.</p>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <button 
+                    id="select-papers"
+                    onClick={() => handleSelection('papers')}
+                    className="group bg-white p-8 rounded-3xl border border-slate-200 shadow-sm hover:shadow-xl hover:border-blue-400 transition-all text-left flex flex-col gap-6 relative overflow-hidden"
+                >
+                    <div className="absolute top-0 right-0 w-24 h-24 bg-blue-50 rounded-full -mr-10 -mt-10 group-hover:scale-150 transition-transform duration-500"></div>
+                    <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600 group-hover:scale-110 transition-transform relative z-10">
+                        <Icons.FileText className="w-8 h-8" />
+                    </div>
+                    <div className="relative z-10">
+                        <h3 className="text-xl font-bold text-slate-900 mb-2 group-hover:text-blue-700 transition-colors">Discharge Papers</h3>
+                        <p className="text-slate-500 text-sm leading-relaxed">Printed packets, summaries, or handwritten notes.</p>
+                    </div>
+                </button>
 
-      {mode === 'agent' ? (
+                <button 
+                    id="select-bottles"
+                    onClick={() => handleSelection('bottles')}
+                    className="group bg-white p-8 rounded-3xl border border-slate-200 shadow-sm hover:shadow-xl hover:border-purple-400 transition-all text-left flex flex-col gap-6 relative overflow-hidden"
+                >
+                    <div className="absolute top-0 right-0 w-24 h-24 bg-purple-50 rounded-full -mr-10 -mt-10 group-hover:scale-150 transition-transform duration-500"></div>
+                    <div className="w-16 h-16 bg-purple-50 rounded-2xl flex items-center justify-center text-purple-600 group-hover:scale-110 transition-transform relative z-10">
+                        <Icons.Pill className="w-8 h-8" />
+                    </div>
+                    <div className="relative z-10">
+                        <h3 className="text-xl font-bold text-slate-900 mb-2 group-hover:text-purple-700 transition-colors">Pill Bottles</h3>
+                        <p className="text-slate-500 text-sm leading-relaxed">Photos of medication labels or blister packs.</p>
+                    </div>
+                </button>
+
+                <button 
+                    id="select-manual"
+                    onClick={() => handleSelection('manual')}
+                    className="group bg-white p-8 rounded-3xl border border-slate-200 shadow-sm hover:shadow-xl hover:border-slate-400 transition-all text-left flex flex-col gap-6 relative overflow-hidden"
+                >
+                    <div className="absolute top-0 right-0 w-24 h-24 bg-slate-50 rounded-full -mr-10 -mt-10 group-hover:scale-150 transition-transform duration-500"></div>
+                    <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-600 group-hover:scale-110 transition-transform relative z-10">
+                        <Icons.Type className="w-8 h-8" />
+                    </div>
+                    <div className="relative z-10">
+                        <h3 className="text-xl font-bold text-slate-900 mb-2 group-hover:text-slate-800 transition-colors">Type Manually</h3>
+                        <p className="text-slate-500 text-sm leading-relaxed">Don't have documents? Enter details yourself.</p>
+                    </div>
+                </button>
+            </div>
+            
+            <div className="mt-8 text-center">
+                 {onLoadDemo && (
+                    <button onClick={onLoadDemo} className="text-xs font-bold text-slate-400 hover:text-blue-600 transition-colors flex items-center gap-1 mx-auto">
+                        <Icons.Refresh className="w-3 h-3" /> Load Demo Data
+                    </button>
+                 )}
+                 <button onClick={() => handleSelection('mixed')} className="text-slate-400 text-sm font-semibold hover:text-blue-600 transition-colors mt-4">
+                     I have a mix of files
+                 </button>
+            </div>
+        </div>
+      )}
+
+      {/* Mode Switcher (Visible only after selection) */}
+      {mode !== 'selection' && (
+          <div className="flex flex-col items-center mb-8">
+            <div className="relative">
+                <div className="bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm inline-flex">
+                <button 
+                    onClick={() => setMode('agent')}
+                    className={`flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-bold transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${mode === 'agent' ? 'bg-slate-900 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}
+                >
+                    <Icons.Sparkle className="w-4 h-4" /> AI Assistant
+                </button>
+                <button 
+                    onClick={() => setMode('manual')}
+                    className={`flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-bold transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${mode === 'manual' ? 'bg-slate-900 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}
+                >
+                    <Icons.Note className="w-4 h-4" /> Manual Form
+                </button>
+                </div>
+            </div>
+            <button onClick={() => setMode('selection')} className="mt-2 text-xs text-slate-400 hover:text-slate-600 underline">
+                Back to selection
+            </button>
+          </div>
+      )}
+
+      {mode === 'agent' && (
         <AgentIntake 
            patientInfo={patientInfo} setPatientInfo={setPatientInfo}
            files={files} addFile={addFile}
@@ -78,8 +205,12 @@ export default function CareTransiaIntake({
            onAnalyze={onAnalyze}
            isLoading={isLoading}
            progressMsg={progressMsg}
+           hasCamera={hasCamera}
+           initialContext={agentContext}
         />
-      ) : (
+      )}
+
+      {mode === 'manual' && (
         <ManualIntake 
            patientInfo={patientInfo} setPatientInfo={setPatientInfo}
            files={files} setFiles={setFiles}
@@ -89,6 +220,7 @@ export default function CareTransiaIntake({
            progressMsg={progressMsg}
            onCamera={() => setShowCamera(true)}
            addFile={addFile}
+           hasCamera={hasCamera}
         />
       )}
 
@@ -134,6 +266,7 @@ interface ManualIntakeProps {
   progressMsg: string;
   onCamera: () => void;
   addFile: (d: string, m: string) => void;
+  hasCamera: boolean;
 }
 
 function ManualIntake({ 
@@ -141,36 +274,60 @@ function ManualIntake({
     files, setFiles, 
     notes, setNotes, 
     onAnalyze, isLoading, progressMsg,
-    onCamera, addFile
+    onCamera, addFile, hasCamera
 }: ManualIntakeProps) {
 
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const [isDragging, setIsDragging] = useState(false);
 
     const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files.length > 0) {
-            Array.from(e.target.files).forEach((file: File) => {
-                const reader = new FileReader();
-                reader.onload = (ev) => {
-                    if(ev.target?.result) {
-                        addFile(ev.target.result as string, file.type);
-                    }
-                };
-                reader.readAsDataURL(file);
-            });
+            processFiles(Array.from(e.target.files));
         }
+    };
+
+    const processFiles = (fileList: File[]) => {
+        fileList.forEach((file: File) => {
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                if(ev.target?.result) {
+                    addFile(ev.target.result as string, file.type);
+                }
+            };
+            reader.readAsDataURL(file);
+        });
     };
 
     const removeFile = (id: string) => {
         setFiles(prev => prev.filter(f => f.id !== id));
     };
 
+    const handleDragOver = (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragging(true);
+    };
+
+    const handleDragLeave = (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragging(false);
+    };
+
+    const handleDrop = (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragging(false);
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            processFiles(Array.from(e.dataTransfer.files));
+        }
+    };
+
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-fade-in">
             {/* Left: Patient Info Form */}
             <div className="space-y-6">
-                <Card className="p-6">
+                <Card className="p-6" id="intake-patient-info">
                     <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
                         <Icons.User className="text-blue-500" /> Patient Details
+                        <HelpTip text="These basic details help the AI verify the documents belong to the right person." />
                     </h3>
                     <div className="space-y-4">
                         <div>
@@ -179,7 +336,7 @@ function ManualIntake({
                                 value={patientInfo.name} 
                                 onChange={e => setPatientInfo({...patientInfo, name: e.target.value})}
                                 placeholder="e.g. John Doe"
-                                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all"
+                                className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-slate-900"
                             />
                         </div>
                         <div className="grid grid-cols-2 gap-4">
@@ -189,7 +346,7 @@ function ManualIntake({
                                     value={patientInfo.age} 
                                     onChange={e => setPatientInfo({...patientInfo, age: e.target.value})}
                                     placeholder="e.g. 65"
-                                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all"
+                                    className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-slate-900"
                                 />
                             </div>
                             <div>
@@ -197,7 +354,7 @@ function ManualIntake({
                                 <select 
                                     value={patientInfo.language_preference} 
                                     onChange={e => setPatientInfo({...patientInfo, language_preference: e.target.value})}
-                                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all bg-white"
+                                    className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-slate-900"
                                 >
                                     <option>English</option>
                                     <option>Spanish</option>
@@ -212,57 +369,77 @@ function ManualIntake({
                                 value={patientInfo.primary_condition} 
                                 onChange={e => setPatientInfo({...patientInfo, primary_condition: e.target.value})}
                                 placeholder="e.g. Hip Replacement, Pneumonia"
-                                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all"
+                                className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-slate-900"
+                            />
+                        </div>
+
+                        {/* Merged Notes Section */}
+                        <div className="pt-4 mt-2 border-t border-slate-100">
+                            <label className="block text-sm font-medium text-slate-700 mb-2 flex items-center gap-2">
+                                <Icons.Note className="w-4 h-4 text-amber-500" /> Additional Notes
+                                <HelpTip text="Add instructions from the nurse that weren't written down, or specific questions you have." />
+                            </label>
+                            <textarea 
+                                value={notes}
+                                onChange={e => setNotes(e.target.value)}
+                                placeholder="Add any extra instructions from the nurse or questions you have..."
+                                className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all h-32 resize-none text-slate-900"
                             />
                         </div>
                     </div>
-                </Card>
-
-                <Card className="p-6">
-                    <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-                        <Icons.Note className="text-amber-500" /> Additional Notes
-                    </h3>
-                    <textarea 
-                        value={notes}
-                        onChange={e => setNotes(e.target.value)}
-                        placeholder="Add any extra instructions from the nurse or questions you have..."
-                        className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all h-32 resize-none"
-                    />
                 </Card>
             </div>
 
             {/* Right: Files & Actions */}
             <div className="space-y-6">
-                <Card className="p-6">
+                <Card className={`p-6 transition-all duration-200 ${isDragging ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200' : ''}`} id="intake-upload-section">
                     <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
                         <Icons.Upload className="text-purple-500" /> Upload Documents
                     </h3>
                     
-                    <div className="grid grid-cols-2 gap-3 mb-4">
-                        <button 
-                            onClick={() => fileInputRef.current?.click()}
-                            className="flex flex-col items-center justify-center gap-2 p-6 bg-slate-50 border-2 border-dashed border-slate-300 rounded-xl hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600 transition-all text-slate-500"
-                        >
-                            <input type="file" multiple ref={fileInputRef} className="hidden" onChange={handleFileSelect} accept="image/*,application/pdf" />
-                            <Icons.Upload className="w-6 h-6" />
-                            <span className="text-sm font-bold">Select Files</span>
-                        </button>
-                        <button 
-                            onClick={onCamera}
-                            className="flex flex-col items-center justify-center gap-2 p-6 bg-slate-50 border-2 border-dashed border-slate-300 rounded-xl hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600 transition-all text-slate-500"
-                        >
-                            <Icons.Camera className="w-6 h-6" />
-                            <span className="text-sm font-bold">Scan Camera</span>
-                        </button>
+                    {/* Drop Zone Area */}
+                    <div 
+                        onDragOver={handleDragOver}
+                        onDragLeave={handleDragLeave}
+                        onDrop={handleDrop}
+                        className="border-2 border-dashed border-slate-300 rounded-xl p-6 flex flex-col items-center justify-center gap-4 bg-slate-50/50 hover:bg-slate-50 transition-colors relative"
+                    >
+                        <div className="flex gap-4 w-full">
+                            <button 
+                                onClick={() => fileInputRef.current?.click()}
+                                className="flex-1 flex flex-col items-center justify-center gap-2 p-4 bg-white border border-slate-200 rounded-xl hover:border-blue-300 hover:text-blue-600 transition-all text-slate-500 shadow-sm"
+                            >
+                                <input type="file" multiple ref={fileInputRef} className="hidden" onChange={handleFileSelect} accept="image/*,application/pdf" />
+                                <Icons.Upload className="w-6 h-6" />
+                                <span className="text-sm font-bold">Select Files</span>
+                            </button>
+                            {hasCamera && (
+                                <button 
+                                    onClick={onCamera}
+                                    className="flex-1 flex flex-col items-center justify-center gap-2 p-4 bg-white border border-slate-200 rounded-xl hover:border-blue-300 hover:text-blue-600 transition-all text-slate-500 shadow-sm"
+                                >
+                                    <Icons.Camera className="w-6 h-6" />
+                                    <span className="text-sm font-bold">Scan Camera</span>
+                                </button>
+                            )}
+                        </div>
+                        <p className="text-xs text-slate-400 font-medium">
+                            {isDragging ? "Drop files now" : "or drag and drop images/PDFs here"}
+                        </p>
                     </div>
 
+                    {/* File List */}
                     {files.length > 0 && (
-                        <div className="space-y-2">
-                            <p className="text-xs font-bold text-slate-400 uppercase">Attached Files ({files.length})</p>
+                        <div className="mt-6 space-y-3">
+                            <div className="flex items-center justify-between">
+                                <p className="text-xs font-bold text-emerald-600 uppercase flex items-center gap-1">
+                                    <Icons.Check className="w-3 h-3" /> {files.length} Files Ready
+                                </p>
+                            </div>
                             <div className="space-y-2">
                                 {files.map((file, idx) => (
-                                    <div key={file.id} className="flex items-center gap-3 p-3 bg-white border border-slate-100 rounded-xl shadow-sm">
-                                        <div className="w-10 h-10 rounded-lg bg-slate-100 overflow-hidden flex-shrink-0">
+                                    <div key={file.id} className="flex items-center gap-3 p-3 bg-emerald-50/50 border border-emerald-100 rounded-xl animate-fade-in-up">
+                                        <div className="w-10 h-10 rounded-lg bg-white overflow-hidden flex-shrink-0 border border-emerald-100">
                                             {file.mimeType.includes('image') ? (
                                                 <img src={file.preview} alt="Preview" className="w-full h-full object-cover" />
                                             ) : (
@@ -270,10 +447,10 @@ function ManualIntake({
                                             )}
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <p className="text-sm font-bold text-slate-700 truncate">Document {idx + 1}</p>
-                                            <p className="text-xs text-slate-400 truncate">{file.mimeType}</p>
+                                            <p className="text-sm font-bold text-slate-800 truncate">Document {idx + 1}</p>
+                                            <p className="text-xs text-slate-500 truncate">{file.mimeType}</p>
                                         </div>
-                                        <button onClick={() => removeFile(file.id)} className="p-2 text-slate-400 hover:text-red-500 transition-colors">
+                                        <button onClick={() => removeFile(file.id)} className="p-2 text-slate-400 hover:text-red-500 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 rounded-lg" aria-label="Remove file">
                                             <Icons.Trash className="w-4 h-4" />
                                         </button>
                                     </div>
@@ -284,6 +461,7 @@ function ManualIntake({
                 </Card>
 
                 <Button 
+                    id="intake-analyze-btn"
                     onClick={onAnalyze} 
                     disabled={isLoading || files.length === 0} 
                     className="w-full py-5 text-lg shadow-xl shadow-blue-200/50"
@@ -307,7 +485,8 @@ function AgentIntake({
     patientInfo, setPatientInfo, 
     files, addFile, 
     onCamera, onAnalyze, 
-    isLoading, progressMsg 
+    isLoading, progressMsg, hasCamera,
+    initialContext
 }: {
     patientInfo: PatientInfo;
     setPatientInfo: React.Dispatch<React.SetStateAction<PatientInfo>>;
@@ -317,19 +496,34 @@ function AgentIntake({
     onAnalyze: () => void;
     isLoading: boolean;
     progressMsg: string;
+    hasCamera: boolean;
+    initialContext: 'papers' | 'bottles' | 'mixed' | null;
 }) {
+    // Generate context-aware welcome
+    const getWelcomeMsg = () => {
+        if (initialContext === 'papers') return "Great, let's start with your discharge papers. You can upload photos or PDFs below.";
+        if (initialContext === 'bottles') return "I'll help you organize your meds. Please snap a clear photo of the pill bottles.";
+        return "Welcome to CareTransia. Please upload your documents or use the camera to start.";
+    };
+
+    const getInitialWidget = () => {
+        if (initialContext === 'bottles') return 'camera';
+        if (initialContext === 'papers') return 'upload';
+        return 'upload';
+    };
+
     const [messages, setMessages] = useState<ChatMessage[]>([
         { 
             id: 'welcome', 
             role: 'model', 
-            text: "Welcome to CareTransia. To start, please upload your discharge papers or pill bottles. I'll automatically read them to get your details.", 
+            text: getWelcomeMsg(), 
             timestamp: Date.now(),
-            widget: 'upload'
+            widget: getInitialWidget()
         }
     ]);
     const [input, setInput] = useState('');
     const [isThinking, setIsThinking] = useState(false);
-    const [suggestions, setSuggestions] = useState<string[]>(["I'll upload files now", "I don't have files"]);
+    const [suggestions, setSuggestions] = useState<string[]>([]);
     
     // Voice & TTS State
     const [isListening, setIsListening] = useState(false);
@@ -340,6 +534,20 @@ function AgentIntake({
     const fileInputRef = useRef<HTMLInputElement>(null);
     const recognitionRef = useRef<any>(null);
     
+    // Auto-trigger widget on mount based on context (friction reduction)
+    useEffect(() => {
+        // Small delay to allow render
+        const timer = setTimeout(() => {
+            if (initialContext === 'papers' && fileInputRef.current && files.length === 0) {
+                // fileInputRef.current.click(); // Browsers might block this auto-click without direct user interaction, safe to leave as UI prompt
+            }
+            if (initialContext === 'bottles' && hasCamera && files.length === 0) {
+                onCamera(); // This typically needs user interaction too, might need to rely on the button being prominent
+            }
+        }, 800);
+        return () => clearTimeout(timer);
+    }, []);
+
     // Auto-scroll
     useEffect(() => {
         chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -509,7 +717,7 @@ function AgentIntake({
     const completionScore = calculateProgress(patientInfo, files);
 
     return (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[600px] animate-fade-in">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[600px] animate-fade-in" id="intake-agent-container">
             
             {/* LEFT: Chat Interface */}
             <div className="lg:col-span-2 flex flex-col bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden relative">
@@ -552,8 +760,9 @@ function AgentIntake({
                                         <button 
                                             onClick={() => playTTS(m.text, m.id)}
                                             disabled={ttsStatus !== 'idle'}
-                                            className="p-2 mb-1 bg-white border border-slate-200 text-slate-400 hover:text-blue-600 hover:border-blue-200 rounded-full transition-all shadow-sm flex-shrink-0"
+                                            className="p-2 mb-1 bg-white border border-slate-200 text-slate-400 hover:text-blue-600 hover:border-blue-200 rounded-full transition-all shadow-sm flex-shrink-0 focus:outline-none focus:ring-2 focus:ring-blue-500"
                                             title="Read Aloud"
+                                            aria-label="Read message aloud"
                                         >
                                             {activeAudioId === m.id && ttsStatus === 'generating' ? (
                                                 <Icons.Spinner className="w-4 h-4 text-blue-500" />
@@ -573,21 +782,23 @@ function AgentIntake({
                             
                             {/* WIDGETS */}
                             <div className="w-full">
-                                {m.widget === 'upload' && (
+                                {(m.widget === 'upload' || m.widget === 'camera') && (
                                     <div className="mt-3 bg-white p-4 rounded-2xl border border-blue-100 shadow-sm flex gap-3 animate-fade-in-up w-full max-w-[85%]">
                                         <button 
                                             onClick={() => fileInputRef.current?.click()}
-                                            className="flex-1 py-3 px-4 bg-blue-50 text-blue-700 font-bold rounded-xl hover:bg-blue-100 transition-colors flex items-center justify-center gap-2"
+                                            className={`flex-1 py-3 px-4 font-bold rounded-xl transition-colors flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-offset-2 ${m.widget === 'upload' ? 'bg-slate-900 text-white hover:bg-slate-800 ring-slate-900' : 'bg-blue-50 text-blue-700 hover:bg-blue-100 ring-blue-500'}`}
                                         >
                                             <input type="file" multiple ref={fileInputRef} className="hidden" onChange={handleFileSelect} accept="image/*,application/pdf" />
                                             <Icons.Upload className="w-5 h-5" /> Upload Papers
                                         </button>
-                                        <button 
-                                            onClick={onCamera}
-                                            className="flex-1 py-3 px-4 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 transition-colors flex items-center justify-center gap-2"
-                                        >
-                                            <Icons.Camera className="w-5 h-5" /> Scan Bottle
-                                        </button>
+                                        {hasCamera && (
+                                            <button 
+                                                onClick={onCamera}
+                                                className={`flex-1 py-3 px-4 font-bold rounded-xl transition-colors flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-offset-2 ${m.widget === 'camera' ? 'bg-slate-900 text-white hover:bg-slate-800 ring-slate-900' : 'bg-blue-50 text-blue-700 hover:bg-blue-100 ring-blue-500'}`}
+                                            >
+                                                <Icons.Camera className="w-5 h-5" /> Scan Bottle
+                                            </button>
+                                        )}
                                     </div>
                                 )}
 
@@ -630,7 +841,7 @@ function AgentIntake({
                                 <button 
                                     key={i} 
                                     onClick={() => handleSend(s)}
-                                    className="px-4 py-2 bg-slate-50 hover:bg-blue-50 hover:text-blue-700 text-slate-600 rounded-full text-sm font-bold border border-slate-200 transition-all active:scale-95"
+                                    className="px-4 py-2 bg-slate-50 hover:bg-blue-50 hover:text-blue-700 text-slate-600 rounded-full text-sm font-bold border border-slate-200 transition-all active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
                                 >
                                     {s}
                                 </button>
@@ -650,8 +861,9 @@ function AgentIntake({
                             {/* Mic Button Inside Input */}
                             <button
                                 onClick={toggleDictation}
-                                className={`absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-xl transition-all ${isListening ? 'text-red-500 bg-red-50 animate-pulse' : 'text-slate-400 hover:text-blue-600 hover:bg-blue-50'}`}
+                                className={`absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-xl transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 ${isListening ? 'text-red-500 bg-red-50 animate-pulse' : 'text-slate-400 hover:text-blue-600 hover:bg-blue-50'}`}
                                 title={isListening ? "Stop & Send" : "Dictate"}
+                                aria-label={isListening ? "Stop recording" : "Start voice input"}
                             >
                                 {isListening ? <Icons.Stop className="w-5 h-5" /> : <Icons.Mic className="w-5 h-5" />}
                             </button>
@@ -660,7 +872,8 @@ function AgentIntake({
                         <button 
                             onClick={() => handleSend(input)}
                             disabled={!input.trim()}
-                            className="bg-slate-900 text-white p-4 rounded-2xl hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-slate-200"
+                            className="bg-slate-900 text-white p-4 rounded-2xl hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2"
+                            aria-label="Send message"
                         >
                             <Icons.Send className="w-5 h-5" />
                         </button>

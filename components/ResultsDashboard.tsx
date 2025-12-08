@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Card, Badge, Icons, Button } from './ui';
+import { Card, Badge, Icons, Button, HelpTip, Breadcrumbs } from './ui';
 import { ParsedEpisode, ConsistencyReport, FormattedCarePlan, PlanItem } from '../types';
 import { generateRecoveryVideo } from '../services/video';
 import { generateSpeech, generateImage, editImage, playRawAudio, stopAudio } from '../services/media';
@@ -11,6 +11,7 @@ interface CareTransiaResultsProps {
   consistency: ConsistencyReport | null;
   carePlan: FormattedCarePlan | null;
   onReset: () => void;
+  simpleMode?: boolean;
 }
 
 // Helper to normalize data from potentially old string[] records to new PlanItem[]
@@ -41,23 +42,27 @@ const InstructionRow = ({ item, type }: { item: PlanItem, type: 'checkbox' | 'bu
                 )}
                 
                 <div className="flex-1">
-                    <span className={`text-slate-700 leading-relaxed ${isWarning ? 'text-red-700' : ''}`}>
+                    <span className={`text-slate-700 leading-relaxed ${isWarning ? 'text-red-700 font-medium' : ''}`}>
                         {item.text}
                     </span>
                     
-                    {/* Citation Toggle */}
+                    {/* Citation Toggle - Improved Visibility */}
                     {item.source && (
-                        <div className="mt-1">
+                        <div className="mt-2">
                              <button 
                                 onClick={() => setShowSource(!showSource)}
-                                className={`text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 transition-colors ${isWarning ? 'text-red-300 hover:text-red-600' : 'text-slate-300 hover:text-blue-500'}`}
+                                className={`text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 rounded-md px-2 py-1 ${
+                                    isWarning 
+                                    ? 'bg-red-50 text-red-600 hover:bg-red-100' 
+                                    : 'bg-slate-50 text-blue-600 hover:bg-blue-50'
+                                }`}
                              >
-                                <Icons.Clipboard className="w-3 h-3" />
-                                {showSource ? 'Hide Source' : 'Show Source'}
+                                <Icons.FileText className="w-3 h-3" />
+                                {showSource ? 'Hide Source' : 'Verify Source'}
                              </button>
                              
                              {showSource && (
-                                <div className={`mt-1.5 p-2 rounded-lg text-xs border ${isWarning ? 'bg-red-100/50 border-red-100 text-red-800' : 'bg-slate-50 border-slate-100 text-slate-600'} italic`}>
+                                <div className={`mt-2 p-3 rounded-lg text-xs border leading-relaxed ${isWarning ? 'bg-red-50 border-red-100 text-red-800' : 'bg-slate-50 border-slate-200 text-slate-600'} italic`}>
                                     "{item.source}"
                                 </div>
                              )}
@@ -69,9 +74,9 @@ const InstructionRow = ({ item, type }: { item: PlanItem, type: 'checkbox' | 'bu
     );
 };
 
-export default function CareTransiaResults({ data, consistency, carePlan, onReset }: CareTransiaResultsProps) {
+export default function CareTransiaResults({ data, consistency, carePlan, onReset, simpleMode = false }: CareTransiaResultsProps) {
   
-  const [view, setView] = useState<'playbook' | 'clinical'>('playbook'); 
+  const [activeTab, setActiveTab] = useState<'plan' | 'clinical' | 'tools'>('plan');
   const hasIssues = consistency?.status === 'success' && (consistency.conflicts.length > 0 || consistency.gaps.length > 0);
 
   // Deep Safety Fallback for Plan Data with Normalization
@@ -203,50 +208,77 @@ export default function CareTransiaResults({ data, consistency, carePlan, onRese
     }
   };
 
+  const handleShare = () => {
+      if (navigator.share) {
+          navigator.share({
+              title: `Care Plan for ${data.patient?.name}`,
+              text: 'Here is the generated care plan summary.',
+              url: window.location.href
+          }).catch(console.error);
+      } else {
+          alert("Sharing not supported on this device/browser.");
+      }
+  };
+
+  const handlePrint = () => {
+      window.print();
+  };
+
   return (
-    <div className="animate-fade-in space-y-8 pb-32 max-w-6xl mx-auto relative">
+    <div className="animate-fade-in space-y-6 pb-32 max-w-6xl mx-auto relative print:pb-0">
       
+      {/* Navigation Breadcrumb */}
+      <div className="print:hidden">
+        <Breadcrumbs steps={['Home', 'Upload', 'Results']} currentStep="Results" />
+      </div>
+
       {/* Dashboard Header */}
-      <div className="bg-white rounded-3xl p-8 border border-slate-100 shadow-lg shadow-slate-100/50 flex flex-col md:flex-row md:items-end justify-between gap-6">
+      <div className="bg-white rounded-3xl p-6 md:p-8 border border-slate-100 shadow-lg shadow-slate-100/50 flex flex-col lg:flex-row lg:items-end justify-between gap-6 print:shadow-none print:border-none print:p-0">
         <div>
-           <div className="flex items-center gap-2 mb-3">
+           <div className="flex items-center gap-2 mb-3 print:hidden">
              <span className="px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-bold uppercase tracking-wide flex items-center gap-2 border border-emerald-100">
                <Icons.Sparkle className="w-3 h-3"/> Analysis Complete
              </span>
+             <span className="px-3 py-1 rounded-full bg-slate-50 text-slate-600 text-xs font-bold uppercase tracking-wide flex items-center gap-2 border border-slate-100">
+               <Icons.Check className="w-3 h-3"/> Saved to Device
+             </span>
            </div>
            <h2 className="text-3xl md:text-5xl font-extrabold text-slate-900 tracking-tight">
-             Care Plan for <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600">{data.patient?.name || 'Patient'}</span>
+             Care Plan for <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600 print:text-black">{data.patient?.name || 'Patient'}</span>
            </h2>
+           <p className="text-xs text-slate-400 mt-2 font-medium print:hidden">
+              <span className="font-bold text-slate-500">Transparency Note:</span> This plan was generated using <u>only</u> your uploaded documents. No external records were accessed.
+           </p>
         </div>
         
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-3 print:hidden">
+            <button 
+                onClick={handleShare}
+                className="bg-white hover:bg-slate-50 text-slate-700 p-3 rounded-2xl transition-colors border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center gap-2 font-bold text-sm"
+                title="Share with Family"
+            >
+                <Icons.Share className="w-5 h-5" /> Share
+            </button>
+            <button 
+                onClick={handlePrint}
+                className="bg-white hover:bg-slate-50 text-slate-700 p-3 rounded-2xl transition-colors border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center gap-2 font-bold text-sm"
+                title="Print Friendly View"
+            >
+                <Icons.Printer className="w-5 h-5" /> Print
+            </button>
             <button 
                 onClick={handleMainReadAloud}
-                className={`bg-slate-50 hover:bg-slate-100 text-slate-700 p-4 rounded-2xl transition-colors border border-slate-200 ${ttsStatus === 'playing' ? 'text-red-600 border-red-200 hover:bg-red-50' : ''}`}
+                className={`bg-slate-50 hover:bg-slate-100 text-slate-700 p-3 rounded-2xl transition-colors border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center gap-2 font-bold text-sm ${ttsStatus === 'playing' ? 'text-red-600 border-red-200 hover:bg-red-50' : ''}`}
                 title={ttsStatus === 'playing' ? "Stop Reading" : "Read Aloud Summary"}
             >
                 {ttsStatus === 'generating' ? (
-                     <div className="flex items-center gap-2"><Icons.Spinner className="w-6 h-6 text-blue-500" /> <span className="font-bold hidden md:inline">Generating...</span></div>
+                     <><Icons.Spinner className="w-5 h-5 text-blue-500" /> Generating...</>
                 ) : ttsStatus === 'playing' ? (
-                     <div className="flex items-center gap-2"><Icons.Stop className="w-6 h-6" /> <span className="font-bold hidden md:inline">Stop</span></div>
+                     <><Icons.Stop className="w-5 h-5" /> Stop</>
                 ) : (
-                     <div className="flex items-center gap-2"><Icons.Speaker className="w-6 h-6" /> <span className="font-bold hidden md:inline">Read Aloud</span></div>
+                     <><Icons.Speaker className="w-5 h-5" /> Listen</>
                 )}
             </button>
-            <div className="flex bg-slate-100 p-1.5 rounded-2xl">
-            <button 
-                onClick={() => setView('playbook')}
-                className={`px-6 py-3 rounded-xl text-base font-bold transition-all flex items-center gap-2 ${view === 'playbook' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-            >
-                <Icons.Clipboard className="w-5 h-5" /> Patient View
-            </button>
-            <button 
-                onClick={() => setView('clinical')}
-                className={`px-6 py-3 rounded-xl text-base font-bold transition-all flex items-center gap-2 ${view === 'clinical' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-            >
-                <Icons.Shield className="w-5 h-5" /> Clinician View
-            </button>
-            </div>
         </div>
       </div>
       
@@ -261,15 +293,57 @@ export default function CareTransiaResults({ data, consistency, carePlan, onRese
           </div>
       )}
 
-      {/* --- PATIENT PLAYBOOK VIEW --- */}
-      {view === 'playbook' && (
+      {/* --- TABS NAVIGATION --- */}
+      <div className="flex border-b border-slate-200 gap-1 overflow-x-auto print:hidden">
+          <button 
+            onClick={() => setActiveTab('plan')}
+            className={`px-6 py-4 font-bold text-sm transition-all border-b-2 flex items-center gap-2 ${activeTab === 'plan' ? 'border-blue-600 text-blue-700 bg-blue-50/50' : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50'}`}
+          >
+             <Icons.Clipboard className="w-4 h-4" /> My Care Plan
+          </button>
+          <button 
+            onClick={() => setActiveTab('clinical')}
+            className={`px-6 py-4 font-bold text-sm transition-all border-b-2 flex items-center gap-2 ${activeTab === 'clinical' ? 'border-blue-600 text-blue-700 bg-blue-50/50' : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50'}`}
+          >
+             <Icons.Shield className="w-4 h-4" /> Clinical Details
+          </button>
+          <button 
+            onClick={() => setActiveTab('tools')}
+            className={`px-6 py-4 font-bold text-sm transition-all border-b-2 flex items-center gap-2 ${activeTab === 'tools' ? 'border-blue-600 text-blue-700 bg-blue-50/50' : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50'}`}
+          >
+             <Icons.Tools className="w-4 h-4" /> Visuals & Tools
+          </button>
+      </div>
+
+      {/* --- TAB CONTENT: MY CARE PLAN --- */}
+      {activeTab === 'plan' && (
         <div className="space-y-8 animate-fade-in">
           
+          {/* Prominent Warning Card (Sticky-ish logic if desired, for now top of flow) */}
+          {safePlan.warning_signs_card.length > 0 && (
+             <div className="bg-red-50 rounded-2xl border-2 border-red-100 p-6 shadow-sm flex flex-col md:flex-row gap-6 items-start">
+                <div className="bg-red-100 p-3 rounded-xl text-red-600">
+                    <Icons.Alert className="w-8 h-8" />
+                </div>
+                <div className="flex-1 space-y-4">
+                    <div>
+                        <h3 className="text-xl font-bold text-red-800">When to Call the Doctor</h3>
+                        <p className="text-red-700/80 text-sm font-medium">Watch for these signs. If you have chest pain or severe shortness of breath, call 911.</p>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {safePlan.warning_signs_card.map((warning: PlanItem, i: number) => (
+                            <InstructionRow key={i} item={warning} type="warning" />
+                        ))}
+                    </div>
+                </div>
+             </div>
+          )}
+
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             {/* Immediate Actions */}
             <div className="space-y-4">
-               <h3 className="font-bold text-xl text-slate-800 flex items-center gap-2">
-                 <div className="p-2 bg-blue-100 rounded-lg text-blue-600"><Icons.Check className="w-5 h-5" /></div>
+               <h3 className="font-bold text-xl text-slate-800 flex items-center gap-2 border-b border-slate-100 pb-2">
+                 <div className="p-1.5 bg-blue-100 rounded-lg text-blue-600"><Icons.Check className="w-5 h-5" /></div>
                  Today & Tomorrow
                </h3>
                {safePlan.today_and_tomorrow.length > 0 ? (
@@ -285,8 +359,8 @@ export default function CareTransiaResults({ data, consistency, carePlan, onRese
 
             {/* Daily Routine */}
             <div className="space-y-4">
-               <h3 className="font-bold text-xl text-slate-800 flex items-center gap-2">
-                 <div className="p-2 bg-purple-100 rounded-lg text-purple-600"><Icons.Calendar className="w-5 h-5" /></div>
+               <h3 className="font-bold text-xl text-slate-800 flex items-center gap-2 border-b border-slate-100 pb-2">
+                 <div className="p-1.5 bg-purple-100 rounded-lg text-purple-600"><Icons.Calendar className="w-5 h-5" /></div>
                  Daily Routine
                </h3>
                {safePlan.daily_routine.length > 0 ? (
@@ -301,58 +375,40 @@ export default function CareTransiaResults({ data, consistency, carePlan, onRese
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {/* Warnings */}
-            <div className="space-y-4">
-               <h3 className="font-bold text-xl text-slate-800 flex items-center gap-2">
-                 <div className="p-2 bg-red-100 rounded-lg text-red-600"><Icons.Alert className="w-5 h-5" /></div>
-                 Warning Signs
-               </h3>
-               {safePlan.warning_signs_card.length > 0 ? (
-                 <div className="bg-red-50 rounded-2xl border border-red-100 p-6 space-y-3">
-                    <p className="font-bold text-red-800 text-sm mb-2">Call your doctor if:</p>
-                    {safePlan.warning_signs_card.map((warning: PlanItem, i: number) => (
-                      <InstructionRow key={i} item={warning} type="warning" />
-                    ))}
-                 </div>
-               ) : (
-                 <div className="bg-slate-50 rounded-2xl p-6 text-slate-500 italic">No specific warnings listed.</div>
-               )}
-            </div>
-
-            {/* Questions */}
-            <div className="space-y-4">
-               <h3 className="font-bold text-xl text-slate-800 flex items-center gap-2">
-                 <div className="p-2 bg-amber-100 rounded-lg text-amber-600"><Icons.Question className="w-5 h-5" /></div>
+          {/* Questions Section */}
+          <div className="space-y-4">
+               <h3 className="font-bold text-xl text-slate-800 flex items-center gap-2 border-b border-slate-100 pb-2">
+                 <div className="p-1.5 bg-amber-100 rounded-lg text-amber-600"><Icons.Question className="w-5 h-5" /></div>
                  Questions for Doctor
                </h3>
                {safePlan.doctor_questions.length > 0 ? (
                  <div className="bg-amber-50 rounded-2xl border border-amber-100 p-6 space-y-3">
                     <p className="font-bold text-amber-800 text-sm mb-2">Ask these at your follow-up:</p>
                     {safePlan.doctor_questions.map((q: string, i: number) => (
-                      <div key={i} className="flex items-start gap-3 text-amber-900">
-                         <span className="mt-1.5 font-bold text-amber-500">?</span>
+                      <div key={i} className="flex items-start gap-3 text-amber-900 bg-white/50 p-3 rounded-lg border border-amber-100/50">
+                         <span className="mt-0.5 font-bold text-amber-500">?</span>
                          <span>{q}</span>
                       </div>
                     ))}
                  </div>
                ) : (
-                 <div className="bg-slate-50 rounded-2xl p-6 text-slate-500 italic">No questions identified.</div>
+                 <div className="bg-slate-50 rounded-2xl p-6 text-slate-500 italic">No specific questions identified from gaps.</div>
                )}
-            </div>
           </div>
 
         </div>
       )}
 
-      {/* --- CLINICAL VIEW --- */}
-      {view === 'clinical' && (
+      {/* --- TAB CONTENT: CLINICAL VIEW --- */}
+      {activeTab === 'clinical' && (
         <div className="space-y-8 animate-fade-in">
            
+           {/* Safety Check */}
            {hasIssues && (
              <div className="bg-amber-50 border border-amber-100 rounded-2xl p-6">
                 <h3 className="font-bold text-amber-800 text-lg mb-4 flex items-center gap-2">
                   <Icons.Alert className="w-5 h-5" /> Safety & Consistency Check
+                  <HelpTip text="AI looks for gaps (missing info) or conflicts (different instructions) in your papers." className="text-amber-600" />
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                    {consistency?.conflicts.length ? (
@@ -436,7 +492,7 @@ export default function CareTransiaResults({ data, consistency, carePlan, onRese
                        <td className="p-4">{appt.target_date_or_window}</td>
                        <td className="p-4 text-slate-600 max-w-xs">{appt.location || 'TBD'}</td>
                        <td className="p-4">
-                           <button onClick={() => handleSetReminder(appt)} className="text-blue-600 font-bold hover:underline">
+                           <button onClick={() => handleSetReminder(appt)} className="text-blue-600 font-bold hover:underline focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-sm">
                                Set Reminder
                            </button>
                        </td>
@@ -460,68 +516,73 @@ export default function CareTransiaResults({ data, consistency, carePlan, onRese
         </div>
       )}
 
-      {/* --- MEDIA GENERATION (Recovery Visualization) --- */}
-      <div className="bg-white rounded-3xl p-8 border border-slate-100 shadow-sm">
-          <div className="flex items-center gap-3 mb-6">
-              <div className="bg-pink-50 p-2.5 rounded-xl text-pink-600">
-                  <Icons.Camera className="w-6 h-6" />
-              </div>
-              <div>
-                  <h3 className="text-xl font-bold text-slate-900">Recovery Visualization</h3>
-                  <p className="text-xs text-slate-500 font-bold uppercase tracking-wide">Visualize your healing process</p>
-              </div>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div className="space-y-4">
-                  <textarea 
-                    value={mediaPrompt}
-                    onChange={(e) => setMediaPrompt(e.target.value)}
-                    placeholder="Describe a scene (e.g., 'A peaceful garden with a comfortable chair for recovery')..."
-                    className="w-full p-4 rounded-xl border border-slate-200 focus:border-pink-300 focus:ring-2 focus:ring-pink-100 outline-none resize-none h-32"
-                  />
-                  <div className="flex flex-wrap gap-2">
-                      <Button onClick={handleGenerateImage} disabled={isGeneratingMedia || !mediaPrompt}>
-                          {isGeneratingMedia ? <Icons.Spinner /> : "Generate Image"}
-                      </Button>
-                      <Button onClick={handleEditImage} disabled={isGeneratingMedia || !generatedImage} variant="secondary">
-                          Edit
-                      </Button>
-                      <Button onClick={handleAnimateImage} disabled={isGeneratingMedia || !generatedImage} variant="secondary">
-                          Animate (Video)
-                      </Button>
-                  </div>
-              </div>
-              
-              <div className="bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-center min-h-[300px] overflow-hidden relative group">
-                  {videoUrl ? (
-                      <video src={videoUrl} controls autoPlay loop className="w-full h-full object-cover" />
-                  ) : generatedImage ? (
-                      <img src={generatedImage} alt="Generated" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
-                  ) : (
-                      <div className="text-center p-8">
-                          <Icons.Camera className="w-12 h-12 text-slate-200 mx-auto mb-2" />
-                          <p className="text-slate-400 text-sm">Generated visuals will appear here</p>
-                      </div>
-                  )}
-                  {isGeneratingMedia && (
-                      <div className="absolute inset-0 bg-white/80 backdrop-blur-sm flex items-center justify-center">
-                          <div className="flex flex-col items-center gap-2">
-                             <Icons.Spinner className="w-8 h-8 text-pink-500" />
-                             <span className="font-bold text-pink-600 animate-pulse">Creating...</span>
-                          </div>
-                      </div>
-                  )}
-              </div>
-          </div>
-      </div>
+      {/* --- TAB CONTENT: VISUALS & TOOLS --- */}
+      {activeTab === 'tools' && (
+        <div className="space-y-8 animate-fade-in">
+            <div className="bg-white rounded-3xl p-8 border border-slate-100 shadow-sm">
+                <div className="flex items-center gap-3 mb-6">
+                    <div className="bg-pink-50 p-2.5 rounded-xl text-pink-600">
+                        <Icons.Camera className="w-6 h-6" />
+                    </div>
+                    <div>
+                        <h3 className="text-xl font-bold text-slate-900">Recovery Visualization</h3>
+                        <p className="text-xs text-slate-500 font-bold uppercase tracking-wide">Visualize your healing process</p>
+                    </div>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div className="space-y-4">
+                        <textarea 
+                            value={mediaPrompt}
+                            onChange={(e) => setMediaPrompt(e.target.value)}
+                            placeholder="Describe a scene (e.g., 'A peaceful garden with a comfortable chair for recovery')..."
+                            className="w-full p-4 rounded-xl border border-slate-200 focus:border-pink-300 focus:ring-2 focus:ring-pink-100 outline-none resize-none h-32"
+                        />
+                        <div className="flex flex-wrap gap-2">
+                            <Button onClick={handleGenerateImage} disabled={isGeneratingMedia || !mediaPrompt}>
+                                {isGeneratingMedia ? <Icons.Spinner /> : "Generate Image"}
+                            </Button>
+                            <Button onClick={handleEditImage} disabled={isGeneratingMedia || !generatedImage} variant="secondary">
+                                Edit
+                            </Button>
+                            <Button onClick={handleAnimateImage} disabled={isGeneratingMedia || !generatedImage} variant="secondary">
+                                Animate (Video)
+                            </Button>
+                        </div>
+                    </div>
+                    
+                    <div className="bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-center min-h-[300px] overflow-hidden relative group">
+                        {videoUrl ? (
+                            <video src={videoUrl} controls autoPlay loop className="w-full h-full object-cover" />
+                        ) : generatedImage ? (
+                            <img src={generatedImage} alt="Generated" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+                        ) : (
+                            <div className="text-center p-8">
+                                <Icons.Camera className="w-12 h-12 text-slate-200 mx-auto mb-2" />
+                                <p className="text-slate-400 text-sm">Generated visuals will appear here</p>
+                            </div>
+                        )}
+                        {isGeneratingMedia && (
+                            <div className="absolute inset-0 bg-white/80 backdrop-blur-sm flex items-center justify-center">
+                                <div className="flex flex-col items-center gap-2">
+                                    <Icons.Spinner className="w-8 h-8 text-pink-500" />
+                                    <span className="font-bold text-pink-600 animate-pulse">Creating...</span>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+        </div>
+      )}
 
-      <TechnicalInsightPanel runTrace={carePlan?.runTrace} selfEvalSummary={carePlan?.selfEvalSummary} />
+      {!simpleMode && <TechnicalInsightPanel runTrace={carePlan?.runTrace} selfEvalSummary={carePlan?.selfEvalSummary} />}
       
       {/* FAB for Chat */}
       <button 
         onClick={() => setChatOpen(true)}
-        className="fixed bottom-6 right-6 z-40 bg-slate-900 text-white p-4 rounded-full shadow-xl hover:scale-110 transition-transform active:scale-95 md:bottom-12 md:right-12"
+        className="fixed bottom-6 right-6 z-40 bg-slate-900 text-white p-4 rounded-full shadow-xl hover:scale-110 transition-transform active:scale-95 md:bottom-12 md:right-12 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 print:hidden"
+        aria-label="Open AI Assistant Chat"
       >
         <Icons.Sparkle className="w-6 h-6" />
       </button>

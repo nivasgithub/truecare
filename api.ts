@@ -39,8 +39,27 @@ export const generateCareTransiaPlan = async (
 
   if (onProgress) onProgress("Building your care plan...");
   // 3. Care Plan
-  const carePlan = await generateCarePlan(parsedEpisode, consistencyReport, patientInfo);
-  if (carePlan.status === 'error') throw new Error(carePlan.error_message);
+  let carePlan: FormattedCarePlan;
+  try {
+      carePlan = await generateCarePlan(parsedEpisode, consistencyReport, patientInfo);
+      if (carePlan.status === 'error') throw new Error(carePlan.error_message);
+  } catch (e: any) {
+      console.error("Care Plan Generation Failed, attempting partial return", e);
+      // Fallback: If extraction worked but plan gen failed, return partial structure 
+      // so user can at least see extracted meds/appointments in "Clinical View"
+      carePlan = {
+          status: 'error',
+          error_message: e.message || "Plan generation incomplete.",
+          patient_friendly_plan: {
+              today_and_tomorrow: [],
+              daily_routine: [],
+              weekly_or_followup_tasks: [],
+              warning_signs_card: [],
+              doctor_questions: []
+          },
+          technical_summary_for_clinicians: "Automatic plan generation failed. Please refer to the raw extracted data."
+      };
+  }
 
   if (onProgress) onProgress("Finalizing...");
   return { parsedEpisode, consistencyReport, carePlan };

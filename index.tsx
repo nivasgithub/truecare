@@ -6,19 +6,21 @@ import { useCareTransiaFlow } from './hooks/useDischargeAnalysis';
 import type {
   UserProfile,
   ConsistencyReport,
+  AppSettings,
 } from './types';
 import Navbar from './components/Navbar';
 import BottomNav from './components/BottomNav';
 import LiveAssistant from './components/LiveAssistant';
 import CareTransiaLandingPage from './components/LandingPage';
 import CareTransiaIntake from './components/InputSection';
-import StatusMessage from './components/StatusMessage';
+// import StatusMessage from './components/StatusMessage'; // Removed from here, moved into InputSection for tighter integration
 import CareTransiaResults from './components/ResultsDashboard';
 import SignInScreen from './components/SignInScreen';
 import DashboardScreen from './components/DashboardScreen';
 import TestModelsScreen from './components/TestModelsScreen';
 import SettingsScreen from './components/SettingsScreen';
 import FAQScreen from './components/FAQScreen';
+import OnboardingTour, { TourStep } from './components/OnboardingTour';
 import { logoutUser, getCurrentUser } from './services/firebase'; // Updated imports
 
 // Helpful for Firebase Authorized Domains config
@@ -40,6 +42,42 @@ function CareTransiaApp() {
   const [showLiveAssistant, setShowLiveAssistant] = useState(false);
   const [user, setUser] = useState<UserProfile | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
+  
+  // Accessibility Settings
+  const [appSettings, setAppSettings] = useState<AppSettings>({
+    fontSize: 'normal',
+    simpleMode: false,
+    calmMode: false
+  });
+
+  // Onboarding State
+  const [showTour, setShowTour] = useState(false);
+
+  useEffect(() => {
+    const saved = localStorage.getItem('ct_app_settings');
+    if (saved) {
+      try {
+        setAppSettings(JSON.parse(saved));
+      } catch (e) {
+        console.error("Failed to load settings", e);
+      }
+    }
+  }, []);
+
+  // Apply Calm Mode Class
+  useEffect(() => {
+      if (appSettings.calmMode) {
+          document.body.classList.add('calm-mode');
+      } else {
+          document.body.classList.remove('calm-mode');
+      }
+  }, [appSettings.calmMode]);
+
+  const updateSettings = (newSettings: Partial<AppSettings>) => {
+    const updated = { ...appSettings, ...newSettings };
+    setAppSettings(updated);
+    localStorage.setItem('ct_app_settings', JSON.stringify(updated));
+  };
 
   // Initialize hooks with userId (if logged in) for auto-saving
   const { intake, results, ui, actions } = useCareTransiaFlow(user?.id);
@@ -88,6 +126,14 @@ function CareTransiaApp() {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   }, [ui.status]);
+
+  // Check for First Time User when entering Intake
+  useEffect(() => {
+      if (currentView === 'intake' && !localStorage.getItem('ct_hasSeenTour')) {
+          // Small delay to ensure elements are mounted
+          setTimeout(() => setShowTour(true), 1000);
+      }
+  }, [currentView]);
 
   // Handlers
   const handleStart = () => {
@@ -149,6 +195,25 @@ function CareTransiaApp() {
     }
   };
 
+  const closeTour = () => {
+      setShowTour(false);
+      localStorage.setItem('ct_hasSeenTour', 'true');
+  };
+
+  // Define Tour Steps - Updated for "Recommended Journey" Selection Flow
+  const tourSteps: TourStep[] = [
+      {
+          targetId: 'select-papers',
+          title: 'What do you have?',
+          description: 'Start by selecting the type of information you want to organize. Most people start with Discharge Papers.'
+      },
+      {
+          targetId: 'select-bottles',
+          title: 'Quick Scan',
+          description: 'You can also simply snap photos of pill bottles to get a medication schedule.'
+      }
+  ];
+
   // Route Guards / Logic
   const activeView = currentView;
 
@@ -173,8 +238,40 @@ function CareTransiaApp() {
     );
   }
 
+  // Calculate Base Font Class
+  const baseFontClass = appSettings.fontSize === 'large' ? 'text-lg' : 'text-base';
+
   return (
-    <div className="min-h-screen bg-slate-50 font-sans text-slate-900 flex flex-col">
+    <div className={`min-h-screen bg-slate-50 font-sans text-slate-900 flex flex-col ${baseFontClass}`}>
+      {/* Calm Mode Styles Injection */}
+      {appSettings.calmMode && (
+          <style>{`
+            .calm-mode *, .calm-mode ::before, .calm-mode ::after {
+                animation-duration: 2s !important; /* Slow down general animations */
+                transition-duration: 0.5s !important;
+            }
+            .calm-mode .animate-pulse, 
+            .calm-mode .animate-bounce,
+            .calm-mode .animate-float {
+                animation: none !important; /* Disable active movement */
+            }
+          `}</style>
+      )}
+
+      <a 
+        href="#main-content" 
+        className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 z-[100] px-6 py-3 bg-white text-blue-700 font-bold rounded-lg shadow-xl border-2 border-blue-600 outline-none focus:ring-4 focus:ring-blue-300 transition-all min-h-[44px] flex items-center"
+      >
+        Skip to main content
+      </a>
+
+      <OnboardingTour 
+         steps={tourSteps} 
+         isOpen={showTour && activeView === 'intake'} 
+         onComplete={closeTour}
+         onSkip={closeTour}
+      />
+
       <LiveAssistant
         isOpen={showLiveAssistant}
         onClose={() => setShowLiveAssistant(false)}
@@ -190,7 +287,7 @@ function CareTransiaApp() {
         onLiveClick={() => setShowLiveAssistant(true)}
       />
 
-      <main className="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 relative">
+      <main id="main-content" className="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 relative focus:outline-none" tabIndex={-1}>
         {/* VIEW: Landing */}
         {activeView === 'landing' && (
           <div className="animate-fade-in">
@@ -210,6 +307,7 @@ function CareTransiaApp() {
             user={user}
             onViewRecord={handleViewRecord}
             onNewPlan={handleStart}
+            simpleMode={appSettings.simpleMode}
           />
         )}
 
@@ -221,7 +319,7 @@ function CareTransiaApp() {
             </p>
             <button
               onClick={handleSignIn}
-              className="text-blue-600 font-bold underline"
+              className="text-blue-600 font-bold underline focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-sm min-h-[44px] min-w-[44px]"
             >
               Sign In
             </button>
@@ -241,11 +339,12 @@ function CareTransiaApp() {
               onAnalyze={actions.analyze}
               isLoading={ui.status === 'analyzing'}
               progressMsg={ui.progressMsg}
-            />
-            <StatusMessage
+              onLoadDemo={actions.loadDemoData}
+              // Pass enhanced error handling props
               status={ui.status}
               errorMsg={ui.errorMsg}
-              onDismiss={ui.dismissError}
+              onDismissError={ui.dismissError}
+              isOffline={ui.isOffline}
             />
           </div>
         )}
@@ -256,14 +355,14 @@ function CareTransiaApp() {
             <div className="mb-6 flex items-center justify-between">
               <button
                 onClick={() => navigate('intake')}
-                className="text-sm text-slate-500 hover:text-slate-800 flex items-center gap-1"
+                className="text-sm text-slate-500 hover:text-slate-800 flex items-center gap-1 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-lg px-2 py-1 min-h-[44px]"
               >
                 ← Back to Uploads
               </button>
               {user && (
                 <button
                   onClick={() => navigate('dashboard')}
-                  className="text-sm font-bold text-blue-600 hover:text-blue-800"
+                  className="text-sm font-bold text-blue-600 hover:text-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-lg px-2 py-1 min-h-[44px]"
                 >
                   Go to Dashboard
                 </button>
@@ -274,6 +373,7 @@ function CareTransiaApp() {
               consistency={results.consistencyReport}
               carePlan={results.carePlan}
               onReset={handleReset}
+              simpleMode={appSettings.simpleMode}
             />
           </div>
         )}
@@ -284,6 +384,8 @@ function CareTransiaApp() {
             user={user}
             onNavigate={navigate}
             onLogout={handleLogout}
+            settings={appSettings}
+            onUpdateSettings={updateSettings}
           />
         )}
 
@@ -319,7 +421,7 @@ function CareTransiaApp() {
               © {new Date().getFullYear()} CareTransia. A prototype for
               demonstration purposes.
             </p>
-            <p className="mt-2 text-xs">
+            <p className="mt-2 text-sm">
               Not for medical emergencies. Always consult your doctor.
             </p>
           </div>

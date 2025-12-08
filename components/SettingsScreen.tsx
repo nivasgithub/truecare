@@ -1,16 +1,47 @@
 import React from 'react';
 import { Card, Icons, SectionTitle } from './ui';
-import { UserProfile } from '../types';
+import { UserProfile, AppSettings } from '../types';
 
 interface SettingsScreenProps {
   user: UserProfile;
   onNavigate: (path: string) => void;
   onLogout: () => void;
+  settings: AppSettings;
+  onUpdateSettings: (settings: Partial<AppSettings>) => void;
 }
 
-export default function SettingsScreen({ user, onNavigate, onLogout }: SettingsScreenProps) {
+export default function SettingsScreen({ user, onNavigate, onLogout, settings, onUpdateSettings }: SettingsScreenProps) {
   
   const settingSections = [
+    {
+      title: "Display & Accessibility",
+      items: [
+        {
+          id: 'fontsize',
+          icon: <Icons.Type className="w-5 h-5 text-blue-600" />,
+          label: "Font Size",
+          desc: "Adjust the text size for better readability.",
+          actionLabel: settings.fontSize === 'normal' ? "Normal" : "Large",
+          onClick: () => onUpdateSettings({ fontSize: settings.fontSize === 'normal' ? 'large' : 'normal' })
+        },
+        {
+          id: 'simplemode',
+          icon: <Icons.Eye className="w-5 h-5 text-purple-600" />,
+          label: "Simple View Mode",
+          desc: "Hide complex charts and extra details for a cleaner look.",
+          actionLabel: settings.simpleMode ? "On" : "Off",
+          onClick: () => onUpdateSettings({ simpleMode: !settings.simpleMode })
+        },
+        {
+          id: 'calmmode',
+          icon: <Icons.Sparkle className="w-5 h-5 text-teal-600" />,
+          label: "Calm Mode",
+          desc: "Reduces animations and pulsing effects for a more relaxed experience.",
+          actionLabel: settings.calmMode ? "On" : "Off",
+          onClick: () => onUpdateSettings({ calmMode: !settings.calmMode })
+        }
+      ]
+    },
     {
       title: "General",
       items: [
@@ -39,97 +70,65 @@ export default function SettingsScreen({ user, onNavigate, onLogout }: SettingsS
           id: 'models',
           icon: <Icons.Sparkle className="w-5 h-5 text-purple-600" />,
           label: "Model Diagnostics",
-          desc: "Run verification tests on Gemini Flash, Pro, Veo, and Live APIs.",
-          actionLabel: "Test Models",
+          desc: "Run verification tests on Gemini Flash, Vision, and Veo models.",
+          actionLabel: "Run Tests",
           onClick: () => onNavigate('test')
-        },
-        {
-          id: 'cache',
-          icon: <Icons.Refresh className="w-5 h-5 text-emerald-600" />,
-          label: "Data Management",
-          desc: "Clear local cache and manage offline storage usage.",
-          actionLabel: "Clear Cache",
-          onClick: () => {
-             if (confirm("Clear all local application data?")) {
-                 localStorage.clear();
-                 sessionStorage.clear();
-                 window.location.reload();
-             }
-          }
-        }
-      ]
-    },
-    {
-      title: "Help & Support",
-      items: [
-        {
-          id: 'faq',
-          icon: <Icons.Question className="w-5 h-5 text-cyan-600" />,
-          label: "Frequently Asked Questions",
-          desc: "Learn about Care Nearby, messaging, and safety features.",
-          actionLabel: "View FAQ",
-          onClick: () => onNavigate('faq')
-        },
-        {
-          id: 'security',
-          icon: <Icons.Shield className="w-5 h-5 text-slate-600" />,
-          label: "Security & Privacy",
-          desc: "Manage password, 2FA, and data retention policies.",
-          actionLabel: "Review",
-          onClick: () => alert("Security settings would open here.")
         }
       ]
     }
   ];
 
   return (
-    <div className="max-w-4xl mx-auto pb-20 animate-fade-in">
-       
-       <div className="flex items-center gap-4 mb-8 border-b border-slate-200 pb-6">
-          <div className="w-16 h-16 rounded-full bg-slate-200 flex items-center justify-center text-2xl font-bold text-slate-600">
-             {user.name[0]}
-          </div>
-          <div>
-             <h1 className="text-3xl font-bold text-slate-900">Settings</h1>
-             <p className="text-slate-500">{user.email} • <span className="text-green-600 font-medium">Enterprise Plan</span></p>
-          </div>
-       </div>
-
-       <div className="space-y-10">
-          {settingSections.map((section, idx) => (
-             <div key={idx}>
-                <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4 px-1">{section.title}</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                   {section.items.map((item) => (
-                      <div 
-                        key={item.id} 
-                        onClick={item.onClick}
-                        className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md hover:border-blue-300 transition-all cursor-pointer group flex flex-col"
-                      >
-                         <div className="flex items-start justify-between mb-4">
-                            <div className="p-3 bg-slate-50 rounded-xl group-hover:bg-blue-50 transition-colors">
-                               {item.icon}
-                            </div>
-                            <Icons.ArrowRight className="w-5 h-5 text-slate-300 group-hover:text-blue-500 transition-colors" />
-                         </div>
-                         <h4 className="font-bold text-slate-900 mb-1">{item.label}</h4>
-                         <p className="text-sm text-slate-500 mb-4 flex-1">{item.desc}</p>
-                         <span className="text-xs font-bold text-blue-600 uppercase tracking-wide group-hover:underline">
-                            {item.actionLabel}
-                         </span>
-                      </div>
-                   ))}
-                </div>
+    <div className="max-w-3xl mx-auto pb-20 animate-fade-in">
+      <SectionTitle title="Settings" subtitle="Customize your CareTransia experience" />
+      
+      {/* Profile Card */}
+      <Card className="p-6 mb-8 flex items-center justify-between">
+         <div className="flex items-center gap-4">
+             <div className="w-16 h-16 rounded-full bg-slate-200 overflow-hidden">
+                 {user.avatarUrl ? <img src={user.avatarUrl} alt="User" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-slate-500 font-bold text-2xl">{user.name[0]}</div>}
              </div>
-          ))}
+             <div>
+                 <h3 className="text-xl font-bold text-slate-900">{user.name}</h3>
+                 <p className="text-slate-500">{user.email}</p>
+             </div>
+         </div>
+         <button onClick={onLogout} className="text-red-600 font-bold text-sm hover:underline">
+             Sign Out
+         </button>
+      </Card>
 
-          <div className="pt-8 border-t border-slate-200">
-             <button onClick={onLogout} className="text-red-600 font-bold text-sm hover:text-red-700 flex items-center gap-2">
-                Log Out of CareTransia
-             </button>
-             <p className="text-xs text-slate-400 mt-2">Version 2.5.0 (Build 2024.10.25)</p>
-          </div>
-       </div>
+      <div className="space-y-8">
+        {settingSections.map((section, idx) => (
+            <div key={idx}>
+                <h3 className="font-bold text-slate-900 mb-4 px-2">{section.title}</h3>
+                <div className="space-y-3">
+                    {section.items.map((item) => (
+                        <Card key={item.id} className="p-4 flex items-center gap-4 hover:border-blue-200 transition-colors cursor-pointer" onClick={item.onClick}>
+                            <div className="p-3 bg-slate-50 rounded-xl">
+                                {item.icon}
+                            </div>
+                            <div className="flex-1">
+                                <h4 className="font-bold text-slate-800">{item.label}</h4>
+                                <p className="text-sm text-slate-500">{item.desc}</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <span className={`text-sm font-bold ${item.actionLabel === "On" ? "text-emerald-600" : "text-blue-600"}`}>{item.actionLabel}</span>
+                                <Icons.ArrowRight className="w-4 h-4 text-slate-300" />
+                            </div>
+                        </Card>
+                    ))}
+                </div>
+            </div>
+        ))}
+      </div>
+      
+      <div className="mt-12 text-center">
+          <button onClick={() => onNavigate('faq')} className="text-slate-500 font-bold hover:text-blue-600 transition-colors">
+              Help & FAQ
+          </button>
+      </div>
+
     </div>
   );
 }

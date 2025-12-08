@@ -50,24 +50,28 @@ export default function Navbar({ onHomeClick, currentView, user, onSignIn, onLog
     <nav className="bg-white/80 backdrop-blur-md border-b border-slate-100 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-20">
-            <div className="flex items-center gap-3 cursor-pointer group" onClick={onHomeClick}>
+            <button 
+                className="flex items-center gap-3 cursor-pointer group focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-xl px-2 -ml-2" 
+                onClick={onHomeClick}
+                aria-label="CareTransia Home"
+            >
               <div className="bg-gradient-to-tr from-blue-600 to-cyan-500 rounded-xl p-2 text-white shadow-lg shadow-blue-200 transition-transform group-hover:scale-105">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20"/><path d="M2 12h20"/></svg>
               </div>
               <span className="font-bold text-xl md:text-2xl tracking-tight text-slate-900 group-hover:text-blue-900 transition-colors">
                 Care<span className="text-blue-600">Transia</span>
               </span>
-            </div>
+            </button>
             
             <div className="flex items-center gap-6">
               <div className="hidden md:flex gap-6 text-sm font-medium text-slate-600">
                 {currentView === 'landing' ? (
                   <>
-                    <button onClick={() => scrollToSection('how-it-works')} className="cursor-pointer hover:text-slate-900 transition-colors">How it works</button>
-                    <button onClick={() => scrollToSection('safety')} className="cursor-pointer hover:text-slate-900 transition-colors">Safety</button>
+                    <button onClick={() => scrollToSection('how-it-works')} className="cursor-pointer hover:text-slate-900 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-md px-2 py-1">How it works</button>
+                    <button onClick={() => scrollToSection('safety')} className="cursor-pointer hover:text-slate-900 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-md px-2 py-1">Safety</button>
                   </>
                 ) : (
-                  <button onClick={onHomeClick} className="cursor-pointer hover:text-slate-900 transition-colors">
+                  <button onClick={onHomeClick} className="cursor-pointer hover:text-slate-900 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-md px-2 py-1">
                     Home
                   </button>
                 )}
@@ -77,7 +81,7 @@ export default function Navbar({ onHomeClick, currentView, user, onSignIn, onLog
                 {/* Live Help Button */}
                 <button 
                   onClick={onLiveClick}
-                  className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-red-50 text-red-600 rounded-full text-xs font-bold hover:bg-red-100 transition-colors border border-red-100 animate-pulse"
+                  className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-red-50 text-red-600 rounded-full text-xs font-bold hover:bg-red-100 transition-colors border border-red-100 animate-pulse focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
                 >
                   <div className="w-2 h-2 bg-red-500 rounded-full"></div>
                   Talk to CareTransia Live
@@ -88,7 +92,9 @@ export default function Navbar({ onHomeClick, currentView, user, onSignIn, onLog
                     <div className="relative" ref={dropdownRef}>
                       <button 
                           onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                          className="flex items-center gap-3 pl-4 border-l border-slate-200 focus:outline-none group"
+                          className="flex items-center gap-3 pl-4 border-l border-slate-200 focus:outline-none group focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-lg py-1 pr-1"
+                          aria-label="User menu"
+                          aria-expanded={isDropdownOpen}
                       >
                           <div className="flex flex-col items-end hidden sm:flex">
                               <span className="text-sm font-bold text-slate-900 leading-tight">{user.name}</span>
@@ -106,10 +112,10 @@ export default function Navbar({ onHomeClick, currentView, user, onSignIn, onLog
                                 <p className="font-bold text-slate-900">{user.name}</p>
                                 <p className="text-xs text-slate-500 truncate">{user.email}</p>
                               </div>
-                              <button onClick={handleSettings} className="w-full text-left px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 flex items-center gap-3 transition-colors">
+                              <button onClick={handleSettings} className="w-full text-left px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 flex items-center gap-3 transition-colors focus:outline-none focus:bg-slate-50">
                                   <Icons.Settings className="w-4 h-4 text-slate-400" /> Settings
                               </button>
-                               <button onClick={handleLogout} className="w-full text-left px-4 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 flex items-center gap-3 transition-colors border-t border-slate-50 mt-1">
+                               <button onClick={handleLogout} className="w-full text-left px-4 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 flex items-center gap-3 transition-colors border-t border-slate-50 mt-1 focus:outline-none focus:bg-red-50">
                                   <Icons.LogOut className="w-4 h-4" /> Sign Out
                               </button>
                           </div>
@@ -118,10 +124,10 @@ export default function Navbar({ onHomeClick, currentView, user, onSignIn, onLog
                   </div>
                 ) : (
                   <>
-                    <button onClick={onSignIn} className="text-sm font-bold text-slate-700 hover:text-blue-600 transition-colors">
+                    <button onClick={onSignIn} className="text-sm font-bold text-slate-700 hover:text-blue-600 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-md px-2 py-1">
                       Sign In
                     </button>
-                    <button onClick={onSignIn} className="hidden sm:block text-xs font-semibold px-4 py-2 bg-slate-900 text-white rounded-full hover:bg-slate-800 transition-colors shadow-lg shadow-slate-200">
+                    <button onClick={onSignIn} className="hidden sm:block text-xs font-semibold px-4 py-2 bg-slate-900 text-white rounded-full hover:bg-slate-800 transition-colors shadow-lg shadow-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2">
                       Get Started
                     </button>
                   </>

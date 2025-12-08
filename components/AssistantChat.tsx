@@ -214,7 +214,7 @@ export default function AssistantChat({ isOpen, onClose, carePlan, patientName, 
                                 href={place.uri} 
                                 target="_blank" 
                                 rel="noreferrer"
-                                className="block bg-slate-50 border border-slate-200 rounded-xl p-3 hover:bg-blue-50 hover:border-blue-200 transition-colors"
+                                className="block bg-slate-50 border border-slate-200 rounded-xl p-3 hover:bg-blue-50 hover:border-blue-200 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
                             >
                                 <div className="font-bold text-slate-800 text-sm flex items-center gap-2">
                                     <Icons.Home className="w-4 h-4 text-red-500" />
@@ -232,13 +232,14 @@ export default function AssistantChat({ isOpen, onClose, carePlan, patientName, 
     if (!isOpen) return null;
 
     return (
-        <div className="fixed bottom-24 right-6 z-50 flex flex-col items-end gap-4 animate-fade-in-up">
-             <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-80 md:w-96 h-[600px] flex flex-col overflow-hidden">
-                <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-5 text-white flex justify-between items-center">
+        <div className="fixed inset-0 z-50 bg-white md:bg-transparent md:inset-auto md:bottom-24 md:right-6 md:flex md:flex-col md:items-end animate-fade-in-up">
+             {/* Mobile: Full Screen, Desktop: Floating Card */}
+             <div className="w-full h-full md:w-96 md:h-[600px] bg-white md:rounded-3xl md:shadow-2xl md:border md:border-slate-200 flex flex-col overflow-hidden">
+                <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-5 text-white flex justify-between items-center pt-safe-top">
                     <div className="flex items-center gap-2 font-bold text-lg">
                         <Icons.Sparkle className="w-5 h-5" /> CareTransia Assistant
                     </div>
-                    <button onClick={onClose} className="hover:bg-white/20 p-1.5 rounded-full transition-colors"><span className="text-2xl leading-none">&times;</span></button>
+                    <button onClick={onClose} className="hover:bg-white/20 p-1.5 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-white" aria-label="Close Assistant"><span className="text-2xl leading-none">&times;</span></button>
                 </div>
                 
                 <div className="flex-1 p-5 overflow-y-auto bg-slate-50 space-y-4">
@@ -252,8 +253,9 @@ export default function AssistantChat({ isOpen, onClose, carePlan, patientName, 
                             {m.role === 'model' && (
                                <button 
                                   onClick={() => playTTS(m.text)} 
-                                  className={`p-2 bg-slate-100 rounded-full hover:bg-blue-50 transition-colors flex-shrink-0 ${ttsStatus === 'playing' ? 'text-red-500 hover:bg-red-50' : 'text-slate-400 hover:text-blue-600'}`}
+                                  className={`p-2 bg-slate-100 rounded-full hover:bg-blue-50 transition-colors flex-shrink-0 focus:outline-none focus:ring-2 focus:ring-blue-500 ${ttsStatus === 'playing' ? 'text-red-500 hover:bg-red-50' : 'text-slate-400 hover:text-blue-600'}`}
                                   title={ttsStatus === 'playing' ? "Stop" : "Read Aloud"}
+                                  aria-label={ttsStatus === 'playing' ? "Stop Reading" : "Read Aloud"}
                                >
                                   {ttsStatus === 'generating' ? (
                                       <Icons.Spinner className="w-4 h-4 text-blue-500" />
@@ -288,7 +290,7 @@ export default function AssistantChat({ isOpen, onClose, carePlan, patientName, 
                     AI can make mistakes. Not medical advice. Call 911 for emergencies.
                 </div>
 
-                <div className="p-4 bg-white border-t border-slate-100 flex gap-3">
+                <div className="p-4 bg-white border-t border-slate-100 flex gap-3 pb-safe-bottom">
                     <div className="flex-1 relative">
                         <input 
                             value={input}
@@ -299,13 +301,14 @@ export default function AssistantChat({ isOpen, onClose, carePlan, patientName, 
                         />
                          <button 
                             onClick={toggleDictation}
-                            className={`absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full transition-colors ${isListening ? 'text-red-500 bg-red-50 animate-pulse' : 'text-slate-400 hover:text-blue-600 hover:bg-blue-50'}`}
+                            className={`absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${isListening ? 'text-red-500 bg-red-50 animate-pulse' : 'text-slate-400 hover:text-blue-600 hover:bg-blue-50'}`}
                             title={isListening ? "Listening..." : "Use Microphone"}
+                            aria-label={isListening ? "Stop listening" : "Start voice input"}
                         >
                             <Icons.Mic className="w-5 h-5" />
                         </button>
                     </div>
-                    <button onClick={() => handleSend()} disabled={!input.trim()} className="p-3 bg-blue-600 text-white rounded-full hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-lg shadow-blue-200">
+                    <button onClick={() => handleSend()} disabled={!input.trim()} className="p-3 bg-blue-600 text-white rounded-full hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-lg shadow-blue-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2" aria-label="Send Message">
                         <Icons.Send className="w-5 h-5" />
                     </button>
                 </div>

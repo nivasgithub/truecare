@@ -224,7 +224,7 @@ General Safety: CareTransia organizes discharge papers but does not provide medi
   return (
     <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-xl flex flex-col items-center justify-center animate-fade-in">
        
-       <button onClick={onClose} className="absolute top-6 right-6 text-white/50 hover:text-white">
+       <button onClick={onClose} className="absolute top-6 right-6 text-white/50 hover:text-white focus:outline-none focus:ring-2 focus:ring-white rounded-full p-1" aria-label="Close Live Assistant">
          <span className="text-4xl">&times;</span>
        </button>
 

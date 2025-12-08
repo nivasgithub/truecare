@@ -9,11 +9,11 @@ export const SAFETY_GUIDELINES = `
 export const AppConfig = {
   apiKey: process.env.API_KEY,
   models: {
-    // Analysis & OCR - Switched to Flash for reliability/speed over Pro Preview
+    // Analysis & OCR - Flash is more stable and faster for extraction
     extractor: 'gemini-2.5-flash',
     // Safety Checks
     safety: 'gemini-2.5-flash',
-    // Care Planning
+    // Care Planning - Flash is more stable for formatting
     planner: 'gemini-2.5-flash',
     // Chat & Grounding
     chat: 'gemini-2.5-flash',

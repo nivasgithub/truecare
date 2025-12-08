@@ -131,7 +131,7 @@ export default function SmartCamera({ onCapture, onClose }: SmartCameraProps) {
            <Icons.Sparkle className="text-cyan-400 w-5 h-5" />
            {loading ? "Initializing AI..." : "Smart Scan Active"}
         </div>
-        <button onClick={onClose} className="bg-white/20 p-2 rounded-full text-white backdrop-blur-sm hover:bg-white/30">
+        <button onClick={onClose} className="bg-white/20 p-2 rounded-full text-white backdrop-blur-sm hover:bg-white/30 focus:outline-none focus:ring-2 focus:ring-white" aria-label="Close camera">
           <span className="text-2xl leading-none">&times;</span>
         </button>
       </div>
@@ -161,7 +161,8 @@ export default function SmartCamera({ onCapture, onClose }: SmartCameraProps) {
       <div className="absolute bottom-0 w-full p-8 flex justify-center items-center bg-gradient-to-t from-black/80 to-transparent gap-8">
          <button 
            onClick={captureImage}
-           className="w-20 h-20 rounded-full border-4 border-white bg-white/20 hover:bg-white/40 backdrop-blur-sm transition-all flex items-center justify-center active:scale-95"
+           className="w-20 h-20 rounded-full border-4 border-white bg-white/20 hover:bg-white/40 backdrop-blur-sm transition-all flex items-center justify-center active:scale-95 focus:outline-none focus:ring-4 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-black"
+           aria-label="Capture photo"
          >
            <div className="w-16 h-16 bg-white rounded-full"></div>
          </button>

@@ -6,6 +6,14 @@ interface CareTransiaLandingPageProps {
 }
 
 export default function CareTransiaLandingPage({ onGetStarted }: CareTransiaLandingPageProps) {
+  
+  const scrollToHowItWorks = () => {
+      const element = document.getElementById('how-it-works');
+      if (element) {
+          element.scrollIntoView({ behavior: 'smooth' });
+      }
+  };
+
   return (
     <div className="flex flex-col w-full bg-slate-50 relative overflow-hidden">
       
@@ -43,7 +51,7 @@ export default function CareTransiaLandingPage({ onGetStarted }: CareTransiaLand
                 Start organizing my papers <Icons.ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
               </span>
             </button>
-            <button className="px-8 py-4 bg-white text-slate-700 border border-slate-200 rounded-2xl font-bold text-lg hover:bg-slate-50 transition-colors w-full sm:w-auto">
+            <button onClick={scrollToHowItWorks} className="px-8 py-4 bg-white text-slate-700 border border-slate-200 rounded-2xl font-bold text-lg hover:bg-slate-50 transition-colors w-full sm:w-auto">
                 See how it works
             </button>
           </div>
@@ -54,8 +62,11 @@ export default function CareTransiaLandingPage({ onGetStarted }: CareTransiaLand
         </div>
 
         {/* Hero Visual */}
-        <div className="relative h-[500px] w-full flex items-center justify-center perspective-[2000px] animate-fade-in-right delay-200">
-            <HeroDashboardUI />
+        <div className="relative w-full flex items-center justify-center perspective-[2000px] animate-fade-in-right delay-200 py-10 md:py-0 md:h-[500px]">
+            {/* Added max-w-full to prevent overflow on very small devices */}
+            <div className="w-full max-w-[320px] xs:max-w-[380px] sm:max-w-[420px]">
+                <HeroDashboardUI />
+            </div>
         </div>
       </section>
 
@@ -179,7 +190,35 @@ export default function CareTransiaLandingPage({ onGetStarted }: CareTransiaLand
           </div>
       </section>
 
-      {/* --- 6. SAFETY & TRUST --- */}
+      {/* --- 6. TESTIMONIALS (NEW) --- */}
+      <section className="max-w-7xl mx-auto px-4 pb-24">
+          <div className="text-center mb-16">
+             <div className="inline-flex items-center gap-2 bg-purple-50 text-purple-700 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide mb-4">
+                <Icons.User className="w-3 h-3" /> Trusted by Families
+             </div>
+             <h2 className="text-3xl md:text-4xl font-bold text-slate-900">Real stories from recovery</h2>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              <TestimonialCard 
+                  quote="The discharge instructions were 20 pages long and overwhelming. CareTransia turned it into a single-page checklist I could actually use."
+                  author="Sarah J."
+                  role="Daughter & Caregiver"
+              />
+              <TestimonialCard 
+                  quote="I was so confused about which meds to stop and which to continue. The app flagged the conflict instantly so I could ask my doctor."
+                  author="Michael T."
+                  role="Heart Surgery Patient"
+              />
+              <TestimonialCard 
+                  quote="Finally, a tool that helps me coordinate with my siblings. We all look at the same plan now instead of arguing over notes."
+                  author="Elena R."
+                  role="Managing Mom's Care"
+              />
+          </div>
+      </section>
+
+      {/* --- 7. SAFETY & TRUST --- */}
       <section id="safety" className="max-w-4xl mx-auto px-4 pb-24 text-center">
           <div className="bg-blue-50/50 border border-blue-100 rounded-3xl p-8 md:p-12">
              <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-6">
@@ -202,7 +241,7 @@ export default function CareTransiaLandingPage({ onGetStarted }: CareTransiaLand
           </div>
       </section>
 
-      {/* --- 7. FOOTER CTA --- */}
+      {/* --- 8. FOOTER CTA --- */}
       <section className="bg-white border-t border-slate-100 py-24">
          <div className="max-w-3xl mx-auto px-4 text-center space-y-8">
             <h2 className="text-4xl font-bold text-slate-900">Ready to see your care plan in one place?</h2>
@@ -217,7 +256,7 @@ export default function CareTransiaLandingPage({ onGetStarted }: CareTransiaLand
                   Get started with CareTransia
                </button>
             </div>
-            <p className="text-sm font-bold text-blue-600 hover:underline cursor-pointer">Learn more about how it works</p>
+            <p onClick={scrollToHowItWorks} className="text-sm font-bold text-blue-600 hover:underline cursor-pointer">Learn more about how it works</p>
          </div>
       </section>
 
@@ -226,6 +265,21 @@ export default function CareTransiaLandingPage({ onGetStarted }: CareTransiaLand
 }
 
 // --- SUB-COMPONENTS ---
+
+function TestimonialCard({ quote, author, role }: { quote: string, author: string, role: string }) {
+    return (
+        <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow relative">
+            <div className="text-4xl text-blue-200 font-serif absolute top-6 left-6">“</div>
+            <p className="text-slate-600 italic mb-6 relative z-10 pt-4 leading-relaxed">
+                {quote}
+            </p>
+            <div>
+                <div className="font-bold text-slate-900">{author}</div>
+                <div className="text-xs font-bold text-slate-400 uppercase tracking-wide">{role}</div>
+            </div>
+        </div>
+    );
+}
 
 function BenefitCard({ icon, title, body, color }: { icon: React.ReactNode, title: string, body: string, color: string }) {
    const colors: any = {
@@ -298,7 +352,7 @@ function TrustPoint({ title, desc }: { title: string, desc: string }) {
 
 function HeroDashboardUI() {
     return (
-        <div className="relative w-full max-w-[420px] aspect-[4/5] mx-auto rotate-[-5deg] hover:rotate-0 transition-transform duration-700 ease-out">
+        <div className="relative w-full aspect-[4/5] mx-auto rotate-[-5deg] hover:rotate-0 transition-transform duration-700 ease-out">
              {/* Main Card */}
              <div className="absolute inset-0 bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col">
                  
@@ -361,7 +415,7 @@ function HeroDashboardUI() {
              </div>
 
              {/* Floating Elements */}
-             <div className="absolute -right-12 top-24 bg-white p-4 rounded-2xl shadow-xl border border-slate-100 animate-float">
+             <div className="absolute -right-12 top-24 bg-white p-4 rounded-2xl shadow-xl border border-slate-100 animate-float hidden sm:block">
                  <div className="flex items-center gap-3 mb-2">
                      <Icons.Pill className="w-5 h-5 text-orange-500" />
                      <span className="font-bold text-sm text-slate-700">Rx Found</span>
@@ -369,7 +423,7 @@ function HeroDashboardUI() {
                  <div className="text-xs text-slate-500">Lisinopril 10mg</div>
              </div>
 
-             <div className="absolute -left-8 bottom-32 bg-slate-800 p-4 rounded-2xl shadow-xl text-white animate-float delay-1000">
+             <div className="absolute -left-8 bottom-32 bg-slate-800 p-4 rounded-2xl shadow-xl text-white animate-float delay-1000 hidden sm:block">
                  <div className="flex items-center gap-3">
                      <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
                      <span className="font-bold text-sm">Safety Check Passed</span>

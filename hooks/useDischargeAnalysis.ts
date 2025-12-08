@@ -50,8 +50,28 @@ export function useCareTransiaFlow(userId?: string) {
   const [status, setStatus] = useState<'idle' | 'analyzing' | 'done' | 'error'>('idle');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [progressMsg, setProgressMsg] = useState<string>('Initializing...');
+  
+  // Offline State
+  const [isOffline, setIsOffline] = useState(typeof navigator !== 'undefined' ? !navigator.onLine : false);
+
+  useEffect(() => {
+      const handleOnline = () => setIsOffline(false);
+      const handleOffline = () => setIsOffline(true);
+      window.addEventListener('online', handleOnline);
+      window.addEventListener('offline', handleOffline);
+      return () => {
+          window.removeEventListener('online', handleOnline);
+          window.removeEventListener('offline', handleOffline);
+      };
+  }, []);
 
   const analyze = async () => {
+    if (isOffline) {
+        setErrorMsg("You appear to be offline. Please check your internet connection.");
+        setStatus('error');
+        return;
+    }
+
     try {
       setStatus('analyzing');
       setErrorMsg(null);
@@ -64,7 +84,7 @@ export function useCareTransiaFlow(userId?: string) {
       setConsistencyReport(result.consistencyReport);
       setCarePlan(result.carePlan);
       
-      // Save to Firebase if user is logged in
+      // Save to Firebase/LocalDB if user is logged in
       if (userId) {
         setProgressMsg('Saving to profile...');
         await saveCarePlanToDb(userId, {
@@ -108,12 +128,23 @@ export function useCareTransiaFlow(userId?: string) {
     setStatus('done');
   };
 
+  const loadDemoData = () => {
+      setPatientInfo({
+          name: "Martha Stewart",
+          age: "72",
+          primary_condition: "Total Hip Replacement",
+          language_preference: "English",
+          caregiver_role: "Daughter"
+      });
+      setNotes("Doctor mentioned checking the incision site daily for redness. Follow up with PT next week.");
+  };
+
   const dismissError = () => setStatus('idle');
 
   return {
     intake: { patientInfo, setPatientInfo, files, setFiles, notes, setNotes },
     results: { parsedEpisode, consistencyReport, carePlan },
-    ui: { status, errorMsg, dismissError, progressMsg },
-    actions: { analyze, reset, loadRecord }
+    ui: { status, errorMsg, dismissError, progressMsg, isOffline },
+    actions: { analyze, reset, loadRecord, loadDemoData }
   };
 }

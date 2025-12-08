@@ -54,3 +54,31 @@ export function cleanAndParseJSON<T>(text: string): T {
       }
   }
 }
+
+/**
+ * Executes a promise-returning function with exponential backoff retry logic.
+ * Useful for handling 503 (Service Unavailable) or 429 (Rate Limit) errors.
+ */
+export async function runWithRetry<T>(
+  fn: () => Promise<T>,
+  retries = 3,
+  delayMs = 1000
+): Promise<T> {
+  let lastError;
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await fn();
+    } catch (e: any) {
+      lastError = e;
+      const isRetryable = e.message?.includes('503') || e.message?.includes('429') || e.status === 503 || e.status === 429;
+      
+      if (isRetryable && i < retries - 1) {
+         console.warn(`API Attempt ${i + 1} failed. Retrying in ${delayMs}ms...`);
+         await new Promise(res => setTimeout(res, delayMs * Math.pow(2, i))); // Exponential backoff
+         continue;
+      }
+      throw e;
+    }
+  }
+  throw lastError;
+}
