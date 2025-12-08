@@ -41,10 +41,10 @@ export default function BottomNav({ currentView, onNavigate, onLiveClick, hasAct
 
   return (
     <div 
-      className="fixed bottom-0 left-0 w-full z-40 flex flex-col items-center justify-end pb-4 md:pb-6 pointer-events-none"
+      className="fixed bottom-0 left-0 w-full z-40 flex flex-col items-center justify-end pb-4 pointer-events-none md:hidden"
     >
       <div 
-         className="pointer-events-auto flex flex-col items-center relative w-full md:w-auto"
+         className="pointer-events-auto flex flex-col items-center relative w-[92%]"
          onMouseEnter={() => setIsHovered(true)}
          onMouseLeave={() => setIsHovered(false)}
       >
@@ -55,33 +55,28 @@ export default function BottomNav({ currentView, onNavigate, onLiveClick, hasAct
              bg-white/90 backdrop-blur-xl border border-slate-200 shadow-2xl 
              flex items-end justify-between px-4 py-2 gap-1
              transition-all duration-500 cubic-bezier(0.34, 1.56, 0.64, 1) ease-out origin-bottom
-             
-             /* Mobile: Always visible, fixed bar style */
-             w-[92%] rounded-2xl h-20 opacity-100 scale-100 translate-y-0 relative
-
-             /* Desktop: Always visible dock style */
-             md:rounded-full md:h-24 md:px-6 md:gap-4 md:w-auto md:min-w-[360px] md:opacity-100 md:scale-100 md:translate-y-0 md:bottom-6
+             w-full rounded-2xl h-20 opacity-100 scale-100 translate-y-0 relative
           `}
         >
             {navItems.map((item) => {
               const isActive = item.id === 'live' ? isLiveActive : currentView === item.id;
               
               return (
-                 <div key={item.id} className="w-16 md:w-20 flex justify-center pb-2">
+                 <div key={item.id} className="w-16 flex justify-center pb-2">
                      <button
                         onClick={() => handleNavClick(item)}
                         className={`
                             transition-all duration-300 ease-out flex flex-col items-center justify-center
                             ${isActive 
-                                ? 'relative -top-5 md:-top-6 w-14 h-14 md:w-16 md:h-16 rounded-2xl bg-gradient-to-tr from-blue-600 to-cyan-500 text-white shadow-xl shadow-blue-500/30 scale-110 border-4 border-white' 
+                                ? 'relative -top-5 w-14 h-14 rounded-2xl bg-gradient-to-tr from-blue-600 to-cyan-500 text-white shadow-xl shadow-blue-500/30 scale-110 border-4 border-white' 
                                 : 'w-full h-full text-slate-500 hover:text-slate-800 hover:bg-slate-50 rounded-xl py-2'
                             }
                             ${item.disabled ? 'opacity-40' : ''}
                         `}
                         title={item.disabled ? "Generate a plan first to view this" : item.label}
                      >
-                        <item.icon className={`${isActive ? 'w-6 h-6 md:w-8 md:h-8' : 'w-5 h-5 md:w-6 md:h-6 mb-1'}`} />
-                        {!isActive && <span className="text-[10px] md:text-xs font-bold tracking-wide">{item.label}</span>}
+                        <item.icon className={`${isActive ? 'w-6 h-6' : 'w-5 h-5 mb-1'}`} />
+                        {!isActive && <span className="text-[10px] font-bold tracking-wide">{item.label}</span>}
                      </button>
                  </div>
               );

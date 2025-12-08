@@ -10,9 +10,11 @@ interface NavbarProps {
   onLogout?: () => void;
   onSettingsClick?: () => void;
   onLiveClick?: () => void;
+  onNavigate?: (path: string) => void;
+  hasActivePlan?: boolean;
 }
 
-export default function Navbar({ onHomeClick, currentView, user, onSignIn, onLogout, onSettingsClick, onLiveClick }: NavbarProps) {
+export default function Navbar({ onHomeClick, currentView, user, onSignIn, onLogout, onSettingsClick, onLiveClick, onNavigate, hasActivePlan }: NavbarProps) {
   
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -46,6 +48,14 @@ export default function Navbar({ onHomeClick, currentView, user, onSignIn, onLog
       setIsDropdownOpen(false);
   };
 
+  const handleNav = (path: string) => {
+      if (path === 'results' && !hasActivePlan) {
+          alert("Please generate a care plan first.");
+          return;
+      }
+      if (onNavigate) onNavigate(path);
+  }
+
   return (
     <nav className="bg-white/80 backdrop-blur-md border-b border-slate-100 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -64,16 +74,34 @@ export default function Navbar({ onHomeClick, currentView, user, onSignIn, onLog
             </button>
             
             <div className="flex items-center gap-6">
-              <div className="hidden md:flex gap-6 text-sm font-medium text-slate-600">
+              <div className="hidden md:flex gap-4 text-sm font-medium text-slate-600">
                 {currentView === 'landing' ? (
                   <>
-                    <button onClick={() => scrollToSection('how-it-works')} className="cursor-pointer hover:text-slate-900 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-md px-2 py-1">How it works</button>
-                    <button onClick={() => scrollToSection('safety')} className="cursor-pointer hover:text-slate-900 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-md px-2 py-1">Safety</button>
+                    <button onClick={() => scrollToSection('how-it-works')} className="cursor-pointer hover:text-slate-900 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-md px-3 py-2">How it works</button>
+                    <button onClick={() => scrollToSection('safety')} className="cursor-pointer hover:text-slate-900 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-md px-3 py-2">Safety</button>
                   </>
                 ) : (
-                  <button onClick={onHomeClick} className="cursor-pointer hover:text-slate-900 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-md px-2 py-1">
-                    Home
-                  </button>
+                  <>
+                    <button 
+                        onClick={onHomeClick} 
+                        className={`cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-md px-3 py-2 ${currentView === 'dashboard' ? 'text-blue-600 bg-blue-50' : 'hover:text-slate-900 hover:bg-slate-50'}`}
+                    >
+                      Home
+                    </button>
+                    <button 
+                        onClick={() => handleNav('results')}
+                        disabled={!hasActivePlan}
+                        className={`cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-md px-3 py-2 ${currentView === 'results' ? 'text-blue-600 bg-blue-50' : 'hover:text-slate-900 hover:bg-slate-50'} ${!hasActivePlan ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    >
+                      My Plan
+                    </button>
+                    <button 
+                        onClick={() => handleNav('intake')}
+                        className={`cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-md px-3 py-2 ${currentView === 'intake' ? 'text-blue-600 bg-blue-50' : 'hover:text-slate-900 hover:bg-slate-50'}`}
+                    >
+                      Scan
+                    </button>
+                  </>
                 )}
               </div>
               

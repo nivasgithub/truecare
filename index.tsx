@@ -285,6 +285,11 @@ function CareTransiaApp() {
         onLogout={handleLogout}
         onSettingsClick={handleSettings}
         onLiveClick={() => setShowLiveAssistant(true)}
+        onNavigate={(path) => {
+            navigate(path);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
+        hasActivePlan={!!results.parsedEpisode}
       />
 
       <main id="main-content" className="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 relative focus:outline-none" tabIndex={-1}>
