@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Card, Badge, Icons, Button } from './ui';
-import { ParsedEpisode, ConsistencyReport, FormattedCarePlan } from '../types';
+import { ParsedEpisode, ConsistencyReport, FormattedCarePlan, PlanItem } from '../types';
 import { generateRecoveryVideo } from '../services/video';
 import { generateSpeech, generateImage, editImage, playRawAudio, stopAudio } from '../services/media';
 import AssistantChat from './AssistantChat';
@@ -13,18 +13,74 @@ interface CareTransiaResultsProps {
   onReset: () => void;
 }
 
+// Helper to normalize data from potentially old string[] records to new PlanItem[]
+function normalizePlanItems(items: any[]): PlanItem[] {
+  if (!Array.isArray(items)) return [];
+  return items.map(i => {
+    if (typeof i === 'string') return { text: i, source: 'Legacy Record' };
+    return i;
+  });
+}
+
+// Helper Component for Instructions with Citation
+const InstructionRow = ({ item, type }: { item: PlanItem, type: 'checkbox' | 'bullet' | 'warning' }) => {
+    const [showSource, setShowSource] = useState(false);
+    const isWarning = type === 'warning';
+    
+    return (
+        <div className="group relative">
+            <div className="flex items-start gap-3">
+                {type === 'checkbox' && (
+                    <input type="checkbox" className="mt-1.5 w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+                )}
+                {type === 'bullet' && (
+                     <div className="w-2 h-2 rounded-full bg-purple-400 mt-2 flex-shrink-0"></div>
+                )}
+                {type === 'warning' && (
+                     <span className="mt-1.5 w-1.5 h-1.5 bg-red-500 rounded-full flex-shrink-0"></span>
+                )}
+                
+                <div className="flex-1">
+                    <span className={`text-slate-700 leading-relaxed ${isWarning ? 'text-red-700' : ''}`}>
+                        {item.text}
+                    </span>
+                    
+                    {/* Citation Toggle */}
+                    {item.source && (
+                        <div className="mt-1">
+                             <button 
+                                onClick={() => setShowSource(!showSource)}
+                                className={`text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 transition-colors ${isWarning ? 'text-red-300 hover:text-red-600' : 'text-slate-300 hover:text-blue-500'}`}
+                             >
+                                <Icons.Clipboard className="w-3 h-3" />
+                                {showSource ? 'Hide Source' : 'Show Source'}
+                             </button>
+                             
+                             {showSource && (
+                                <div className={`mt-1.5 p-2 rounded-lg text-xs border ${isWarning ? 'bg-red-100/50 border-red-100 text-red-800' : 'bg-slate-50 border-slate-100 text-slate-600'} italic`}>
+                                    "{item.source}"
+                                </div>
+                             )}
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
 export default function CareTransiaResults({ data, consistency, carePlan, onReset }: CareTransiaResultsProps) {
   
   const [view, setView] = useState<'playbook' | 'clinical'>('playbook'); 
   const hasIssues = consistency?.status === 'success' && (consistency.conflicts.length > 0 || consistency.gaps.length > 0);
 
-  // Deep Safety Fallback for Plan Data
+  // Deep Safety Fallback for Plan Data with Normalization
   const rawFriendlyPlan = (carePlan?.patient_friendly_plan || {}) as any;
   const safePlan = {
-    today_and_tomorrow: Array.isArray(rawFriendlyPlan.today_and_tomorrow) ? rawFriendlyPlan.today_and_tomorrow : [],
-    daily_routine: Array.isArray(rawFriendlyPlan.daily_routine) ? rawFriendlyPlan.daily_routine : [],
-    weekly_or_followup_tasks: Array.isArray(rawFriendlyPlan.weekly_or_followup_tasks) ? rawFriendlyPlan.weekly_or_followup_tasks : [],
-    warning_signs_card: Array.isArray(rawFriendlyPlan.warning_signs_card) ? rawFriendlyPlan.warning_signs_card : [],
+    today_and_tomorrow: normalizePlanItems(rawFriendlyPlan.today_and_tomorrow),
+    daily_routine: normalizePlanItems(rawFriendlyPlan.daily_routine),
+    weekly_or_followup_tasks: normalizePlanItems(rawFriendlyPlan.weekly_or_followup_tasks),
+    warning_signs_card: normalizePlanItems(rawFriendlyPlan.warning_signs_card),
     doctor_questions: Array.isArray(rawFriendlyPlan.doctor_questions) ? rawFriendlyPlan.doctor_questions : []
   };
 
@@ -73,8 +129,8 @@ export default function CareTransiaResults({ data, consistency, carePlan, onRese
         ? `Questions you might want to ask your doctor: ${safePlan.doctor_questions.join(". ")}`
         : "";
 
-     const actions = safePlan.today_and_tomorrow.length > 0 ? safePlan.today_and_tomorrow.join(". ") : "No immediate actions listed.";
-     const warnings = safePlan.warning_signs_card.length > 0 ? safePlan.warning_signs_card.join(". ") : "No specific warnings listed.";
+     const actions = safePlan.today_and_tomorrow.length > 0 ? safePlan.today_and_tomorrow.map(i => i.text).join(". ") : "No immediate actions listed.";
+     const warnings = safePlan.warning_signs_card.length > 0 ? safePlan.warning_signs_card.map(i => i.text).join(". ") : "No specific warnings listed.";
 
      const textToRead = `Here is the care plan for ${data.patient?.name || 'the patient'}. 
          Today and tomorrow: ${actions}. 
@@ -218,11 +274,8 @@ export default function CareTransiaResults({ data, consistency, carePlan, onRese
                </h3>
                {safePlan.today_and_tomorrow.length > 0 ? (
                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
-                    {safePlan.today_and_tomorrow.map((task: string, i: number) => (
-                      <div key={i} className="flex items-start gap-3">
-                        <input type="checkbox" className="mt-1.5 w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
-                        <span className="text-slate-700 leading-relaxed">{task}</span>
-                      </div>
+                    {safePlan.today_and_tomorrow.map((task: PlanItem, i: number) => (
+                      <InstructionRow key={i} item={task} type="checkbox" />
                     ))}
                  </div>
                ) : (
@@ -238,11 +291,8 @@ export default function CareTransiaResults({ data, consistency, carePlan, onRese
                </h3>
                {safePlan.daily_routine.length > 0 ? (
                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
-                    {safePlan.daily_routine.map((task: string, i: number) => (
-                      <div key={i} className="flex items-start gap-3">
-                        <div className="w-2 h-2 rounded-full bg-purple-400 mt-2 flex-shrink-0"></div>
-                        <span className="text-slate-700 leading-relaxed">{task}</span>
-                      </div>
+                    {safePlan.daily_routine.map((task: PlanItem, i: number) => (
+                      <InstructionRow key={i} item={task} type="bullet" />
                     ))}
                  </div>
                ) : (
@@ -261,11 +311,8 @@ export default function CareTransiaResults({ data, consistency, carePlan, onRese
                {safePlan.warning_signs_card.length > 0 ? (
                  <div className="bg-red-50 rounded-2xl border border-red-100 p-6 space-y-3">
                     <p className="font-bold text-red-800 text-sm mb-2">Call your doctor if:</p>
-                    {safePlan.warning_signs_card.map((warning: string, i: number) => (
-                      <div key={i} className="flex items-start gap-3 text-red-700">
-                         <span className="mt-1.5 w-1.5 h-1.5 bg-red-500 rounded-full flex-shrink-0"></span>
-                         <span>{warning}</span>
-                      </div>
+                    {safePlan.warning_signs_card.map((warning: PlanItem, i: number) => (
+                      <InstructionRow key={i} item={warning} type="warning" />
                     ))}
                  </div>
                ) : (
@@ -346,9 +393,9 @@ export default function CareTransiaResults({ data, consistency, carePlan, onRese
                <table className="w-full text-left text-sm">
                  <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-xs">
                    <tr>
-                     <th className="p-4">Drug</th>
-                     <th className="p-4">Dose</th>
-                     <th className="p-4">Freq</th>
+                     <th className="p-4 w-1/4">Drug</th>
+                     <th className="p-4 w-1/6">Dose</th>
+                     <th className="p-4 w-1/6">Freq</th>
                      <th className="p-4">Instructions</th>
                    </tr>
                  </thead>
@@ -356,9 +403,9 @@ export default function CareTransiaResults({ data, consistency, carePlan, onRese
                    {data.medications.length > 0 ? data.medications.map((med, i) => (
                      <tr key={i} className="hover:bg-slate-50">
                        <td className="p-4 font-bold text-slate-900">{med.name}</td>
-                       <td className="p-4">{med.dose}</td>
-                       <td className="p-4">{med.frequency}</td>
-                       <td className="p-4 text-slate-600 max-w-xs truncate" title={med.timing_notes}>{med.timing_notes || '-'}</td>
+                       <td className="p-4 font-medium text-slate-700">{med.dose || '-'}</td>
+                       <td className="p-4 text-slate-600">{med.frequency || '-'}</td>
+                       <td className="p-4 text-slate-600" title={med.timing_notes}>{med.timing_notes || '-'}</td>
                      </tr>
                    )) : (
                      <tr><td colSpan={4} className="p-8 text-center text-slate-400 italic">No medications found</td></tr>

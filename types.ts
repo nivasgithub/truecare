@@ -103,15 +103,20 @@ export interface SelfEvalSummary {
   confidence: 'high' | 'medium' | 'low';
 }
 
+export interface PlanItem {
+  text: string;
+  source: string;
+}
+
 export interface FormattedCarePlan {
   status: 'success' | 'error';
   error_message: string;
   patient_friendly_plan: {
-    today_and_tomorrow: string[];
-    daily_routine: string[];
-    weekly_or_followup_tasks: string[];
-    warning_signs_card: string[];
-    doctor_questions: string[];
+    today_and_tomorrow: PlanItem[];
+    daily_routine: PlanItem[];
+    weekly_or_followup_tasks: PlanItem[];
+    warning_signs_card: PlanItem[];
+    doctor_questions: string[]; // Questions are usually derived from gaps, so we keep them as strings for simplicity
   };
   technical_summary_for_clinicians: string;
   // Optional technical fields

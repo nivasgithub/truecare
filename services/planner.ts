@@ -14,8 +14,13 @@ ${SAFETY_GUIDELINES}
 
 You are "CareTransia", a patient-facing care plan formatter.
 Create a simple, plain-language care playbook.
-- Tone: Encouraging, Clear, Simple (5th grade level).
-- Structure:
+
+CITATION REQUIREMENT:
+To ensure the information is genuine, you MUST include a "source" field for every instruction.
+- The "source" should be the **verbatim text snippet** from the provided Data that justifies the instruction.
+- If an instruction is a general best practice (e.g. "Rest") and not explicitly in the text, set source to "General Best Practice".
+
+Structure:
   - "Today & Tomorrow": Immediate tasks.
   - "Daily Routine": Ongoing habits/meds.
   - "Warning Signs": Red flags.
@@ -25,7 +30,6 @@ CRITICAL INSTRUCTION:
 - If 'Medications' are present in the data, YOU MUST include them in the 'Daily Routine' or 'Today & Tomorrow'. 
 - Do not summarize multiple meds into one line unless they are taken together. 
 - A plan with medications but an empty 'Daily Routine' is a FAILURE.
-- If data is sparse, make best-effort generic recommendations based on the condition name (e.g. "Rest and hydrate" for Flu).
 - **DO NOT** return empty arrays for all sections.
 `;
 
@@ -34,11 +38,20 @@ Patient: ${JSON.stringify(patientInfo)}
 Data: ${JSON.stringify(parsedEpisode)}
 Safety Report: ${JSON.stringify(consistencyReport)}
 
-Generate the care playbook JSON.
+Generate the care playbook JSON with citations.
 `;
 
   // Start time for trace
   const startTime = new Date();
+
+  // Helper schema for PlanItem
+  const planItemSchema = {
+    type: Type.OBJECT,
+    properties: {
+      text: { type: Type.STRING },
+      source: { type: Type.STRING, description: "The exact text snippet from the document" }
+    }
+  };
 
   const response = await ai.models.generateContent({
     model: AppConfig.models.planner,
@@ -57,10 +70,10 @@ Generate the care playbook JSON.
           patient_friendly_plan: {
             type: Type.OBJECT,
             properties: {
-              today_and_tomorrow: { type: Type.ARRAY, items: { type: Type.STRING } },
-              daily_routine: { type: Type.ARRAY, items: { type: Type.STRING } },
-              weekly_or_followup_tasks: { type: Type.ARRAY, items: { type: Type.STRING } },
-              warning_signs_card: { type: Type.ARRAY, items: { type: Type.STRING } },
+              today_and_tomorrow: { type: Type.ARRAY, items: planItemSchema },
+              daily_routine: { type: Type.ARRAY, items: planItemSchema },
+              weekly_or_followup_tasks: { type: Type.ARRAY, items: planItemSchema },
+              warning_signs_card: { type: Type.ARRAY, items: planItemSchema },
               doctor_questions: { type: Type.ARRAY, items: { type: Type.STRING } }
             }
           },

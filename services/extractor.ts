@@ -24,21 +24,17 @@ The images may be:
 2. Multi-page Discharge Summaries.
 3. Handwritten Notes.
 
-CRITICAL RULES FOR PILL BOTTLES:
-- If the image shows a pill bottle or box, YOU MUST EXTRACT:
-  - **Name**: The largest text on the label (e.g., "Lisinopril", "Metformin").
-  - **Dose**: Numbers with units (e.g., "10mg", "500 mg").
-  - **Frequency**: Instructions like "Take 1 tablet daily" or "Twice a day".
-- Do not ignore the image because it is "just a bottle". 
+CRITICAL RULES FOR PILL BOTTLES & MED LISTS:
+- **Name**: Drug name (e.g. "Lisinopril").
+- **Dose**: Strength (e.g. "10mg", "500 mg"). Do NOT put "1 tablet" here; put that in Frequency.
+- **Frequency**: How often (e.g. "Take 1 tablet daily", "Twice a day").
+- **Timing/Instructions**: Specifics (e.g. "Take with food", "Until finished"). If none, use "-".
 - If patient details are visible, extract them. If not, leave patient fields null.
 
 GENERAL RULES:
 1. Extract all sections as they appear.
 2. If a section is missing, return an empty array [].
 3. **JSON Only**: Output pure JSON. No markdown fences if possible, but I will parse them if you add them.
-
-MANDATORY FIELDS:
-- Medications (Name, Dose, Frequency) - PRIORITIZE THIS.
 `;
 
   const userPrompt = `
@@ -47,7 +43,7 @@ Patient Name (from user): ${patientInfo.name}
 Caregiver Notes: ${notes}
 
 Task: Parse the attached images. 
-If it is a medication bottle, extract the drug details immediately.
+Focus on extracting the "Dose" and "Frequency" for every medication found.
 `;
 
   const response = await ai.models.generateContent({
