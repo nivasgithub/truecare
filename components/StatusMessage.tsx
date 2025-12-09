@@ -1,8 +1,9 @@
+
 import React from 'react';
 import { Icons } from './ui';
 
 interface StatusMessageProps {
-  status: 'idle' | 'analyzing' | 'done' | 'error';
+  status: 'idle' | 'analyzing' | 'verifying' | 'generating' | 'done' | 'error';
   errorMsg: string | null;
   onDismiss: () => void;
   onRetry?: () => void;

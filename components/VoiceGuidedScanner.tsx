@@ -2,8 +2,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ai } from '../services/gemini';
 import { AppConfig } from '../config';
-import { Modality } from '@google/genai';
-import type { LiveServerMessage } from '@google/genai';
+import { Modality, type LiveServerMessage } from '@google/genai';
 import { Icons } from './ui';
 
 interface VoiceGuidedScannerProps {
@@ -18,11 +17,13 @@ export default function VoiceGuidedScanner({ onCapture, onClose }: VoiceGuidedSc
   const [status, setStatus] = useState<ScanStatus>('initializing');
   const [guidanceText, setGuidanceText] = useState<string>('Initializing camera...');
   const [qualityScore, setQualityScore] = useState<number>(0);
+  const [isAudioEnabled, setIsAudioEnabled] = useState(true);
   
   // Refs
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const sessionRef = useRef<any>(null);
+  const sessionRef = useRef<any>(null); // Holds the actual session object
+  const sessionPromiseRef = useRef<Promise<any> | null>(null); // Holds the connection promise
   const frameIntervalRef = useRef<number | null>(null);
   
   // Audio Output Context
@@ -60,14 +61,15 @@ export default function VoiceGuidedScanner({ onCapture, onClose }: VoiceGuidedSc
         const AudioContextClass = (window as any).AudioContext || (window as any).webkitAudioContext;
         outputContextRef.current = new AudioContextClass({ sampleRate: 24000 });
 
-        // 3. Connect to Live API with Vision + Audio
+        // 3. Connect to Live API
         setStatus('connecting');
         setGuidanceText('Connecting to AI assistant...');
 
-        const session = await ai.live.connect({
+        const sessionPromise = ai.live.connect({
           model: AppConfig.models.live,
           callbacks: {
             onopen: () => {
+              console.log("Live API Connected");
               if (mounted) {
                 setStatus('scanning');
                 setGuidanceText('Point your camera at the document');
@@ -75,22 +77,22 @@ export default function VoiceGuidedScanner({ onCapture, onClose }: VoiceGuidedSc
               }
             },
             onmessage: (message: LiveServerMessage) => {
-              handleLiveMessage(message);
+              if (mounted) handleLiveMessage(message);
             },
             onclose: () => {
               console.log("Live session closed");
             },
             onerror: (err) => {
-              console.error("Live API Error", err);
+              console.error("Live API Error:", err);
               if (mounted) {
                 setStatus('error');
-                setGuidanceText('Connection error. Please try again.');
+                setGuidanceText('Connection failed. Please try again.');
               }
             }
           },
           config: {
+            // Use Modality enum to avoid potential issues
             responseModalities: [Modality.AUDIO],
-            // Enable transcription to detect "Perfect" keyword for auto-capture
             outputAudioTranscription: {}, 
             systemInstruction: SCANNER_SYSTEM_PROMPT,
             speechConfig: {
@@ -99,13 +101,29 @@ export default function VoiceGuidedScanner({ onCapture, onClose }: VoiceGuidedSc
           }
         });
 
-        sessionRef.current = session;
+        sessionPromiseRef.current = sessionPromise;
 
-      } catch (err) {
+        // Wait for connection with timeout
+        const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error("Connection timed out")), 10000)
+        );
+
+        try {
+            const session = await Promise.race([sessionPromise, timeoutPromise]);
+            sessionRef.current = session;
+        } catch (connErr: any) {
+            console.error("Connection Timeout or Error:", connErr);
+            if (mounted) {
+                setStatus('error');
+                setGuidanceText(connErr.message || 'Connection timeout');
+            }
+        }
+
+      } catch (err: any) {
         console.error("Failed to initialize scanner", err);
         if (mounted) {
           setStatus('error');
-          setGuidanceText('Failed to access camera or connect to AI.');
+          setGuidanceText(`Error: ${err.message || 'Camera access failed'}`);
         }
       }
     };
@@ -129,20 +147,22 @@ export default function VoiceGuidedScanner({ onCapture, onClose }: VoiceGuidedSc
     // Handle Text Response (from transcription) for quality assessment
     const transcription = message.serverContent?.outputTranscription;
     if (transcription?.text) {
-      const text = transcription.text;
-      setGuidanceText(text); // Show what AI is saying
+      const text = transcription.text.trim();
+      if (text.length > 0) {
+        setGuidanceText(text); // Show what AI is saying
 
-      // Parse quality indicators from AI response
-      const lowerText = text.toLowerCase();
-      if (lowerText.includes('perfect') || lowerText.includes('excellent') || lowerText.includes('capturing')) {
-        setQualityScore(100);
-        triggerAutoCapture();
-      } else if (lowerText.includes('good') || lowerText.includes('clear')) {
-        setQualityScore(80);
-      } else if (lowerText.includes('better') || lowerText.includes('almost')) {
-        setQualityScore(60);
-      } else if (lowerText.includes('blurry') || lowerText.includes('dark') || lowerText.includes('move')) {
-        setQualityScore(30);
+        // Parse quality indicators from AI response
+        const lowerText = text.toLowerCase();
+        if (lowerText.includes('perfect') || lowerText.includes('excellent') || lowerText.includes('capturing')) {
+          setQualityScore(100);
+          triggerAutoCapture();
+        } else if (lowerText.includes('good') || lowerText.includes('clear')) {
+          setQualityScore(80);
+        } else if (lowerText.includes('better') || lowerText.includes('almost')) {
+          setQualityScore(60);
+        } else if (lowerText.includes('blurry') || lowerText.includes('dark') || lowerText.includes('move')) {
+          setQualityScore(30);
+        }
       }
     }
   };
@@ -157,7 +177,10 @@ export default function VoiceGuidedScanner({ onCapture, onClose }: VoiceGuidedSc
   };
 
   const sendVideoFrame = () => {
-    if (!videoRef.current || !sessionRef.current || !canvasRef.current) return;
+    if (!videoRef.current || !canvasRef.current) return;
+    
+    // Always use the promise to ensure we have a valid session before sending
+    if (!sessionPromiseRef.current) return;
 
     const video = videoRef.current;
     const canvas = canvasRef.current;
@@ -166,22 +189,28 @@ export default function VoiceGuidedScanner({ onCapture, onClose }: VoiceGuidedSc
     if (!ctx) return;
 
     // Set canvas size to video size
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    if (canvas.width !== video.videoWidth) canvas.width = video.videoWidth;
+    if (canvas.height !== video.videoHeight) canvas.height = video.videoHeight;
     
     // Draw current frame
     ctx.drawImage(video, 0, 0);
     
     // Convert to base64 JPEG
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.6); // Lower quality for stream speed
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.5); // Lower quality/res for speed
     const base64Data = dataUrl.split(',')[1];
 
-    // Send to Live API
-    sessionRef.current.sendRealtimeInput({
-      media: {
-        mimeType: 'image/jpeg',
-        data: base64Data
-      }
+    // Send to Live API via Promise to ensure session is ready
+    sessionPromiseRef.current.then(session => {
+        try {
+            session.sendRealtimeInput({
+                media: {
+                    mimeType: 'image/jpeg',
+                    data: base64Data
+                }
+            });
+        } catch (e) {
+            console.warn("Failed to send frame:", e);
+        }
     });
   };
 
@@ -229,9 +258,18 @@ export default function VoiceGuidedScanner({ onCapture, onClose }: VoiceGuidedSc
   };
 
   // --- Audio Playback ---
-  const playAudioResponse = (base64Audio: string) => {
+  const playAudioResponse = async (base64Audio: string) => {
     if (!outputContextRef.current) return;
     
+    // Ensure Context is running (browsers suspend auto-created contexts)
+    if (outputContextRef.current.state === 'suspended') {
+        try {
+            await outputContextRef.current.resume();
+        } catch (e) {
+            console.warn("Audio resume failed", e);
+        }
+    }
+
     try {
       const binaryString = atob(base64Audio);
       const bytes = new Uint8Array(binaryString.length);
@@ -261,6 +299,15 @@ export default function VoiceGuidedScanner({ onCapture, onClose }: VoiceGuidedSc
     }
   };
 
+  const toggleAudio = async () => {
+      if (outputContextRef.current) {
+          if (outputContextRef.current.state === 'suspended') {
+              await outputContextRef.current.resume();
+          }
+      }
+      setIsAudioEnabled(!isAudioEnabled);
+  };
+
   // --- Cleanup ---
   const cleanup = () => {
     if (frameIntervalRef.current) {
@@ -270,10 +317,21 @@ export default function VoiceGuidedScanner({ onCapture, onClose }: VoiceGuidedSc
       const stream = videoRef.current.srcObject as MediaStream;
       stream.getTracks().forEach(track => track.stop());
     }
+    // Cleanup session properly using close method if available or just dereferencing
+    if (sessionPromiseRef.current) {
+        sessionPromiseRef.current.then(session => {
+            if (session && typeof session.close === 'function') {
+                session.close();
+            }
+        }).catch(() => {}); // Ignore errors on close
+    }
+    
     if (outputContextRef.current && outputContextRef.current.state !== 'closed') {
         outputContextRef.current.close();
     }
-    sourcesRef.current.forEach(s => s.stop());
+    sourcesRef.current.forEach(s => {
+        try { s.stop(); } catch {}
+    });
   };
 
   // --- Quality Indicator Color ---
@@ -291,21 +349,30 @@ export default function VoiceGuidedScanner({ onCapture, onClose }: VoiceGuidedSc
         <div className="flex items-center gap-3">
           <div className={`w-3 h-3 rounded-full ${status === 'scanning' ? 'bg-blue-500 animate-pulse' : status === 'ready' ? 'bg-emerald-500' : 'bg-slate-500'}`}></div>
           <span className="text-white font-bold text-sm shadow-black drop-shadow-md">
-            {status === 'initializing' && 'Starting...'}
+            {status === 'initializing' && 'Starting Camera...'}
             {status === 'connecting' && 'Connecting to AI...'}
-            {status === 'scanning' && 'AI Scanning...'}
+            {status === 'scanning' && 'Scanning...'}
             {status === 'ready' && 'Capturing...'}
             {status === 'captured' && 'Done!'}
             {status === 'error' && 'Error'}
           </span>
         </div>
-        <button 
-          onClick={onClose} 
-          className="bg-white/20 p-2 rounded-full text-white backdrop-blur-sm hover:bg-white/30"
-          aria-label="Close"
-        >
-          <span className="text-2xl leading-none">&times;</span>
-        </button>
+        <div className="flex gap-4">
+            {/* Audio Toggle (Forces Resume) */}
+            <button 
+                onClick={toggleAudio}
+                className="bg-white/20 p-2 rounded-full text-white backdrop-blur-sm hover:bg-white/30"
+            >
+                {isAudioEnabled ? <Icons.Speaker className="w-6 h-6" /> : <Icons.Stop className="w-6 h-6" />}
+            </button>
+            <button 
+                onClick={onClose} 
+                className="bg-white/20 p-2 rounded-full text-white backdrop-blur-sm hover:bg-white/30"
+                aria-label="Close"
+            >
+                <span className="text-2xl leading-none">&times;</span>
+            </button>
+        </div>
       </div>
 
       {/* Video Feed */}
@@ -317,6 +384,17 @@ export default function VoiceGuidedScanner({ onCapture, onClose }: VoiceGuidedSc
           playsInline
         />
         <canvas ref={canvasRef} className="hidden" />
+
+        {/* Status Error Display */}
+        {status === 'error' && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-30">
+                <div className="bg-red-600 text-white p-6 rounded-xl max-w-sm text-center">
+                    <Icons.Alert className="w-10 h-10 mx-auto mb-2" />
+                    <p className="font-bold">{guidanceText}</p>
+                    <button onClick={onClose} className="mt-4 bg-white text-red-600 px-4 py-2 rounded-full font-bold text-sm">Close</button>
+                </div>
+            </div>
+        )}
 
         {/* Document Frame Guide */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
@@ -360,9 +438,8 @@ export default function VoiceGuidedScanner({ onCapture, onClose }: VoiceGuidedSc
         <div className="flex justify-center">
           <button 
             onClick={handleManualCapture}
-            disabled={status !== 'scanning'}
             className={`w-20 h-20 rounded-full border-4 border-white flex items-center justify-center transition-all ${
-              status === 'scanning' 
+              status === 'scanning' || status === 'ready'
                 ? 'bg-white/20 hover:bg-white/40 active:scale-95' 
                 : 'bg-white/10 opacity-50 cursor-not-allowed'
             }`}

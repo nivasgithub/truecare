@@ -20,7 +20,7 @@ interface CareTransiaIntakeProps {
   isLoading: boolean;
   progressMsg?: string;
   onLoadDemo?: () => void;
-  status?: 'idle' | 'analyzing' | 'done' | 'error';
+  status?: 'idle' | 'analyzing' | 'verifying' | 'generating' | 'done' | 'error';
   errorMsg?: string | null;
   onDismissError?: () => void;
   isOffline?: boolean;
