@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Card, Badge, Icons, Button, HelpTip, Breadcrumbs } from './ui';
-import { ParsedEpisode, ConsistencyReport, FormattedCarePlan, PlanItem } from '../types';
+import { ParsedEpisode, ConsistencyReport, FormattedCarePlan, PlanItem, PillIdentificationResult } from '../types';
 import { generateRecoveryVideo } from '../services/video';
 import { generateSpeech, generateImage, editImage, playRawAudio, stopAudio } from '../services/media';
+import { identifyPill } from '../services/pill_identifier';
+import SmartCamera from './SmartCamera';
 import AssistantChat from './AssistantChat';
 import TechnicalInsightPanel from './TechnicalInsightPanel';
 
@@ -23,6 +25,70 @@ function normalizePlanItems(items: any[]): PlanItem[] {
     if (typeof i === 'string') return { text: i, source: 'Legacy Record' };
     return i;
   });
+}
+
+// --- Pill Result Modal Component ---
+function PillResultModal({ result, onClose, onPlayTTS }: { result: PillIdentificationResult, onClose: () => void, onPlayTTS: (text: string) => void }) {
+    if (!result) return null;
+    
+    const isMatch = result.match_status === 'confirmed';
+    const isNoMatch = result.match_status === 'no_match';
+    
+    const color = isMatch ? "emerald" : isNoMatch ? "red" : "amber";
+    const bgClass = isMatch ? "bg-emerald-50" : isNoMatch ? "bg-red-50" : "bg-amber-50";
+    const textClass = isMatch ? "text-emerald-800" : isNoMatch ? "text-red-800" : "text-amber-800";
+    const borderClass = isMatch ? "border-emerald-100" : isNoMatch ? "border-red-100" : "border-amber-100";
+
+    return (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+            <div className={`bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden animate-scale-in relative border-4 ${borderClass}`}>
+                
+                {/* Header */}
+                <div className={`${bgClass} p-6 text-center border-b ${borderClass}`}>
+                    <div className={`w-20 h-20 mx-auto rounded-full flex items-center justify-center mb-4 bg-white shadow-sm ${textClass}`}>
+                        {isMatch ? <Icons.Check className="w-10 h-10" /> : isNoMatch ? <Icons.Close className="w-10 h-10" /> : <Icons.Question className="w-10 h-10" />}
+                    </div>
+                    <h3 className={`text-2xl font-black uppercase tracking-tight ${textClass}`}>
+                        {isMatch ? "Medication Verified" : isNoMatch ? "No Match Found" : "Uncertain Result"}
+                    </h3>
+                    {isMatch && <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
+                        {/* CSS Confetti would go here, simplified as pulse */}
+                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full bg-emerald-400/10 rounded-full animate-pulse"></div>
+                    </div>}
+                </div>
+
+                {/* Content */}
+                <div className="p-6 space-y-4">
+                    {result.matched_medication_name && (
+                        <div className="text-center">
+                            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Identified As</p>
+                            <p className="text-xl font-bold text-slate-900">{result.matched_medication_name}</p>
+                        </div>
+                    )}
+                    
+                    <div className="bg-slate-50 p-4 rounded-xl text-sm text-slate-600 border border-slate-100">
+                        <span className="font-bold block text-slate-400 text-xs uppercase mb-1">Visual Analysis</span>
+                        {result.identified_pill.likely_description}
+                    </div>
+
+                    <div className={`p-4 rounded-xl border text-sm font-medium ${isMatch ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : 'bg-slate-50 border-slate-100 text-slate-700'}`}>
+                        <span className="font-bold block text-xs uppercase mb-1 opacity-70">Guidance</span>
+                        {result.guidance}
+                    </div>
+                </div>
+
+                {/* Actions */}
+                <div className="p-4 bg-slate-50 border-t border-slate-100 flex gap-3">
+                    <button onClick={() => onPlayTTS(result.guidance)} className="flex-1 py-3 px-4 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl font-bold text-slate-700 shadow-sm flex items-center justify-center gap-2">
+                        <Icons.Speaker className="w-4 h-4" /> Listen
+                    </button>
+                    <button onClick={onClose} className="flex-1 py-3 px-4 bg-slate-900 text-white rounded-xl font-bold shadow-lg hover:bg-slate-800 flex items-center justify-center gap-2">
+                        <Icons.Check className="w-4 h-4" /> Done
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
 }
 
 interface InstructionRowProps {
@@ -111,6 +177,11 @@ export default function CareTransiaResults({ data, consistency, carePlan, onRese
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [aspectRatio, setAspectRatio] = useState("16:9");
+
+  // Pill Identification State
+  const [showPillCamera, setShowPillCamera] = useState(false);
+  const [pillResult, setPillResult] = useState<PillIdentificationResult | null>(null);
+  const [isAnalyzingPill, setIsAnalyzingPill] = useState(false);
 
   // TTS State
   const [ttsStatus, setTtsStatus] = useState<'idle' | 'generating' | 'playing'>('idle');
@@ -228,6 +299,23 @@ export default function CareTransiaResults({ data, consistency, carePlan, onRese
       }
   };
 
+  const handlePillCapture = async (dataUrl: string) => {
+      setShowPillCamera(false);
+      setIsAnalyzingPill(true);
+      setPillResult(null);
+      try {
+          const result = await identifyPill(dataUrl, data.medications);
+          setPillResult(result);
+          // Play guidance automatically for accessibility
+          playTTS(result.guidance);
+      } catch (e) {
+          console.error("Pill ID Error", e);
+          alert("Failed to identify pill. Please try again.");
+      } finally {
+          setIsAnalyzingPill(false);
+      }
+  };
+
   const handleSetReminder = async (appt: any) => {
     if (!("Notification" in window)) {
       alert("This browser does not support desktop notifications");
@@ -302,6 +390,15 @@ export default function CareTransiaResults({ data, consistency, carePlan, onRese
   return (
     <div className="animate-fade-in space-y-6 pb-32 max-w-6xl mx-auto relative print:pb-0">
       
+      {/* Result Modal for Pill Scan */}
+      {pillResult && (
+          <PillResultModal 
+              result={pillResult} 
+              onClose={() => setPillResult(null)} 
+              onPlayTTS={playTTS} 
+          />
+      )}
+
       {/* Integrated Back Navigation */}
       <div className="flex items-center justify-between print:hidden">
         <button 
@@ -643,6 +740,42 @@ export default function CareTransiaResults({ data, consistency, carePlan, onRese
       {/* --- TAB CONTENT: VISUALS & TOOLS --- */}
       {activeTab === 'tools' && (
         <div className="space-y-8 animate-fade-in">
+            
+            {showPillCamera && (
+                <SmartCamera 
+                    onCapture={handlePillCapture} 
+                    onClose={() => setShowPillCamera(false)} 
+                />
+            )}
+
+            {/* Pill Identification Card */}
+            <div className="bg-white rounded-3xl p-8 border border-slate-100 shadow-sm relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-purple-50 rounded-full blur-3xl pointer-events-none -mr-10 -mt-10"></div>
+                
+                <div className="flex items-center gap-3 mb-6 relative z-10">
+                    <div className="bg-purple-50 p-2.5 rounded-xl text-purple-600">
+                        <Icons.Pill className="w-6 h-6" />
+                    </div>
+                    <div>
+                        <h3 className="text-xl font-bold text-slate-900">Pill Identification</h3>
+                        <p className="text-xs text-slate-500 font-bold uppercase tracking-wide">Verify your medication</p>
+                    </div>
+                </div>
+
+                <div className="flex flex-col md:flex-row gap-8 relative z-10">
+                    <div className="flex-1 space-y-4">
+                        <p className="text-slate-600 text-sm">
+                            Unsure about a pill? Scan it to check if it matches your prescribed medications.
+                        </p>
+                        <Button onClick={() => setShowPillCamera(true)} disabled={isAnalyzingPill} className="shadow-lg shadow-purple-200/50">
+                            {isAnalyzingPill ? <Icons.Spinner className="w-5 h-5" /> : <Icons.Camera className="w-5 h-5" />}
+                            {isAnalyzingPill ? "Analyzing..." : "Scan Pill"}
+                        </Button>
+                    </div>
+                    {/* Inline result removed - now handled by PillResultModal */}
+                </div>
+            </div>
+
             <div className="bg-white rounded-3xl p-8 border border-slate-100 shadow-sm">
                 <div className="flex items-center gap-3 mb-6">
                     <div className="bg-pink-50 p-2.5 rounded-xl text-pink-600">

@@ -99,8 +99,7 @@ export async function generateImage(prompt: string, aspectRatio: string = "16:9"
     contents: { parts: [{ text: prompt }] },
     config: {
       imageConfig: {
-        aspectRatio: aspectRatio as any, 
-        imageSize: "1K" 
+        aspectRatio: aspectRatio as any
       }
     }
   });

@@ -85,6 +85,20 @@ export interface ConsistencyReport {
   emergency_guidance?: string;
 }
 
+// --- Pill Identification Types ---
+export interface PillIdentificationResult {
+  identified_pill: {
+    shape: string;
+    color: string;
+    markings: string;
+    likely_description: string;
+  };
+  match_status: 'confirmed' | 'no_match' | 'uncertain';
+  matched_medication_name?: string;
+  confidence: 'high' | 'medium' | 'low';
+  guidance: string;
+}
+
 // --- Technical Trace Types ---
 
 export interface RunStep {

@@ -22,7 +22,7 @@ export const AppConfig = {
     // Video Generation
     video: 'veo-3.1-fast-generate-preview',
     // Image Generation
-    imageGen: 'gemini-3-pro-image-preview',
+    imageGen: 'gemini-2.5-flash-image',
     // Image Editing
     imageEdit: 'gemini-2.5-flash-image',
     // TTS
