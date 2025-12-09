@@ -1,7 +1,9 @@
+
 import React, { useRef, useState, useEffect } from 'react';
 import { Icons, Card, Button, SectionTitle, HelpTip, Breadcrumbs } from './ui';
 import { PatientInfo, UploadedFile, ChatMessage } from '../types';
 import SmartCamera from './SmartCamera';
+import VoiceGuidedScanner from './VoiceGuidedScanner';
 import { runIntakeAgent } from '../services/intake_agent';
 import { identifyPatientFromFiles } from '../api';
 import { generateSpeech, playRawAudio } from '../services/media';
@@ -41,6 +43,7 @@ export default function CareTransiaIntake({
   const [agentContext, setAgentContext] = useState<'papers' | 'bottles' | 'mixed' | null>(null);
   
   const [showCamera, setShowCamera] = useState(false);
+  const [showVoiceScanner, setShowVoiceScanner] = useState(false);
   const [hasCamera, setHasCamera] = useState(false);
   const [showSuccessToast, setShowSuccessToast] = useState(false);
 
@@ -107,6 +110,7 @@ export default function CareTransiaIntake({
           />
       )}
 
+      {/* Standard Camera */}
       {showCamera && (
         <SmartCamera 
           onCapture={(dataUrl) => {
@@ -114,6 +118,17 @@ export default function CareTransiaIntake({
              setShowCamera(false);
           }} 
           onClose={() => setShowCamera(false)} 
+        />
+      )}
+
+      {/* Voice-Guided Scanner */}
+      {showVoiceScanner && (
+        <VoiceGuidedScanner
+          onCapture={(dataUrl) => {
+             addFile(dataUrl, 'image/jpeg');
+             setShowVoiceScanner(false);
+          }} 
+          onClose={() => setShowVoiceScanner(false)} 
         />
       )}
 
@@ -222,6 +237,7 @@ export default function CareTransiaIntake({
                 patientInfo={patientInfo} setPatientInfo={setPatientInfo}
                 files={files} addFile={addFile}
                 onCamera={() => setShowCamera(true)}
+                onVoiceScan={() => setShowVoiceScanner(true)}
                 onAnalyze={onAnalyze}
                 isLoading={isLoading}
                 progressMsg={progressMsg}
@@ -250,6 +266,7 @@ export default function CareTransiaIntake({
            isLoading={isLoading}
            progressMsg={progressMsg}
            onCamera={() => setShowCamera(true)}
+           onVoiceScan={() => setShowVoiceScanner(true)}
            addFile={addFile}
            hasCamera={hasCamera}
         />
@@ -296,6 +313,7 @@ interface ManualIntakeProps {
   isLoading: boolean;
   progressMsg: string;
   onCamera: () => void;
+  onVoiceScan: () => void;
   addFile: (d: string, m: string) => void;
   hasCamera: boolean;
 }
@@ -305,7 +323,7 @@ function ManualIntake({
     files, setFiles, 
     notes, setNotes, 
     onAnalyze, isLoading, progressMsg,
-    onCamera, addFile, hasCamera
+    onCamera, onVoiceScan, addFile, hasCamera
 }: ManualIntakeProps) {
 
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -454,7 +472,18 @@ function ManualIntake({
                                 </button>
                             )}
                         </div>
-                        <p className="text-xs text-slate-400 font-medium">
+                        {hasCamera && (
+                            <button 
+                                onClick={onVoiceScan}
+                                className="w-full flex items-center justify-center gap-3 p-3 bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-xl hover:shadow-md transition-all text-blue-700 group"
+                            >
+                                <div className="bg-white p-1.5 rounded-full shadow-sm group-hover:scale-110 transition-transform">
+                                    <Icons.Mic className="w-4 h-4 text-blue-600" />
+                                </div>
+                                <span className="text-sm font-bold">Try Voice-Guided Scanner</span>
+                            </button>
+                        )}
+                        <p className="text-xs text-slate-400 font-medium mt-2">
                             {isDragging ? "Drop files now" : "or drag and drop images/PDFs here"}
                         </p>
                     </div>
@@ -515,7 +544,7 @@ function ManualIntake({
 function AgentIntake({ 
     patientInfo, setPatientInfo, 
     files, addFile, 
-    onCamera, onAnalyze, 
+    onCamera, onVoiceScan, onAnalyze, 
     isLoading, progressMsg, hasCamera,
     initialContext
 }: {
@@ -524,6 +553,7 @@ function AgentIntake({
     files: UploadedFile[];
     addFile: (d: string, m: string) => void;
     onCamera: () => void;
+    onVoiceScan: () => void;
     onAnalyze: () => void;
     isLoading: boolean;
     progressMsg: string;
@@ -573,7 +603,7 @@ function AgentIntake({
                 // fileInputRef.current.click(); // Browsers might block this auto-click without direct user interaction, safe to leave as UI prompt
             }
             if (initialContext === 'bottles' && hasCamera && files.length === 0) {
-                onCamera(); // This typically needs user interaction too, might need to rely on the button being prominent
+                onVoiceScan(); // Prompt voice scanner for bottles
             }
         }, 800);
         return () => clearTimeout(timer);
@@ -814,7 +844,7 @@ function AgentIntake({
                             {/* WIDGETS */}
                             <div className="w-full">
                                 {(m.widget === 'upload' || m.widget === 'camera') && (
-                                    <div className="mt-3 bg-white p-4 rounded-2xl border border-blue-100 shadow-sm flex gap-3 animate-fade-in-up w-full max-w-[85%]">
+                                    <div className="mt-3 bg-white p-4 rounded-2xl border border-blue-100 shadow-sm flex gap-3 animate-fade-in-up w-full max-w-[95%]">
                                         <button 
                                             onClick={() => fileInputRef.current?.click()}
                                             className={`flex-1 py-3 px-4 font-bold rounded-xl transition-colors flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-offset-2 ${m.widget === 'upload' ? 'bg-slate-900 text-white hover:bg-slate-800 ring-slate-900' : 'bg-blue-50 text-blue-700 hover:bg-blue-100 ring-blue-500'}`}
@@ -823,12 +853,21 @@ function AgentIntake({
                                             <Icons.Upload className="w-5 h-5" /> Upload Papers
                                         </button>
                                         {hasCamera && (
+                                            <>
                                             <button 
                                                 onClick={onCamera}
                                                 className={`flex-1 py-3 px-4 font-bold rounded-xl transition-colors flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-offset-2 ${m.widget === 'camera' ? 'bg-slate-900 text-white hover:bg-slate-800 ring-slate-900' : 'bg-blue-50 text-blue-700 hover:bg-blue-100 ring-blue-500'}`}
                                             >
-                                                <Icons.Camera className="w-5 h-5" /> Scan Bottle
+                                                <Icons.Camera className="w-5 h-5" /> Scan
                                             </button>
+                                            <button 
+                                                onClick={onVoiceScan}
+                                                className={`p-3 font-bold rounded-xl transition-colors flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-offset-2 bg-gradient-to-r from-purple-50 to-pink-50 text-purple-700 hover:shadow-md border border-purple-100`}
+                                                title="Use AI Voice-Guided Scanner"
+                                            >
+                                                <Icons.Mic className="w-5 h-5" />
+                                            </button>
+                                            </>
                                         )}
                                     </div>
                                 )}
