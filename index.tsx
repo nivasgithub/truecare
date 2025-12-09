@@ -23,9 +23,17 @@ import SettingsScreen from './components/SettingsScreen';
 import FAQScreen from './components/FAQScreen';
 import OnboardingTour, { TourStep } from './components/OnboardingTour';
 import { logoutUser, getCurrentUser } from './services/firebase'; // Updated imports
+import { notificationScheduler } from './services/notificationScheduler';
 
 // Helpful for Firebase Authorized Domains config
 console.log('App Origin:', window.location.origin);
+
+// Start background services
+try {
+  notificationScheduler.start();
+} catch (e) {
+  console.error("Failed to start notification scheduler", e);
+}
 
 // --- Router Helpers ---
 const getHashPath = () => {
@@ -144,298 +152,153 @@ function CareTransiaApp() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleHome = () => {
-    if (user) {
-      navigate('dashboard');
-    } else {
-      navigate('landing');
-    }
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const handleReset = () => {
-    actions.reset();
-    navigate('intake');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const handleSignIn = () => {
-    navigate('signin');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
   const handleLogout = async () => {
     await logoutUser();
-    // User state set to null by event listener
+    setUser(null);
+    actions.reset();
     navigate('landing');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleSettings = () => {
-    navigate('settings');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
+  const hasActivePlan = !!results.carePlan;
+  const isLiveActive = showLiveAssistant;
 
-  const handleViewRecord = (id: string, fullData?: string) => {
-    if (fullData) {
-      try {
-        const parsed = JSON.parse(fullData);
-        if (parsed.parsed && parsed.plan) {
-          // Empty report for historical data as it's not stored yet in mock, but useful for structure
-          const mockReport: ConsistencyReport = {
-            status: 'success',
-            error_message: '',
-            conflicts: [],
-            gaps: [],
-          };
-          actions.loadRecord(parsed.parsed, mockReport, parsed.plan);
-        }
-      } catch (e) {
-        console.error('Failed to parse historical record', e);
+  // Render View based on Router
+  const renderView = () => {
+      if (authLoading) return <div className="h-screen flex items-center justify-center"><div className="w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div></div>;
+
+      switch(currentView) {
+          case 'landing':
+              return <CareTransiaLandingPage onGetStarted={handleStart} />;
+          case 'intake':
+              return (
+                <>
+                  <CareTransiaIntake 
+                      patientInfo={intake.patientInfo} setPatientInfo={intake.setPatientInfo}
+                      files={intake.files} setFiles={intake.setFiles}
+                      notes={intake.notes} setNotes={intake.setNotes}
+                      onAnalyze={actions.analyze}
+                      isLoading={ui.status === 'analyzing' || ui.status === 'verifying' || ui.status === 'generating'}
+                      progressMsg={ui.progressMsg}
+                      onLoadDemo={actions.loadDemoData}
+                      status={ui.status}
+                      errorMsg={ui.errorMsg}
+                      onDismissError={ui.dismissError}
+                      isOffline={ui.isOffline}
+                  />
+                  {/* Verification Overlay Modal - Structure updated for fixed positioning context */}
+                  {(ui.status === 'verifying' || ui.status === 'generating') && results.parsedEpisode && (
+                      <div className="fixed inset-0 z-50 flex flex-col">
+                          {/* Animated Backdrop */}
+                          <div className="absolute inset-0 bg-white/95 backdrop-blur-sm animate-fade-in" />
+                          
+                          {/* Scrollable Content - z-index ensures it sits above backdrop */}
+                          <div className="relative z-10 overflow-y-auto flex-1 w-full h-full">
+                              <div className="p-4 pt-20 max-w-5xl mx-auto pb-32">
+                                  <VerificationView 
+                                      data={results.parsedEpisode}
+                                      consistency={results.consistencyReport}
+                                      onConfirm={actions.confirmAndGenerate}
+                                      isLoading={ui.status === 'generating'}
+                                      progressMsg={ui.progressMsg}
+                                  />
+                              </div>
+                          </div>
+                      </div>
+                  )}
+                </>
+              );
+          case 'results':
+               if (!results.parsedEpisode) return <div className="text-center py-20">No plan loaded. <button onClick={() => navigate('intake')} className="text-blue-600 underline">Start New</button></div>;
+               return <CareTransiaResults 
+                        data={results.parsedEpisode} 
+                        consistency={results.consistencyReport}
+                        carePlan={results.carePlan}
+                        onReset={handleStart}
+                        simpleMode={appSettings.simpleMode}
+                        onBack={() => navigate('intake')}
+                        onDashboard={() => navigate('dashboard')}
+                      />;
+          case 'signin':
+               return <SignInScreen onSignIn={() => navigate('dashboard')} />;
+          case 'dashboard':
+               if (!user) return <SignInScreen onSignIn={() => navigate('dashboard')} />;
+               return <DashboardScreen 
+                        user={user} 
+                        onViewRecord={(id, fullData) => {
+                             if (fullData) {
+                                 const parsed = JSON.parse(fullData);
+                                 actions.loadRecord(parsed.parsed, null, parsed.plan); // Safety report not stored in historic summary for simplicity, but could be added
+                                 navigate('results');
+                             }
+                        }} 
+                        onNewPlan={handleStart}
+                        simpleMode={appSettings.simpleMode}
+                      />;
+          case 'settings':
+               if (!user) return <SignInScreen onSignIn={() => navigate('dashboard')} />;
+               return <SettingsScreen 
+                        user={user} 
+                        onNavigate={navigate} 
+                        onLogout={handleLogout}
+                        settings={appSettings}
+                        onUpdateSettings={updateSettings}
+                      />;
+          case 'faq':
+               return <FAQScreen onBack={() => navigate('settings')} />;
+          case 'test':
+               return <TestModelsScreen onBack={() => navigate('settings')} />;
+          default:
+               return <CareTransiaLandingPage onGetStarted={handleStart} />;
       }
-    }
   };
-
-  const closeTour = () => {
-      setShowTour(false);
-      localStorage.setItem('ct_hasSeenTour', 'true');
-  };
-
-  // Define Tour Steps - Updated for "Recommended Journey" Selection Flow
-  const tourSteps: TourStep[] = [
-      {
-          targetId: 'select-papers',
-          title: 'What do you have?',
-          description: 'Start by selecting the type of information you want to organize. Most people start with Discharge Papers.'
-      },
-      {
-          targetId: 'select-bottles',
-          title: 'Quick Scan',
-          description: 'You can also simply snap photos of pill bottles to get a medication schedule.'
-      }
-  ];
-
-  // Route Guards / Logic
-  const activeView = currentView;
-  const isVerifyingOrGenerating = ui.status === 'verifying' || ui.status === 'generating';
-
-  // Redirect to landing if results accessed without data (optional, but good UX)
-  useEffect(() => {
-    if (
-      activeView === 'results' &&
-      !results.parsedEpisode &&
-      ui.status !== 'analyzing'
-    ) {
-      if (!sessionStorage.getItem('ct_parsedEpisode')) {
-        navigate('landing');
-      }
-    }
-  }, [activeView, results.parsedEpisode, ui.status]);
-
-  if (authLoading) {
-    return (
-      <div className="h-screen w-full flex items-center justify-center bg-slate-50">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
-      </div>
-    );
-  }
-
-  // Calculate Base Font Class
-  const baseFontClass = appSettings.fontSize === 'large' ? 'text-lg' : 'text-base';
 
   return (
-    <div className={`min-h-screen bg-slate-50 font-sans text-slate-900 flex flex-col ${baseFontClass}`}>
-      {/* Calm Mode Styles Injection */}
-      {appSettings.calmMode && (
-          <style>{`
-            .calm-mode *, .calm-mode ::before, .calm-mode ::after {
-                animation-duration: 2s !important; /* Slow down general animations */
-                transition-duration: 0.5s !important;
-            }
-            .calm-mode .animate-pulse, 
-            .calm-mode .animate-bounce,
-            .calm-mode .animate-float {
-                animation: none !important; /* Disable active movement */
-            }
-          `}</style>
-      )}
-
-      <a 
-        href="#main-content" 
-        className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 z-[100] px-6 py-3 bg-white text-blue-700 font-bold rounded-lg shadow-xl border-2 border-blue-600 outline-none focus:ring-4 focus:ring-blue-300 transition-all min-h-[44px] flex items-center"
-      >
-        Skip to main content
-      </a>
-
-      <OnboardingTour 
-         steps={tourSteps} 
-         isOpen={showTour && activeView === 'intake'} 
-         onComplete={closeTour}
-         onSkip={closeTour}
-      />
-
-      <LiveAssistant
-        isOpen={showLiveAssistant}
-        onClose={() => setShowLiveAssistant(false)}
-      />
-
-      <Navbar
-        onHomeClick={handleHome}
-        currentView={activeView}
+    <div className={`min-h-screen pb-20 md:pb-0 font-sans text-slate-900 ${appSettings.fontSize === 'large' ? 'text-lg' : 'text-base'}`}>
+      <Navbar 
+        onHomeClick={() => navigate(user ? 'dashboard' : 'landing')} 
+        currentView={currentView}
         user={user}
-        onSignIn={handleSignIn}
+        onSignIn={() => navigate('signin')}
         onLogout={handleLogout}
-        onSettingsClick={handleSettings}
+        onSettingsClick={() => navigate('settings')}
         onLiveClick={() => setShowLiveAssistant(true)}
-        onNavigate={(path) => {
-            navigate(path);
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-        }}
-        hasActivePlan={!!results.parsedEpisode}
+        onNavigate={navigate}
+        hasActivePlan={hasActivePlan}
       />
-
-      <main id="main-content" className="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 relative focus:outline-none" tabIndex={-1}>
-        {/* VIEW: Landing */}
-        {activeView === 'landing' && (
-          <div className="animate-fade-in">
-            <CareTransiaLandingPage onGetStarted={handleStart} />
-          </div>
-        )}
-
-        {/* VIEW: Sign In */}
-        {activeView === 'signin' && (
-          <SignInScreen onSignIn={() => {}} />
-          /* Navigation handled by auth listener, no-op passed */
-        )}
-
-        {/* VIEW: Dashboard */}
-        {activeView === 'dashboard' && user && (
-          <DashboardScreen
-            user={user}
-            onViewRecord={handleViewRecord}
-            onNewPlan={handleStart}
-            simpleMode={appSettings.simpleMode}
-          />
-        )}
-
-        {/* Fallback if on dashboard but not logged in */}
-        {activeView === 'dashboard' && !user && (
-          <div className="text-center py-20">
-            <p className="text-slate-500 mb-4">
-              Please sign in to view your dashboard.
-            </p>
-            <button
-              onClick={handleSignIn}
-              className="text-blue-600 font-bold underline focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-sm min-h-[44px] min-w-[44px]"
-            >
-              Sign In
-            </button>
-          </div>
-        )}
-
-        {/* VIEW: Intake OR Verification */}
-        {activeView === 'intake' && (
-          <div className="animate-fade-in-up pb-24">
-            {/* Show Verification View if status is verifying or generating */}
-            {isVerifyingOrGenerating && results.parsedEpisode ? (
-                <VerificationView 
-                    data={results.parsedEpisode}
-                    consistency={results.consistencyReport}
-                    onConfirm={actions.confirmAndGenerate}
-                    isLoading={ui.status === 'generating'}
-                    progressMsg={ui.progressMsg}
-                />
-            ) : (
-                <CareTransiaIntake
-                  patientInfo={intake.patientInfo}
-                  setPatientInfo={intake.setPatientInfo}
-                  files={intake.files}
-                  setFiles={intake.setFiles}
-                  notes={intake.notes}
-                  setNotes={intake.setNotes}
-                  onAnalyze={actions.analyze}
-                  isLoading={ui.status === 'analyzing'}
-                  progressMsg={ui.progressMsg}
-                  onLoadDemo={actions.loadDemoData}
-                  // Pass enhanced error handling props
-                  status={ui.status}
-                  errorMsg={ui.errorMsg}
-                  onDismissError={ui.dismissError}
-                  isOffline={ui.isOffline}
-                />
-            )}
-          </div>
-        )}
-
-        {/* VIEW: Results */}
-        {activeView === 'results' && results.parsedEpisode && (
-          <div className="animate-fade-in pb-24">
-            <CareTransiaResults
-              data={results.parsedEpisode}
-              consistency={results.consistencyReport}
-              carePlan={results.carePlan}
-              onReset={handleReset}
-              simpleMode={appSettings.simpleMode}
-              onBack={() => navigate('intake')}
-              onDashboard={user ? () => navigate('dashboard') : undefined}
-            />
-          </div>
-        )}
-
-        {/* VIEW: Settings Hub */}
-        {activeView === 'settings' && user && (
-          <SettingsScreen
-            user={user}
-            onNavigate={navigate}
-            onLogout={handleLogout}
-            settings={appSettings}
-            onUpdateSettings={updateSettings}
-          />
-        )}
-
-        {/* VIEW: Test Models (Sub-view of Settings) */}
-        {activeView === 'test' && user && (
-          <TestModelsScreen onBack={handleSettings} />
-        )}
-
-        {/* VIEW: FAQ / Support */}
-        {activeView === 'faq' && user && (
-          <FAQScreen onBack={handleSettings} />
-        )}
+      
+      <main className="pt-6 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+        {renderView()}
       </main>
 
-      {user && (
-        <BottomNav
-          currentView={activeView}
-          onNavigate={(path) => {
-            navigate(path);
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-          }}
-          onLiveClick={() => setShowLiveAssistant(true)}
-          hasActivePlan={!!results.parsedEpisode}
-          isLiveActive={showLiveAssistant}
-        />
-      )}
+      <BottomNav 
+        currentView={currentView} 
+        onNavigate={navigate} 
+        onLiveClick={() => setShowLiveAssistant(true)}
+        hasActivePlan={hasActivePlan}
+        isLiveActive={isLiveActive}
+      />
 
-      {/* Hide footer on authenticated screens to avoid clutter with bottom nav */}
-      {!user && (
-        <footer className="bg-white border-t border-slate-100 py-8 mt-auto">
-          <div className="max-w-7xl mx-auto px-4 text-center text-slate-400 text-sm">
-            <p>
-              © {new Date().getFullYear()} CareTransia. A prototype for
-              demonstration purposes.
-            </p>
-            <p className="mt-2 text-sm">
-              Not for medical emergencies. Always consult your doctor.
-            </p>
-          </div>
-        </footer>
-      )}
+      <LiveAssistant 
+        isOpen={showLiveAssistant} 
+        onClose={() => setShowLiveAssistant(false)} 
+      />
+
+      {/* Onboarding Tour */}
+      <OnboardingTour 
+          isOpen={showTour} 
+          onComplete={() => { setShowTour(false); localStorage.setItem('ct_hasSeenTour', 'true'); }}
+          onSkip={() => { setShowTour(false); localStorage.setItem('ct_hasSeenTour', 'true'); }}
+          steps={[
+              { targetId: 'intake-patient-info', title: "Patient Details", description: "Start by entering basic info about who the care plan is for." },
+              { targetId: 'intake-upload-section', title: "Upload Documents", description: "Take photos of discharge papers or pill bottles here. The AI will read them automatically." },
+              { targetId: 'intake-agent-container', title: "AI Assistant", description: "Or just talk to the assistant! It can guide you through the whole process." },
+              { targetId: 'intake-analyze-btn', title: "Generate Plan", description: "When ready, click here to build your personalized care plan." }
+          ]}
+      />
+
     </div>
   );
 }
 
-const rootElement = document.getElementById('root');
-if (rootElement) {
-  createRoot(rootElement).render(<CareTransiaApp />);
-}
+const root = createRoot(document.getElementById('root')!);
+root.render(<CareTransiaApp />);

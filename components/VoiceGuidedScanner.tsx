@@ -2,7 +2,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ai } from '../services/gemini';
 import { AppConfig } from '../config';
-import { Modality, type LiveServerMessage } from '@google/genai';
+import type { LiveServerMessage } from '@google/genai';
 import { Icons } from './ui';
 
 interface VoiceGuidedScannerProps {
@@ -91,8 +91,8 @@ export default function VoiceGuidedScanner({ onCapture, onClose }: VoiceGuidedSc
             }
           },
           config: {
-            // Use Modality enum to avoid potential issues
-            responseModalities: [Modality.AUDIO],
+            // Use string literal 'AUDIO' to avoid potential enum import issues
+            responseModalities: ['AUDIO'] as any,
             outputAudioTranscription: {}, 
             systemInstruction: SCANNER_SYSTEM_PROMPT,
             speechConfig: {
@@ -141,7 +141,9 @@ export default function VoiceGuidedScanner({ onCapture, onClose }: VoiceGuidedSc
     // Handle Audio Output
     const audioPart = message.serverContent?.modelTurn?.parts?.find(p => p.inlineData?.mimeType?.startsWith('audio'));
     if (audioPart?.inlineData?.data && outputContextRef.current) {
-      playAudioResponse(audioPart.inlineData.data);
+      if (isAudioEnabled) {
+          playAudioResponse(audioPart.inlineData.data);
+      }
     }
 
     // Handle Text Response (from transcription) for quality assessment
@@ -300,7 +302,8 @@ export default function VoiceGuidedScanner({ onCapture, onClose }: VoiceGuidedSc
   };
 
   const toggleAudio = async () => {
-      if (outputContextRef.current) {
+      // If turning ON, ensure context is resumed
+      if (!isAudioEnabled && outputContextRef.current) {
           if (outputContextRef.current.state === 'suspended') {
               await outputContextRef.current.resume();
           }
@@ -361,7 +364,8 @@ export default function VoiceGuidedScanner({ onCapture, onClose }: VoiceGuidedSc
             {/* Audio Toggle (Forces Resume) */}
             <button 
                 onClick={toggleAudio}
-                className="bg-white/20 p-2 rounded-full text-white backdrop-blur-sm hover:bg-white/30"
+                className={`p-2 rounded-full text-white backdrop-blur-sm transition-colors ${isAudioEnabled ? 'bg-white/20 hover:bg-white/30' : 'bg-red-500/50 hover:bg-red-500/70'}`}
+                title={isAudioEnabled ? "Mute Voice Guidance" : "Enable Voice Guidance"}
             >
                 {isAudioEnabled ? <Icons.Speaker className="w-6 h-6" /> : <Icons.Stop className="w-6 h-6" />}
             </button>

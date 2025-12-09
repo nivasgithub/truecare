@@ -1,8 +1,12 @@
+
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { Card, Icons, Button } from './ui';
 import { UserProfile, HistoricalRecord, ParsedEpisode, FormattedCarePlan, PlanItem } from '../types';
 import { fetchUserRecords } from '../services/firebase';
+import { reminderService } from '../services/reminders';
 import AssistantChat from './AssistantChat';
+import MedicationReminderSetup from './MedicationReminderSetup';
+import RemindersManager from './RemindersManager';
 
 // --- Helper Components ---
 
@@ -52,17 +56,12 @@ function SimpleModal({ isOpen, onClose, title, children, icon: Icon, color = "bl
         aria-modal="true" 
         aria-labelledby="modal-title"
     >
-       {/* 
-          Mobile: Bottom Sheet (rounded-t-3xl, bottom-0)
-          Desktop: Centered Modal (rounded-3xl) 
-       */}
        <div 
           className="bg-white w-full sm:max-w-lg shadow-2xl overflow-hidden rounded-t-3xl sm:rounded-3xl max-h-[90vh] flex flex-col animate-slide-up-mobile sm:animate-scale-in transition-transform"
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
        >
-          {/* Mobile Drag Handle */}
           <div className="w-full flex justify-center pt-3 pb-1 sm:hidden cursor-grab active:cursor-grabbing bg-white">
               <div className="w-12 h-1.5 bg-slate-300 rounded-full"></div>
           </div>
@@ -80,9 +79,6 @@ function SimpleModal({ isOpen, onClose, title, children, icon: Icon, color = "bl
           </div>
           <div className="p-6 overflow-y-auto flex-1">
               {children}
-          </div>
-          <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end flex-shrink-0 pb-safe-bottom">
-              <button onClick={onClose} className="px-6 py-2 bg-slate-900 text-white rounded-xl font-bold text-sm hover:bg-slate-800 transition-colors focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2">Close</button>
           </div>
        </div>
     </div>
@@ -103,6 +99,8 @@ export default function DashboardScreen({ user, onViewRecord, onNewPlan, simpleM
   
   // UI State for Modals & Assistant
   const [showReminders, setShowReminders] = useState(false);
+  const [reminderMode, setReminderMode] = useState<'manager' | 'setup'>('manager');
+
   const [showWarnings, setShowWarnings] = useState(false);
   const [showMeds, setShowMeds] = useState(false);
   const [showAppts, setShowAppts] = useState(false);
@@ -111,10 +109,8 @@ export default function DashboardScreen({ user, onViewRecord, onNewPlan, simpleM
   const [showAssistant, setShowAssistant] = useState(false);
   const [assistantInitialQuery, setAssistantInitialQuery] = useState<string | undefined>(undefined);
 
-  // New Dashboard Features
   const [mood, setMood] = useState<'great' | 'okay' | 'bad' | null>(null);
 
-  // Time-aware greeting
   const greeting = useMemo(() => {
       const hour = new Date().getHours();
       if (hour < 12) return 'Good Morning';
@@ -134,25 +130,20 @@ export default function DashboardScreen({ user, onViewRecord, onNewPlan, simpleM
     loadData();
   }, [user.id]);
   
-  // Find the most recent active record
   const activeRecord = records.find(r => r.status === 'active');
   const pastRecords = records.filter(r => r.id !== activeRecord?.id);
 
-  // Streak Calculation
   const daysInRecovery = useMemo(() => {
       if (!activeRecord?.dischargeDate) return 0;
       const discharge = new Date(activeRecord.dischargeDate);
       const now = new Date();
-      // Reset time portion for pure day difference
       discharge.setHours(0,0,0,0);
       now.setHours(0,0,0,0);
-      
       const diff = now.getTime() - discharge.getTime();
       const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-      return days >= 0 ? days + 1 : 1; // Day 1 is discharge day
+      return days >= 0 ? days + 1 : 1;
   }, [activeRecord]);
 
-  // Parse active record data for Assistant & Modals
   const parsedData = useMemo(() => {
     if (!activeRecord?.fullData) return null;
     try {
@@ -170,6 +161,26 @@ export default function DashboardScreen({ user, onViewRecord, onNewPlan, simpleM
   const openAssistant = (query?: string) => {
     setAssistantInitialQuery(query);
     setShowAssistant(true);
+  };
+
+  const handleOpenReminders = async () => {
+      // Logic: If no reminders exist yet, go to setup. Else go to manager.
+      if (!user.id) return;
+      try {
+          const existing = await reminderService.getReminders(user.id);
+          
+          if (existing.length === 0 && parsedData?.parsedEpisode?.medications?.length) {
+              setReminderMode('setup');
+          } else {
+              setReminderMode('manager');
+          }
+          setShowReminders(true);
+      } catch (e) {
+          console.error("Error opening reminders", e);
+          // Fallback to manager if error (likely safe)
+          setReminderMode('manager');
+          setShowReminders(true);
+      }
   };
 
   return (
@@ -190,7 +201,6 @@ export default function DashboardScreen({ user, onViewRecord, onNewPlan, simpleM
         </div>
       </div>
 
-      {/* Mood Check-In Widget */}
       {!mood ? (
         <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4 mb-8 animate-fade-in">
             <div className="flex items-center gap-3">
@@ -225,7 +235,6 @@ export default function DashboardScreen({ user, onViewRecord, onNewPlan, simpleM
           {/* LEFT COLUMN: The "Now" (Active Care) */}
           <div className="lg:col-span-8 space-y-8">
             
-            {/* 2. Hero Card: The Active Plan */}
             {isLoading ? (
                 <div className="h-64 bg-white rounded-3xl animate-pulse flex items-center justify-center border border-slate-200">
                     <Icons.Spinner className="w-8 h-8 text-blue-400" />
@@ -236,25 +245,16 @@ export default function DashboardScreen({ user, onViewRecord, onNewPlan, simpleM
                     className="w-full text-left group relative overflow-hidden bg-gradient-to-br from-blue-600 to-indigo-700 rounded-3xl p-8 text-white shadow-2xl shadow-blue-200 cursor-pointer transition-transform hover:scale-[1.01] focus:outline-none focus:ring-4 focus:ring-blue-500 focus:ring-offset-2 appearance-none"
                     aria-label={`View active care plan for ${activeRecord.primaryCondition}`}
                 >
-                    {/* Background Decor */}
                     <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
-                    
-                    {/* Streak Counter (New) */}
                     <div className="absolute top-6 right-6 bg-white/20 backdrop-blur-md px-4 py-2 rounded-2xl text-center border border-white/10 hidden sm:block shadow-sm">
                         <div className="text-2xl font-bold text-white leading-none">{daysInRecovery}</div>
                         <div className="text-[10px] font-bold text-blue-100 uppercase tracking-wide mt-1">Days Recovery</div>
                     </div>
-
                     <div className="relative z-10">
                         <div className="flex justify-between items-start mb-6">
                             <div className="bg-white/20 backdrop-blur-md border border-white/20 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide flex items-center gap-2">
                                 <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
                                 Active Recovery
-                            </div>
-                            <div 
-                                className="p-2 rounded-full hover:bg-white/10 transition-colors sm:hidden"
-                            >
-                                <Icons.ArrowRight className="w-6 h-6 text-white group-hover:translate-x-1 transition-transform" />
                             </div>
                         </div>
 
@@ -302,7 +302,6 @@ export default function DashboardScreen({ user, onViewRecord, onNewPlan, simpleM
                 </div>
             )}
 
-            {/* 3. Daily Checklist Placeholder */}
             {activeRecord && (
               <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 md:p-8">
                   <div className="flex items-center gap-3 mb-6">
@@ -316,11 +315,9 @@ export default function DashboardScreen({ user, onViewRecord, onNewPlan, simpleM
                   </div>
 
                   <div className="space-y-3">
-                      {/* Show items if available */}
                       {parsedData?.carePlan?.patient_friendly_plan?.daily_routine?.slice(0, 3).map((item, i) => (
                           <TaskItem key={i} label={item} status="pending" />
                       ))}
-                      {/* Fallback */}
                       {(!parsedData?.carePlan?.patient_friendly_plan?.daily_routine || parsedData.carePlan.patient_friendly_plan.daily_routine.length === 0) && (
                           <p className="text-slate-400 italic">No specific daily routine found in the plan.</p>
                       )}
@@ -330,10 +327,9 @@ export default function DashboardScreen({ user, onViewRecord, onNewPlan, simpleM
 
           </div>
 
-          {/* RIGHT COLUMN: Support & History */}
           <div className="lg:col-span-4 space-y-6">
              
-             {/* 4. Quick Actions */}
+             {/* Quick Actions */}
              <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6">
                 <h3 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
                     <Icons.Settings className="w-5 h-5 text-slate-400" /> Quick Actions
@@ -351,7 +347,7 @@ export default function DashboardScreen({ user, onViewRecord, onNewPlan, simpleM
                          <span className="text-sm font-bold">Find Care</span>
                     </button>
                     <button 
-                        onClick={() => setShowReminders(true)}
+                        onClick={handleOpenReminders}
                         disabled={!activeRecord}
                         className={`p-4 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-2xl flex flex-col items-center justify-center gap-2 transition-colors focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 ${!activeRecord ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
@@ -369,7 +365,6 @@ export default function DashboardScreen({ user, onViewRecord, onNewPlan, simpleM
                 </div>
              </div>
 
-             {/* 5. Past Records */}
              {!simpleMode && (
              <div className="bg-slate-50 rounded-3xl border border-slate-200 p-6">
                 <div className="flex items-center justify-between mb-4">
@@ -397,7 +392,6 @@ export default function DashboardScreen({ user, onViewRecord, onNewPlan, simpleM
           </div>
       </div>
 
-      {/* Floating Assistant Button (FAB) */}
       <button 
         onClick={() => openAssistant()}
         className="fixed bottom-24 right-6 z-40 bg-gradient-to-tr from-blue-600 to-purple-600 text-white p-4 rounded-full shadow-xl shadow-blue-500/40 hover:scale-110 transition-transform active:scale-95 focus:outline-none focus:ring-4 focus:ring-blue-500 focus:ring-offset-2"
@@ -407,9 +401,6 @@ export default function DashboardScreen({ user, onViewRecord, onNewPlan, simpleM
         <Icons.Sparkle className="w-6 h-6" />
       </button>
 
-      {/* --- MODALS --- */}
-      
-      {/* Assistant Modal */}
       {showAssistant && (
           <AssistantChat 
               isOpen={showAssistant} 
@@ -423,32 +414,27 @@ export default function DashboardScreen({ user, onViewRecord, onNewPlan, simpleM
           />
       )}
 
-      {/* Reminders Modal */}
+      {/* Reminders Modal/Sheet */}
       <SimpleModal 
           isOpen={showReminders} 
           onClose={() => setShowReminders(false)} 
-          title="Upcoming Reminders" 
+          title={reminderMode === 'setup' ? "Setup Schedule" : "My Reminders"} 
           icon={Icons.Bell}
           color="amber"
       >
-          {parsedData?.parsedEpisode?.appointments && parsedData.parsedEpisode.appointments.length > 0 ? (
-             <div className="space-y-4">
-                 {parsedData.parsedEpisode.appointments.map((appt, i) => (
-                    <div key={i} className="bg-white border border-slate-100 p-4 rounded-xl shadow-sm">
-                        <div className="flex justify-between items-start">
-                            <h4 className="font-bold text-slate-900">{appt.specialty_or_clinic || 'Appointment'}</h4>
-                            <span className="text-xs font-bold bg-amber-100 text-amber-800 px-2 py-1 rounded-lg">{appt.type}</span>
-                        </div>
-                        <p className="text-slate-600 text-sm mt-1">{appt.target_date_or_window}</p>
-                        {appt.location && <p className="text-xs text-slate-400 mt-1 flex items-center gap-1">📍 {appt.location}</p>}
-                    </div>
-                 ))}
-             </div>
+          {reminderMode === 'setup' ? (
+              <MedicationReminderSetup 
+                  medications={parsedData?.parsedEpisode?.medications || []}
+                  userId={user.id}
+                  onComplete={() => setReminderMode('manager')}
+                  onCancel={() => setShowReminders(false)}
+              />
           ) : (
-             <div className="text-center py-8 text-slate-500">
-                <Icons.Check className="w-12 h-12 mx-auto text-slate-200 mb-2" />
-                No specific appointments scheduled in this plan.
-             </div>
+              <RemindersManager 
+                  userId={user.id}
+                  onClose={() => setShowReminders(false)}
+                  onAddMore={() => setReminderMode('setup')}
+              />
           )}
       </SimpleModal>
 

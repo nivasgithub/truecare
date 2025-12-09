@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Card, Icons, SectionTitle } from './ui';
 import { UserProfile, AppSettings } from '../types';
@@ -55,11 +56,14 @@ export default function SettingsScreen({ user, onNavigate, onLogout, settings, o
         },
         {
           id: 'notifications',
-          icon: <Icons.Alert className="w-5 h-5 text-amber-600" />,
+          icon: <Icons.Bell className="w-5 h-5 text-amber-600" />,
           label: "Notifications",
-          desc: "Configure email and SMS alerts for medication reminders.",
-          actionLabel: "Manage",
-          onClick: () => alert("Notification settings would open here.")
+          desc: "Configure medication reminders.",
+          actionLabel: "Go to Dashboard",
+          onClick: () => {
+              alert("Please configure your reminders using the 'Reminders' button on the Dashboard.");
+              onNavigate('dashboard');
+          }
         }
       ]
     },

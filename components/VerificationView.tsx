@@ -26,7 +26,7 @@ export default function VerificationView({ data, onConfirm, isLoading, progressM
 
   // Handlers for Meds
   const updateMed = (id: string, field: keyof Medication, value: string) => {
-      setMeds(prev => prev.map(m => m._id === id ? { ...m, [field]: value, verified: true } : m)); // Auto-verify on edit? Maybe. Let's keep it manual or auto. The prompt implies explicit check. Let's keep manual check required for "Safety".
+      setMeds(prev => prev.map(m => m._id === id ? { ...m, [field]: value, verified: true } : m));
   };
 
   const toggleMedVerified = (id: string) => {
@@ -34,7 +34,7 @@ export default function VerificationView({ data, onConfirm, isLoading, progressM
   };
 
   const removeMed = (id: string) => {
-      if (confirm("Are you sure you want to remove this medication?")) {
+      if (window.confirm("Are you sure you want to remove this medication?")) {
           setMeds(prev => prev.filter(m => m._id !== id));
       }
   };
@@ -49,7 +49,7 @@ export default function VerificationView({ data, onConfirm, isLoading, progressM
   };
 
   const removeAppt = (id: string) => {
-      if (confirm("Remove this appointment?")) {
+      if (window.confirm("Remove this appointment?")) {
           setAppts(prev => prev.filter(a => a._id !== id));
       }
   };
@@ -94,7 +94,6 @@ export default function VerificationView({ data, onConfirm, isLoading, progressM
   }
 
   const confidence = data.extraction_confidence || 'high';
-  const isLowConfidence = confidence === 'low' || confidence === 'medium';
   
   const doseAlertCount = consistency?.conflicts.filter(c => c.type === 'Dosage Alert').length || 0;
   const interactionCount = consistency?.conflicts.filter(c => c.type === 'Drug Interaction').length || 0;
@@ -106,7 +105,7 @@ export default function VerificationView({ data, onConfirm, isLoading, progressM
   const canProceed = unverifiedMedsCount === 0;
 
   return (
-    <div className="max-w-3xl mx-auto pb-32 animate-fade-in">
+    <div className="max-w-3xl mx-auto animate-fade-in">
         
         {/* Header Section */}
         <div className="text-center mb-8">
@@ -168,6 +167,7 @@ export default function VerificationView({ data, onConfirm, isLoading, progressM
                             
                             {/* Custom Checkbox */}
                             <button
+                                type="button"
                                 onClick={() => toggleMedVerified(med._id)}
                                 className={`mt-1 w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 ${
                                     med.verified 
@@ -192,7 +192,7 @@ export default function VerificationView({ data, onConfirm, isLoading, progressM
                                     />
                                     
                                     {/* Inline Warnings */}
-                                    <div className="flex flex-col gap-1mt-2">
+                                    <div className="flex flex-col gap-1 mt-2">
                                         {doseWarning && (
                                             <div className="inline-flex items-center gap-1 text-[10px] font-bold text-red-600 bg-red-50 px-2 py-1 rounded mt-1">
                                                 <Icons.Alert className="w-3 h-3" /> Check Dose!
@@ -235,11 +235,15 @@ export default function VerificationView({ data, onConfirm, isLoading, progressM
                                 {/* Delete Action */}
                                 <div className="md:col-span-1 flex justify-end">
                                     <button 
-                                        onClick={() => removeMed(med._id)}
-                                        className="text-slate-300 hover:text-red-500 p-1 rounded-lg transition-colors"
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            removeMed(med._id);
+                                        }}
+                                        className="text-slate-300 hover:text-red-500 p-2 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-red-500"
                                         title="Remove"
                                     >
-                                        <Icons.Trash className="w-4 h-4" />
+                                        <Icons.Trash className="w-5 h-5" />
                                     </button>
                                 </div>
                             </div>
@@ -262,13 +266,14 @@ export default function VerificationView({ data, onConfirm, isLoading, progressM
 
         {/* Appointments Section (Simplified) */}
         {appts.length > 0 && (
-            <div className="space-y-4 mb-24">
+            <div className="space-y-4 mb-8">
                 <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider px-2 mt-8">
                     Appointments
                 </h3>
                 {appts.map((appt) => (
                     <div key={appt._id} className="bg-white p-4 rounded-xl border border-slate-200 flex gap-4 items-center shadow-sm">
                          <button
+                            type="button"
                             onClick={() => toggleApptVerified(appt._id)}
                             className={`w-5 h-5 rounded border flex items-center justify-center transition-all ${
                                 appt.verified 
@@ -292,14 +297,23 @@ export default function VerificationView({ data, onConfirm, isLoading, progressM
                                 placeholder="Date/Time"
                             />
                         </div>
-                        <button onClick={() => removeAppt(appt._id)} className="text-slate-300 hover:text-red-500"><Icons.Trash className="w-4 h-4" /></button>
+                        <button 
+                            type="button"
+                            onClick={() => removeAppt(appt._id)} 
+                            className="text-slate-300 hover:text-red-500 p-2"
+                        >
+                            <Icons.Trash className="w-4 h-4" />
+                        </button>
                     </div>
                 ))}
             </div>
         )}
 
+        {/* --- SPACER FOR FIXED FOOTER --- */}
+        <div className="h-48 md:h-72 w-full pointer-events-none"></div>
+
         {/* Sticky Footer */}
-        <div className="fixed bottom-0 left-0 w-full bg-white/90 backdrop-blur-lg border-t border-slate-200 p-4 z-40">
+        <div className="fixed bottom-0 left-0 w-full bg-white/90 backdrop-blur-lg border-t border-slate-200 p-4 z-[60]">
             <div className="max-w-3xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
                 <div className="text-sm">
                     {canProceed ? (

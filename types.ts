@@ -194,3 +194,17 @@ export interface AppSettings {
   simpleMode: boolean;
   calmMode: boolean;
 }
+
+// --- Reminders ---
+export interface MedicationReminder {
+  id: string;
+  userId: string;
+  type: 'medication';
+  medicationName: string;
+  dose: string;
+  schedule: { hour: number; minute: number; label: string }[];
+  startDate: string | null;
+  endDate: string | null;
+  enabled: boolean;
+  createdAt: number;
+}
