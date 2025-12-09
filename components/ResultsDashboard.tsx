@@ -25,8 +25,13 @@ function normalizePlanItems(items: any[]): PlanItem[] {
   });
 }
 
+interface InstructionRowProps {
+  item: PlanItem;
+  type: 'checkbox' | 'bullet' | 'warning';
+}
+
 // Helper Component for Instructions with Citation
-const InstructionRow = ({ item, type }: { item: PlanItem, type: 'checkbox' | 'bullet' | 'warning' }) => {
+const InstructionRow: React.FC<InstructionRowProps> = ({ item, type }) => {
     // Recommendation: Default to showing sources for trust
     const [showSource, setShowSource] = useState(true);
     const isWarning = type === 'warning';
@@ -83,6 +88,10 @@ export default function CareTransiaResults({ data, consistency, carePlan, onRese
   const [isSimpleMode, setIsSimpleMode] = useState(initialSimpleMode);
   
   const hasIssues = consistency?.status === 'success' && (consistency.conflicts.length > 0 || consistency.gaps.length > 0);
+  const isSafetyWarning = consistency?.status === 'warning';
+  
+  // Emergency Detection
+  const isEmergency = consistency?.is_emergency === true;
 
   // Deep Safety Fallback for Plan Data with Normalization
   const rawFriendlyPlan = (carePlan?.patient_friendly_plan || {}) as any;
@@ -261,6 +270,34 @@ export default function CareTransiaResults({ data, consistency, carePlan, onRese
       { id: 'clinical', label: 'Clinical Details', icon: Icons.Shield, hidden: isSimpleMode },
       { id: 'tools', label: 'Visuals & Tools', icon: Icons.Tools }
   ].filter(t => !t.hidden);
+
+  if (isEmergency) {
+      return (
+          <div className="fixed inset-0 z-50 bg-red-600 flex items-center justify-center p-6 animate-pulse-slow">
+              <div className="bg-white rounded-3xl p-8 max-w-lg w-full text-center shadow-2xl animate-scale-in">
+                  <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                      <Icons.Alert className="w-12 h-12 text-red-600" />
+                  </div>
+                  <h1 className="text-3xl font-black text-red-700 mb-4 uppercase tracking-tight">Emergency Detected</h1>
+                  <p className="text-xl font-bold text-slate-800 mb-6">
+                      {consistency?.emergency_guidance || "Based on your input, this appears to be a medical emergency."}
+                  </p>
+                  <p className="text-slate-600 mb-8">
+                      CareTransia is an administrative tool, not a medical device. Do not rely on this app for critical care.
+                  </p>
+                  
+                  <div className="flex flex-col gap-4">
+                      <a href="tel:911" className="w-full py-4 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold text-lg shadow-xl shadow-red-200 flex items-center justify-center gap-2 transition-transform active:scale-95">
+                          <Icons.Shield className="w-6 h-6" /> Call 911 Now
+                      </a>
+                      <button onClick={onReset} className="text-slate-400 hover:text-slate-600 text-sm font-semibold underline mt-2">
+                          I understand, go back to start
+                      </button>
+                  </div>
+              </div>
+          </div>
+      );
+  }
 
   return (
     <div className="animate-fade-in space-y-6 pb-32 max-w-6xl mx-auto relative print:pb-0">
@@ -465,8 +502,21 @@ export default function CareTransiaResults({ data, consistency, carePlan, onRese
       {activeTab === 'clinical' && (
         <div className="space-y-8 animate-fade-in">
            
-           {/* Safety Check */}
-           {hasIssues && (
+           {/* Safety Check (Warning Mode) */}
+           {isSafetyWarning && (
+             <div className="bg-red-50 border border-red-200 rounded-2xl p-6 mb-6">
+                <h3 className="font-bold text-red-800 text-lg mb-2 flex items-center gap-2">
+                  <Icons.Alert className="w-6 h-6" /> Safety Check Failed
+                </h3>
+                <p className="text-red-700 text-sm">
+                   The AI could not verify your documents for conflicts or drug interactions. 
+                   <span className="font-bold"> Please manually review your original documents.</span>
+                </p>
+             </div>
+           )}
+
+           {/* Safety Check (Normal Results) */}
+           {!isSafetyWarning && hasIssues && (
              <div className="bg-amber-50 border border-amber-100 rounded-2xl p-6">
                 <h3 className="font-bold text-amber-800 text-lg mb-4 flex items-center gap-2">
                   <Icons.Alert className="w-5 h-5" /> Safety & Consistency Check
@@ -479,6 +529,18 @@ export default function CareTransiaResults({ data, consistency, carePlan, onRese
                        <ul className="space-y-2">
                          {consistency.conflicts.map((c, i) => (
                            <li key={i} className="text-sm bg-white p-3 rounded-lg border border-amber-100 shadow-sm">
+                             {/* Drug Interaction Badge */}
+                             {c.type?.toLowerCase().includes('drug') && (
+                                 <div className="inline-flex items-center gap-1 bg-red-100 text-red-700 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide mb-1 border border-red-200">
+                                     <Icons.Alert className="w-3 h-3" /> Drug Interaction
+                                 </div>
+                             )}
+                             {/* Dosage Alert Badge */}
+                             {c.type === 'Dosage Alert' && (
+                                 <div className="inline-flex items-center gap-1 bg-red-600 text-white px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide mb-1 shadow-sm">
+                                     <Icons.Alert className="w-3 h-3" /> Verify Dosage
+                                 </div>
+                             )}
                              <span className="font-bold block text-slate-800">{c.summary}</span>
                              <span className="text-slate-500">{c.details}</span>
                            </li>

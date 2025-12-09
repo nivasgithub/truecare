@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { PatientInfo, UploadedFile, ParsedEpisode, ConsistencyReport, FormattedCarePlan } from '../types';
-import { generateCareTransiaPlan } from '../api';
+import { runExtractionPhase, runPlanningPhase } from '../api';
 import { saveCarePlanToDb } from '../services/firebase';
 
 // Helper for session storage persistence
@@ -47,7 +47,7 @@ export function useCareTransiaFlow(userId?: string) {
   const [carePlan, setCarePlan] = useSessionState<FormattedCarePlan | null>('ct_carePlan', null);
   
   // UI State
-  const [status, setStatus] = useState<'idle' | 'analyzing' | 'done' | 'error'>('idle');
+  const [status, setStatus] = useState<'idle' | 'analyzing' | 'verifying' | 'generating' | 'done' | 'error'>('idle');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [progressMsg, setProgressMsg] = useState<string>('Initializing...');
   
@@ -77,28 +77,48 @@ export function useCareTransiaFlow(userId?: string) {
       setErrorMsg(null);
       setProgressMsg('Starting analysis...');
       
-      // Call the CareTransia Orchestration API
-      const result = await generateCareTransiaPlan(files, notes, patientInfo, (msg) => setProgressMsg(msg));
+      // Phase 1: Extraction & Safety Only
+      const result = await runExtractionPhase(files, notes, patientInfo, (msg) => setProgressMsg(msg));
       
       setParsedEpisode(result.parsedEpisode);
       setConsistencyReport(result.consistencyReport);
-      setCarePlan(result.carePlan);
       
-      // Save to Firebase/LocalDB if user is logged in
-      if (userId) {
-        setProgressMsg('Saving to profile...');
-        await saveCarePlanToDb(userId, {
-            parsedEpisode: result.parsedEpisode,
-            carePlan: result.carePlan
-        });
-      }
-
-      setStatus('done');
+      // Transition to Verification Step
+      setStatus('verifying'); 
     } catch (e: any) {
       console.error(e);
-      setErrorMsg(e.message || "An unexpected error occurred during analysis.");
+      setErrorMsg(e.message || "An unexpected error occurred during extraction.");
       setStatus('error');
     }
+  };
+
+  const confirmAndGenerate = async (verifiedData: ParsedEpisode) => {
+      try {
+          setStatus('generating'); 
+          setProgressMsg('Generating final plan...');
+          
+          // Update local state with user verified data
+          setParsedEpisode(verifiedData);
+
+          // Phase 2: Plan Generation
+          const plan = await runPlanningPhase(verifiedData, consistencyReport, patientInfo, (msg) => setProgressMsg(msg));
+          setCarePlan(plan);
+
+          // Save to Firebase/LocalDB if user is logged in
+          if (userId) {
+            setProgressMsg('Saving to profile...');
+            await saveCarePlanToDb(userId, {
+                parsedEpisode: verifiedData,
+                carePlan: plan
+            });
+          }
+
+          setStatus('done');
+      } catch (e: any) {
+          console.error(e);
+          setErrorMsg(e.message || "Failed to generate plan.");
+          setStatus('error');
+      }
   };
 
   const reset = () => {
@@ -145,6 +165,6 @@ export function useCareTransiaFlow(userId?: string) {
     intake: { patientInfo, setPatientInfo, files, setFiles, notes, setNotes },
     results: { parsedEpisode, consistencyReport, carePlan },
     ui: { status, errorMsg, dismissError, progressMsg, isOffline },
-    actions: { analyze, reset, loadRecord, loadDemoData }
+    actions: { analyze, confirmAndGenerate, reset, loadRecord, loadDemoData }
   };
 }

@@ -13,6 +13,7 @@ import BottomNav from './components/BottomNav';
 import LiveAssistant from './components/LiveAssistant';
 import CareTransiaLandingPage from './components/LandingPage';
 import CareTransiaIntake from './components/InputSection';
+import VerificationView from './components/VerificationView'; // Imported
 // import StatusMessage from './components/StatusMessage'; // Removed from here, moved into InputSection for tighter integration
 import CareTransiaResults from './components/ResultsDashboard';
 import SignInScreen from './components/SignInScreen';
@@ -216,6 +217,7 @@ function CareTransiaApp() {
 
   // Route Guards / Logic
   const activeView = currentView;
+  const isVerifyingOrGenerating = ui.status === 'verifying' || ui.status === 'generating';
 
   // Redirect to landing if results accessed without data (optional, but good UX)
   useEffect(() => {
@@ -331,26 +333,37 @@ function CareTransiaApp() {
           </div>
         )}
 
-        {/* VIEW: Intake */}
+        {/* VIEW: Intake OR Verification */}
         {activeView === 'intake' && (
           <div className="animate-fade-in-up pb-24">
-            <CareTransiaIntake
-              patientInfo={intake.patientInfo}
-              setPatientInfo={intake.setPatientInfo}
-              files={intake.files}
-              setFiles={intake.setFiles}
-              notes={intake.notes}
-              setNotes={intake.setNotes}
-              onAnalyze={actions.analyze}
-              isLoading={ui.status === 'analyzing'}
-              progressMsg={ui.progressMsg}
-              onLoadDemo={actions.loadDemoData}
-              // Pass enhanced error handling props
-              status={ui.status}
-              errorMsg={ui.errorMsg}
-              onDismissError={ui.dismissError}
-              isOffline={ui.isOffline}
-            />
+            {/* Show Verification View if status is verifying or generating */}
+            {isVerifyingOrGenerating && results.parsedEpisode ? (
+                <VerificationView 
+                    data={results.parsedEpisode}
+                    consistency={results.consistencyReport}
+                    onConfirm={actions.confirmAndGenerate}
+                    isLoading={ui.status === 'generating'}
+                    progressMsg={ui.progressMsg}
+                />
+            ) : (
+                <CareTransiaIntake
+                  patientInfo={intake.patientInfo}
+                  setPatientInfo={intake.setPatientInfo}
+                  files={intake.files}
+                  setFiles={intake.setFiles}
+                  notes={intake.notes}
+                  setNotes={intake.setNotes}
+                  onAnalyze={actions.analyze}
+                  isLoading={ui.status === 'analyzing'}
+                  progressMsg={ui.progressMsg}
+                  onLoadDemo={actions.loadDemoData}
+                  // Pass enhanced error handling props
+                  status={ui.status}
+                  errorMsg={ui.errorMsg}
+                  onDismissError={ui.dismissError}
+                  isOffline={ui.isOffline}
+                />
+            )}
           </div>
         )}
 

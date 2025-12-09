@@ -62,6 +62,9 @@ export interface ParsedEpisode {
   activities: Activity[];
   warnings: Warning[];
   additional_notes: string;
+  // Confidence Scoring
+  extraction_confidence?: 'high' | 'medium' | 'low';
+  low_confidence_items?: string[];
 }
 
 export interface ConsistencyIssue {
@@ -73,10 +76,13 @@ export interface ConsistencyIssue {
 }
 
 export interface ConsistencyReport {
-  status: 'success' | 'error';
+  status: 'success' | 'error' | 'warning';
   error_message: string;
   conflicts: ConsistencyIssue[];
   gaps: ConsistencyIssue[];
+  // Emergency Detection
+  is_emergency?: boolean;
+  emergency_guidance?: string;
 }
 
 // --- Technical Trace Types ---

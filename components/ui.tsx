@@ -56,6 +56,7 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
   className?: string;
   onClick?: React.MouseEventHandler<HTMLButtonElement>;
   disabled?: boolean;
+  id?: string;
 }
 
 export const Button = ({ 

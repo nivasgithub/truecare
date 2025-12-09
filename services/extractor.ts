@@ -24,6 +24,13 @@ The images may be:
 2. Multi-page Discharge Summaries.
 3. Handwritten Notes.
 
+CONFIDENCE SCORING:
+- **extraction_confidence**: Assess the clarity of the text and images.
+  - "high": Text is crisp, clear, and unambiguous.
+  - "medium": Some text is blurry, handwritten, or partially obscured.
+  - "low": Image is very blurry, low contrast, or handwriting is illegible.
+- **low_confidence_items**: List specific fields or text snippets where you had trouble reading (e.g. "Dose for Metformin", "Appointment Date").
+
 CRITICAL RULES FOR PILL BOTTLES & MED LISTS:
 - **Name**: Drug name (e.g. "Lisinopril").
 - **Dose**: Strength (e.g. "10mg", "500 mg"). Do NOT put "1 tablet" here; put that in Frequency.
@@ -67,6 +74,8 @@ Focus on extracting the "Dose" and "Frequency" for every medication found.
         properties: {
           status: { type: Type.STRING, enum: ["success", "error"] },
           error_message: { type: Type.STRING },
+          extraction_confidence: { type: Type.STRING, enum: ["high", "medium", "low"] },
+          low_confidence_items: { type: Type.ARRAY, items: { type: Type.STRING } },
           patient: {
             type: Type.OBJECT,
             properties: {
@@ -144,6 +153,8 @@ Focus on extracting the "Dose" and "Frequency" for every medication found.
   const parsedEpisode: ParsedEpisode = {
       status: rawParsed.status || 'success',
       error_message: rawParsed.error_message || '',
+      extraction_confidence: rawParsed.extraction_confidence || 'high', // Default to high if not provided, though prompt asks for it
+      low_confidence_items: Array.isArray(rawParsed.low_confidence_items) ? rawParsed.low_confidence_items : [],
       patient: rawParsed.patient || { 
           name: patientInfo.name || null, 
           age: patientInfo.age || null, 

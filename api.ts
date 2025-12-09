@@ -12,42 +12,47 @@ export { dbService } from "./services/db";
 
 // --- CareTransia Orchestration API ---
 
-export const generateCareTransiaPlan = async (
+// Phase 1: Extraction & Safety Check
+export const runExtractionPhase = async (
   files: UploadedFile[],
   notes: string,
   patientInfo: PatientInfo,
   onProgress?: (stage: string) => void
-): Promise<{
-  parsedEpisode: ParsedEpisode;
-  consistencyReport: ConsistencyReport;
-  carePlan: FormattedCarePlan;
-}> => {
+): Promise<{ parsedEpisode: ParsedEpisode; consistencyReport: ConsistencyReport }> => {
   
   if (onProgress) onProgress("Reading documents...");
-  // 1. Parse
   const parsedEpisode = await parseDischargeDocuments(files, notes, patientInfo);
   if (parsedEpisode.status === 'error') throw new Error(parsedEpisode.error_message);
 
   if (onProgress) onProgress("Checking for safety conflicts...");
-  // 2. Consistency
   let consistencyReport: ConsistencyReport = { status: 'success', error_message: '', conflicts: [], gaps: [] };
   try {
     consistencyReport = await checkConsistency(parsedEpisode);
   } catch (e) {
     console.warn("Consistency check warning:", e);
   }
+  return { parsedEpisode, consistencyReport };
+};
 
+// Phase 2: Care Plan Generation (After Verification)
+export const runPlanningPhase = async (
+  parsedEpisode: ParsedEpisode,
+  consistencyReport: ConsistencyReport | null,
+  patientInfo: PatientInfo,
+  onProgress?: (stage: string) => void
+): Promise<FormattedCarePlan> => {
+  
   if (onProgress) onProgress("Building your care plan...");
-  // 3. Care Plan
-  let carePlan: FormattedCarePlan;
+  
+  const safeReport = consistencyReport || { status: 'success', error_message: '', conflicts: [], gaps: [] };
+  
   try {
-      carePlan = await generateCarePlan(parsedEpisode, consistencyReport, patientInfo);
+      const carePlan = await generateCarePlan(parsedEpisode, safeReport, patientInfo);
       if (carePlan.status === 'error') throw new Error(carePlan.error_message);
+      return carePlan;
   } catch (e: any) {
-      console.error("Care Plan Generation Failed, attempting partial return", e);
-      // Fallback: If extraction worked but plan gen failed, return partial structure 
-      // so user can at least see extracted meds/appointments in "Clinical View"
-      carePlan = {
+      console.error("Care Plan Generation Failed", e);
+      return {
           status: 'error',
           error_message: e.message || "Plan generation incomplete.",
           patient_friendly_plan: {
@@ -60,7 +65,20 @@ export const generateCareTransiaPlan = async (
           technical_summary_for_clinicians: "Automatic plan generation failed. Please refer to the raw extracted data."
       };
   }
+};
 
-  if (onProgress) onProgress("Finalizing...");
+// Legacy/Combined function
+export const generateCareTransiaPlan = async (
+  files: UploadedFile[],
+  notes: string,
+  patientInfo: PatientInfo,
+  onProgress?: (stage: string) => void
+): Promise<{
+  parsedEpisode: ParsedEpisode;
+  consistencyReport: ConsistencyReport;
+  carePlan: FormattedCarePlan;
+}> => {
+  const { parsedEpisode, consistencyReport } = await runExtractionPhase(files, notes, patientInfo, onProgress);
+  const carePlan = await runPlanningPhase(parsedEpisode, consistencyReport, patientInfo, onProgress);
   return { parsedEpisode, consistencyReport, carePlan };
 };
