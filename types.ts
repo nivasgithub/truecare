@@ -1,4 +1,5 @@
 
+
 export interface PatientInfo {
   name: string;
   age: string;
@@ -12,6 +13,8 @@ export interface UploadedFile {
   data: string; // Base64
   mimeType: string;
   preview: string;
+  name?: string; // Added for display
+  size?: string; // Added for display
 }
 
 export interface Medication {
@@ -171,8 +174,9 @@ export interface ChatMessage {
   text: string;
   timestamp: number;
   // For Intake Agent
-  widget?: 'upload' | 'camera' | 'analyze' | 'none';
+  widget?: 'upload' | 'camera' | 'analyze' | 'upload_options' | 'none' | 'analysis_progress';
   extractedInfo?: Partial<PatientInfo>;
+  fileId?: string; // Reference to a staged file
 }
 
 export interface GeneratedVideo {

@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { UserProfile } from '../types';
 import { Icons } from './ui';
@@ -75,12 +76,7 @@ export default function Navbar({ onHomeClick, currentView, user, onSignIn, onLog
             
             <div className="flex items-center gap-6">
               <div className="hidden md:flex gap-4 text-sm font-medium text-slate-600">
-                {currentView === 'landing' ? (
-                  <>
-                    <button onClick={() => scrollToSection('how-it-works')} className="cursor-pointer hover:text-slate-900 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-md px-3 py-2">How it works</button>
-                    <button onClick={() => scrollToSection('safety')} className="cursor-pointer hover:text-slate-900 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-md px-3 py-2">Safety</button>
-                  </>
-                ) : (
+                {user ? (
                   <>
                     <button 
                         onClick={onHomeClick} 
@@ -103,11 +99,18 @@ export default function Navbar({ onHomeClick, currentView, user, onSignIn, onLog
                       Add
                     </button>
                   </>
+                ) : (
+                  currentView === 'landing' ? (
+                    <>
+                      <button onClick={() => scrollToSection('how-it-works')} className="cursor-pointer hover:text-slate-900 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-md px-3 py-2">How it works</button>
+                      <button onClick={() => scrollToSection('safety')} className="cursor-pointer hover:text-slate-900 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-md px-3 py-2">Safety</button>
+                    </>
+                  ) : null
                 )}
               </div>
               
               <div className="flex items-center gap-4">
-                {/* Live Help Button */}
+                {/* Live Help Button - Available to everyone including anonymous users */}
                 <button 
                   onClick={onLiveClick}
                   className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-red-50 text-red-600 rounded-full text-xs font-bold hover:bg-red-100 transition-colors border border-red-100 animate-pulse focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
@@ -156,9 +159,7 @@ export default function Navbar({ onHomeClick, currentView, user, onSignIn, onLog
                     <button onClick={onSignIn} className="text-sm font-bold text-slate-700 hover:text-blue-600 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-md px-2 py-1">
                       Sign In
                     </button>
-                    <button onClick={onSignIn} className="hidden sm:block text-xs font-semibold px-4 py-2 bg-slate-900 text-white rounded-full hover:bg-slate-800 transition-colors shadow-lg shadow-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2">
-                      Get Started
-                    </button>
+                    {/* Get Started removed as duplicates functionality */}
                   </>
                 )}
               </div>

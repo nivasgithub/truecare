@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Icons, Card, Button, Badge } from './ui';
 import { 
@@ -7,9 +8,10 @@ import {
 
 interface SignInScreenProps {
   onSignIn: () => void;
+  onBack: () => void;
 }
 
-export default function SignInScreen({ onSignIn }: SignInScreenProps) {
+export default function SignInScreen({ onSignIn, onBack }: SignInScreenProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -60,7 +62,22 @@ export default function SignInScreen({ onSignIn }: SignInScreenProps) {
   };
 
   return (
-    <div className="min-h-[80vh] flex items-center justify-center px-4 animate-fade-in">
+    <div className="min-h-[80vh] flex items-center justify-center px-4 animate-fade-in relative">
+      
+      {/* Modern Back Button */}
+      <button 
+        onClick={onBack}
+        className="absolute top-0 left-0 p-2 text-slate-400 hover:text-slate-700 transition-colors flex items-center gap-3 group"
+        title="Return to Home"
+      >
+        <div className="w-10 h-10 bg-white rounded-full border border-slate-200 shadow-sm flex items-center justify-center group-hover:border-blue-300 group-hover:text-blue-600 transition-all group-hover:shadow-md group-active:scale-95">
+             <Icons.ArrowRight className="w-5 h-5 rotate-180" />
+        </div>
+        <span className="font-bold text-sm hidden sm:inline opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300 text-slate-600">
+            Back to Home
+        </span>
+      </button>
+
       <div className="max-w-md w-full">
         
         <div className="text-center mb-8">

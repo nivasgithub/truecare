@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 // import { onAuthStateChanged } from 'firebase/auth'; // Removed
@@ -51,6 +52,9 @@ function CareTransiaApp() {
   const [showLiveAssistant, setShowLiveAssistant] = useState(false);
   const [user, setUser] = useState<UserProfile | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
+  
+  // Session Management for Intake Reset
+  const [intakeSessionId, setIntakeSessionId] = useState(0);
   
   // Accessibility Settings
   const [appSettings, setAppSettings] = useState<AppSettings>({
@@ -148,6 +152,8 @@ function CareTransiaApp() {
   const handleStart = () => {
     // Crucial: Reset state to ensure no old data (files/info) persists when starting a new plan
     actions.reset();
+    // Increment session ID to force Intake component remount (clearing local UI state like chat history)
+    setIntakeSessionId(prev => prev + 1);
     navigate('intake');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -157,6 +163,15 @@ function CareTransiaApp() {
     setUser(null);
     actions.reset();
     navigate('landing');
+  };
+
+  // Custom Navigation Handler for Menu Items
+  const handleMenuNavigate = (path: string) => {
+      if (path === 'intake') {
+          handleStart();
+      } else {
+          navigate(path);
+      }
   };
 
   const hasActivePlan = !!results.carePlan;
@@ -171,13 +186,14 @@ function CareTransiaApp() {
               return <CareTransiaLandingPage onGetStarted={handleStart} />;
           case 'intake':
               return (
-                <>
+                <React.Fragment key={intakeSessionId}>
                   <CareTransiaIntake 
                       patientInfo={intake.patientInfo} setPatientInfo={intake.setPatientInfo}
                       files={intake.files} setFiles={intake.setFiles}
                       notes={intake.notes} setNotes={intake.setNotes}
                       onAnalyze={actions.analyze}
-                      isLoading={ui.status === 'analyzing' || ui.status === 'verifying' || ui.status === 'generating'}
+                      onReview={actions.startVerification}
+                      isLoading={ui.status === 'analyzing'}
                       progressMsg={ui.progressMsg}
                       onLoadDemo={actions.loadDemoData}
                       status={ui.status}
@@ -200,12 +216,13 @@ function CareTransiaApp() {
                                       onConfirm={actions.confirmAndGenerate}
                                       isLoading={ui.status === 'generating'}
                                       progressMsg={ui.progressMsg}
+                                      onBack={ui.dismissError} // Pass dismissError to return to intake (sets status to idle)
                                   />
                               </div>
                           </div>
                       </div>
                   )}
-                </>
+                </React.Fragment>
               );
           case 'results':
                if (!results.parsedEpisode) return <div className="text-center py-20">No plan loaded. <button onClick={() => navigate('intake')} className="text-blue-600 underline">Start New</button></div>;
@@ -219,9 +236,9 @@ function CareTransiaApp() {
                         onDashboard={() => navigate('dashboard')}
                       />;
           case 'signin':
-               return <SignInScreen onSignIn={() => navigate('dashboard')} />;
+               return <SignInScreen onSignIn={() => navigate('dashboard')} onBack={() => navigate('landing')} />;
           case 'dashboard':
-               if (!user) return <SignInScreen onSignIn={() => navigate('dashboard')} />;
+               if (!user) return <SignInScreen onSignIn={() => navigate('dashboard')} onBack={() => navigate('landing')} />;
                return <DashboardScreen 
                         user={user} 
                         onViewRecord={(id, fullData) => {
@@ -235,7 +252,7 @@ function CareTransiaApp() {
                         simpleMode={appSettings.simpleMode}
                       />;
           case 'settings':
-               if (!user) return <SignInScreen onSignIn={() => navigate('dashboard')} />;
+               if (!user) return <SignInScreen onSignIn={() => navigate('dashboard')} onBack={() => navigate('landing')} />;
                return <SettingsScreen 
                         user={user} 
                         onNavigate={navigate} 
@@ -262,7 +279,7 @@ function CareTransiaApp() {
         onLogout={handleLogout}
         onSettingsClick={() => navigate('settings')}
         onLiveClick={() => setShowLiveAssistant(true)}
-        onNavigate={navigate}
+        onNavigate={handleMenuNavigate}
         hasActivePlan={hasActivePlan}
       />
       
@@ -272,7 +289,7 @@ function CareTransiaApp() {
 
       <BottomNav 
         currentView={currentView} 
-        onNavigate={navigate} 
+        onNavigate={handleMenuNavigate} 
         onLiveClick={() => setShowLiveAssistant(true)}
         hasActivePlan={hasActivePlan}
         isLiveActive={isLiveActive}

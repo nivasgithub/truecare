@@ -316,24 +316,14 @@ export default function CareTransiaResults({ data, consistency, carePlan, onRese
       }
   };
 
-  const handleSetReminder = async (appt: any) => {
-    if (!("Notification" in window)) {
-      alert("This browser does not support desktop notifications");
-      return;
-    }
-    let permission = Notification.permission;
-    if (permission === "default") {
-      permission = await Notification.requestPermission();
-    }
-    if (permission === "granted") {
-      new Notification("Reminder Set", {
-        body: `We'll remind you about: ${appt.specialty_or_clinic || 'Appointment'} - ${appt.target_date_or_window}`,
-        icon: '/favicon.ico'
-      });
-      alert(`Reminder scheduled for ${appt.target_date_or_window}. You will be notified.`);
-    } else {
-      alert("Please allow notifications to set reminders.");
-    }
+  const handleSetReminder = (appt: any) => {
+      // Use Google Calendar for reliable appointment reminders
+      const title = encodeURIComponent(`${appt.specialty_or_clinic || 'Doctor Appointment'} (${appt.type})`);
+      const details = encodeURIComponent(`Instructions: ${appt.prep_instructions || 'None'}\n\nOriginal Text: ${appt.target_date_or_window}\n\nManaged by CareTransia`);
+      const location = encodeURIComponent(appt.location || '');
+      
+      const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&details=${details}&location=${location}`;
+      window.open(url, '_blank');
   };
 
   const handleShare = () => {
@@ -713,8 +703,8 @@ export default function CareTransiaResults({ data, consistency, carePlan, onRese
                        <td className="p-4">{appt.target_date_or_window}</td>
                        <td className="p-4 text-slate-600 max-w-xs">{appt.location || 'TBD'}</td>
                        <td className="p-4">
-                           <button onClick={() => handleSetReminder(appt)} className="text-blue-600 font-bold hover:underline focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-sm">
-                               Set Reminder
+                           <button onClick={() => handleSetReminder(appt)} className="text-blue-600 font-bold hover:underline focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-sm flex items-center gap-1">
+                               <Icons.Calendar className="w-3 h-3" /> Set Reminder
                            </button>
                        </td>
                      </tr>

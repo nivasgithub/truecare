@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { Card, Icons, Button } from './ui';
 import { UserProfile, HistoricalRecord, ParsedEpisode, FormattedCarePlan, PlanItem } from '../types';
@@ -181,6 +180,16 @@ export default function DashboardScreen({ user, onViewRecord, onNewPlan, simpleM
           setReminderMode('manager');
           setShowReminders(true);
       }
+  };
+
+  const handleSetReminder = (appt: any) => {
+      // Use Google Calendar for reliable appointment reminders
+      const title = encodeURIComponent(`${appt.specialty_or_clinic || 'Doctor Appointment'} (${appt.type})`);
+      const details = encodeURIComponent(`Instructions: ${appt.prep_instructions || 'None'}\n\nOriginal Text: ${appt.target_date_or_window}\n\nManaged by CareTransia`);
+      const location = encodeURIComponent(appt.location || '');
+      
+      const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&details=${details}&location=${location}`;
+      window.open(url, '_blank');
   };
 
   return (
@@ -526,6 +535,11 @@ export default function DashboardScreen({ user, onViewRecord, onNewPlan, simpleM
                         <p className="text-slate-600 text-sm mt-1 font-semibold">{appt.target_date_or_window}</p>
                         {appt.location && <p className="text-xs text-slate-500 mt-2 flex items-center gap-1">📍 {appt.location}</p>}
                         {appt.prep_instructions && <p className="text-xs text-slate-400 mt-1 italic">Note: {appt.prep_instructions}</p>}
+                        <div className="mt-4 flex justify-end">
+                            <button onClick={() => handleSetReminder(appt)} className="text-blue-600 font-bold hover:underline focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-sm flex items-center gap-1">
+                                <Icons.Calendar className="w-4 h-4" /> Set Reminder
+                            </button>
+                        </div>
                     </div>
                  ))}
              </div>

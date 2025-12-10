@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { PatientInfo, UploadedFile, ParsedEpisode, ConsistencyReport, FormattedCarePlan } from '../types';
 import { runExtractionPhase, runPlanningPhase } from '../api';
@@ -47,7 +48,7 @@ export function useCareTransiaFlow(userId?: string) {
   const [carePlan, setCarePlan] = useSessionState<FormattedCarePlan | null>('ct_carePlan', null);
   
   // UI State
-  const [status, setStatus] = useState<'idle' | 'analyzing' | 'verifying' | 'generating' | 'done' | 'error'>('idle');
+  const [status, setStatus] = useState<'idle' | 'analyzing' | 'analysis_complete' | 'verifying' | 'generating' | 'done' | 'error'>('idle');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [progressMsg, setProgressMsg] = useState<string>('Initializing...');
   
@@ -83,13 +84,17 @@ export function useCareTransiaFlow(userId?: string) {
       setParsedEpisode(result.parsedEpisode);
       setConsistencyReport(result.consistencyReport);
       
-      // Transition to Verification Step
-      setStatus('verifying'); 
+      // Transition to Manual Confirmation Step instead of auto-verifying
+      setStatus('analysis_complete'); 
     } catch (e: any) {
       console.error(e);
       setErrorMsg(e.message || "An unexpected error occurred during extraction.");
       setStatus('error');
     }
+  };
+
+  const startVerification = () => {
+      setStatus('verifying');
   };
 
   const confirmAndGenerate = async (verifiedData: ParsedEpisode) => {
@@ -165,6 +170,6 @@ export function useCareTransiaFlow(userId?: string) {
     intake: { patientInfo, setPatientInfo, files, setFiles, notes, setNotes },
     results: { parsedEpisode, consistencyReport, carePlan },
     ui: { status, errorMsg, dismissError, progressMsg, isOffline },
-    actions: { analyze, confirmAndGenerate, reset, loadRecord, loadDemoData }
+    actions: { analyze, startVerification, confirmAndGenerate, reset, loadRecord, loadDemoData }
   };
 }

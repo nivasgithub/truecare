@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { ParsedEpisode, Medication, Appointment, ConsistencyReport } from '../types';
 import { Icons, Card, Button, Badge } from './ui';
@@ -8,13 +9,14 @@ interface VerificationViewProps {
   onConfirm: (updatedData: ParsedEpisode) => void;
   isLoading: boolean;
   progressMsg?: string;
+  onBack: () => void;
 }
 
 // Wrapper types for local state
 type EditableMedication = Medication & { _id: string; verified: boolean };
 type EditableAppointment = Appointment & { _id: string; verified: boolean };
 
-export default function VerificationView({ data, onConfirm, isLoading, progressMsg, consistency }: VerificationViewProps) {
+export default function VerificationView({ data, onConfirm, isLoading, progressMsg, consistency, onBack }: VerificationViewProps) {
   // Initialize local state with unique IDs for stable rendering and verification tracking
   const [meds, setMeds] = useState<EditableMedication[]>([]);
   const [appts, setAppts] = useState<EditableAppointment[]>([]);
@@ -105,7 +107,28 @@ export default function VerificationView({ data, onConfirm, isLoading, progressM
   const canProceed = unverifiedMedsCount === 0;
 
   return (
-    <div className="max-w-3xl mx-auto animate-fade-in">
+    <div className="max-w-3xl mx-auto animate-fade-in relative">
+        
+        {/* Back Button (Top Left) */}
+        <div className="absolute top-0 left-0 md:-ml-16 hidden md:block">
+            <button 
+                onClick={onBack}
+                className="p-3 rounded-full bg-white hover:bg-slate-50 text-slate-400 hover:text-slate-600 border border-slate-200 shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-blue-500"
+                title="Back to Uploads"
+            >
+                <Icons.ArrowRight className="w-5 h-5 rotate-180" />
+            </button>
+        </div>
+
+        {/* Mobile Back Button */}
+        <div className="md:hidden mb-4">
+             <button 
+                onClick={onBack}
+                className="flex items-center gap-2 text-slate-500 font-bold text-sm"
+            >
+                <Icons.ArrowRight className="w-4 h-4 rotate-180" /> Back to Uploads
+            </button>
+        </div>
         
         {/* Header Section */}
         <div className="text-center mb-8">
@@ -326,13 +349,21 @@ export default function VerificationView({ data, onConfirm, isLoading, progressM
                         </span>
                     )}
                 </div>
-                <Button 
-                    onClick={handleConfirm} 
-                    disabled={!canProceed}
-                    className={`w-full md:w-auto px-8 py-3 text-lg shadow-xl transition-all ${canProceed ? 'shadow-blue-500/20' : 'opacity-50 cursor-not-allowed bg-slate-300'}`}
-                >
-                    Continue to Care Plan <Icons.ArrowRight className="w-5 h-5" />
-                </Button>
+                <div className="flex gap-3 w-full md:w-auto">
+                    <button 
+                        onClick={onBack}
+                        className="px-6 py-3 font-bold text-slate-500 hover:bg-slate-100 rounded-xl transition-colors md:hidden"
+                    >
+                        Back
+                    </button>
+                    <Button 
+                        onClick={handleConfirm} 
+                        disabled={!canProceed}
+                        className={`flex-1 md:flex-none px-8 py-3 text-lg shadow-xl transition-all ${canProceed ? 'shadow-blue-500/20' : 'opacity-50 cursor-not-allowed bg-slate-300'}`}
+                    >
+                        Continue to Care Plan <Icons.ArrowRight className="w-5 h-5" />
+                    </Button>
+                </div>
             </div>
         </div>
 

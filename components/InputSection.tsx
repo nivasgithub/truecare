@@ -15,12 +15,13 @@ interface CareTransiaIntakeProps {
   files: UploadedFile[];
   setFiles: React.Dispatch<React.SetStateAction<UploadedFile[]>>;
   notes: string;
-  setNotes: (s: string) => void;
+  setNotes: React.Dispatch<React.SetStateAction<string>>;
   onAnalyze: () => void;
+  onReview?: () => void; // Added for manual review step
   isLoading: boolean;
   progressMsg?: string;
   onLoadDemo?: () => void;
-  status?: 'idle' | 'analyzing' | 'verifying' | 'generating' | 'done' | 'error';
+  status?: 'idle' | 'analyzing' | 'analysis_complete' | 'verifying' | 'generating' | 'done' | 'error';
   errorMsg?: string | null;
   onDismissError?: () => void;
   isOffline?: boolean;
@@ -32,7 +33,7 @@ export default function CareTransiaIntake({
   patientInfo, setPatientInfo, 
   files, setFiles, 
   notes, setNotes, 
-  onAnalyze, isLoading,
+  onAnalyze, onReview, isLoading,
   progressMsg = "Processing...",
   onLoadDemo,
   status, errorMsg, onDismissError, isOffline
@@ -63,17 +64,30 @@ export default function CareTransiaIntake({
   }, []);
 
   // --- Common Handlers ---
-  const addFile = (dataUrl: string, mimeType: string) => {
-    setFiles(prev => [...prev, {
-      id: Math.random().toString(36).substr(2, 9),
-      data: dataUrl.split(',')[1],
-      mimeType: mimeType,
-      preview: dataUrl
-    }]);
+  
+  // Updated addFile to take full object, allowing ID control from caller if needed
+  const addFile = (fileObj: UploadedFile) => {
+    setFiles(prev => [...prev, fileObj]);
     
     // Trigger Success Feedback
     setShowSuccessToast(true);
     setTimeout(() => setShowSuccessToast(false), 3000);
+  };
+
+  // Helper for components that just want to pass data/type
+  const addFileData = (dataUrl: string, mimeType: string, name = "Scanned Image") => {
+      addFile({
+          id: Math.random().toString(36).substr(2, 9),
+          data: dataUrl.split(',')[1],
+          mimeType: mimeType,
+          preview: dataUrl,
+          name: name,
+          size: "Unknown"
+      });
+  };
+
+  const removeFile = (id: string) => {
+      setFiles(prev => prev.filter(f => f.id !== id));
   };
 
   const handleSelection = (type: string) => {
@@ -114,7 +128,7 @@ export default function CareTransiaIntake({
       {showCamera && (
         <SmartCamera 
           onCapture={(dataUrl) => {
-             addFile(dataUrl, 'image/jpeg');
+             addFileData(dataUrl, 'image/jpeg', "Camera Capture");
              setShowCamera(false);
           }} 
           onClose={() => setShowCamera(false)} 
@@ -125,7 +139,7 @@ export default function CareTransiaIntake({
       {showVoiceScanner && (
         <VoiceGuidedScanner
           onCapture={(dataUrl) => {
-             addFile(dataUrl, 'image/jpeg');
+             addFileData(dataUrl, 'image/jpeg', "Smart Scan");
              setShowVoiceScanner(false);
           }} 
           onClose={() => setShowVoiceScanner(false)} 
@@ -235,14 +249,16 @@ export default function CareTransiaIntake({
         <>
             <AgentIntake 
                 patientInfo={patientInfo} setPatientInfo={setPatientInfo}
-                files={files} addFile={addFile}
+                files={files} addFile={addFile} removeFile={removeFile}
                 onCamera={() => setShowCamera(true)}
                 onVoiceScan={() => setShowVoiceScanner(true)}
                 onAnalyze={onAnalyze}
+                onReview={onReview}
                 isLoading={isLoading}
                 progressMsg={progressMsg}
                 hasCamera={hasCamera}
                 initialContext={agentContext}
+                status={status}
             />
             {files.length === 0 && (
                 <div className="text-center mt-4">
@@ -268,6 +284,7 @@ export default function CareTransiaIntake({
            onCamera={() => setShowCamera(true)}
            onVoiceScan={() => setShowVoiceScanner(true)}
            addFile={addFile}
+           removeFile={removeFile}
            hasCamera={hasCamera}
         />
       )}
@@ -314,7 +331,8 @@ interface ManualIntakeProps {
   progressMsg: string;
   onCamera: () => void;
   onVoiceScan: () => void;
-  addFile: (d: string, m: string) => void;
+  addFile: (f: UploadedFile) => void;
+  removeFile: (id: string) => void;
   hasCamera: boolean;
 }
 
@@ -323,7 +341,7 @@ function ManualIntake({
     files, setFiles, 
     notes, setNotes, 
     onAnalyze, isLoading, progressMsg,
-    onCamera, onVoiceScan, addFile, hasCamera
+    onCamera, onVoiceScan, addFile, removeFile, hasCamera
 }: ManualIntakeProps) {
 
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -340,15 +358,18 @@ function ManualIntake({
             const reader = new FileReader();
             reader.onload = (ev) => {
                 if(ev.target?.result) {
-                    addFile(ev.target.result as string, file.type);
+                    addFile({
+                        id: Math.random().toString(36).substr(2, 9),
+                        data: (ev.target.result as string).split(',')[1],
+                        mimeType: file.type,
+                        preview: ev.target.result as string,
+                        name: file.name,
+                        size: (file.size / 1024).toFixed(1) + " KB"
+                    });
                 }
             };
             reader.readAsDataURL(file);
         });
-    };
-
-    const removeFile = (id: string) => {
-        setFiles(prev => prev.filter(f => f.id !== id));
     };
 
     const handleDragOver = (e: React.DragEvent) => {
@@ -507,8 +528,8 @@ function ManualIntake({
                                             )}
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <p className="text-sm font-bold text-slate-800 truncate">Document {idx + 1}</p>
-                                            <p className="text-xs text-slate-500 truncate">{file.mimeType}</p>
+                                            <p className="text-sm font-bold text-slate-800 truncate">{file.name || `Document ${idx + 1}`}</p>
+                                            <p className="text-xs text-slate-500 truncate">{file.mimeType} • {file.size || 'Unknown size'}</p>
                                         </div>
                                         <button onClick={() => removeFile(file.id)} className="p-2 text-slate-400 hover:text-red-500 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 rounded-lg" aria-label="Remove file">
                                             <Icons.Trash className="w-4 h-4" />
@@ -541,35 +562,67 @@ function ManualIntake({
 // SUB-COMPONENT: AGENT CHAT INTERFACE
 // ----------------------------------------------------------------------
 
+// New Component: Document Card for Chat
+function DocumentCard({ file, onRemove }: { file: UploadedFile, onRemove: () => void }) {
+    return (
+        <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-3 w-full max-w-sm animate-fade-in-up">
+            <div className="w-12 h-12 bg-slate-100 rounded-xl overflow-hidden flex-shrink-0 border border-slate-100">
+                {file.mimeType.includes('image') ? (
+                    <img src={file.preview} alt="Preview" className="w-full h-full object-cover" />
+                ) : (
+                    <div className="w-full h-full flex items-center justify-center text-slate-400 bg-white"><Icons.FileText className="w-6 h-6" /></div>
+                )}
+            </div>
+            <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-slate-900 truncate">{file.name || 'Uploaded Document'}</p>
+                <p className="text-xs text-slate-500">{file.size || '2.4 MB'} • {file.mimeType.includes('image') ? 'Image' : 'PDF'}</p>
+            </div>
+            <button 
+                type="button"
+                onClick={(e) => {
+                    e.stopPropagation();
+                    onRemove();
+                }}
+                className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-red-500"
+                title="Remove Document"
+            >
+                <Icons.Trash className="w-5 h-5" />
+            </button>
+        </div>
+    );
+}
+
 function AgentIntake({ 
     patientInfo, setPatientInfo, 
-    files, addFile, 
-    onCamera, onVoiceScan, onAnalyze, 
+    files, addFile, removeFile,
+    onCamera, onVoiceScan, onAnalyze, onReview,
     isLoading, progressMsg, hasCamera,
-    initialContext
+    initialContext, status
 }: {
     patientInfo: PatientInfo;
     setPatientInfo: React.Dispatch<React.SetStateAction<PatientInfo>>;
     files: UploadedFile[];
-    addFile: (d: string, m: string) => void;
+    addFile: (f: UploadedFile) => void;
+    removeFile: (id: string) => void;
     onCamera: () => void;
     onVoiceScan: () => void;
     onAnalyze: () => void;
+    onReview?: () => void;
     isLoading: boolean;
     progressMsg: string;
     hasCamera: boolean;
     initialContext: 'papers' | 'bottles' | 'mixed' | null;
+    status?: string;
 }) {
     // Generate context-aware welcome
     const getWelcomeMsg = () => {
         if (initialContext === 'papers') return "Great, let's start with your discharge papers. You can upload photos or PDFs below.";
         if (initialContext === 'bottles') return "I'll help you organize your meds. Please snap a clear photo of the pill bottles.";
-        return "Welcome to CareTransia. Please upload your documents or use the camera to start.";
+        return "Hi! Upload your discharge papers or medication bottles to get started.";
     };
 
     const getInitialWidget = () => {
         if (initialContext === 'bottles') return 'camera';
-        if (initialContext === 'papers') return 'upload';
         return 'upload';
     };
 
@@ -594,69 +647,87 @@ function AgentIntake({
     const chatEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const recognitionRef = useRef<any>(null);
+    const prevFileCount = useRef(files.length);
     
-    // Auto-trigger widget on mount based on context (friction reduction)
-    useEffect(() => {
-        // Small delay to allow render
-        const timer = setTimeout(() => {
-            if (initialContext === 'papers' && fileInputRef.current && files.length === 0) {
-                // fileInputRef.current.click(); // Browsers might block this auto-click without direct user interaction, safe to leave as UI prompt
-            }
-            if (initialContext === 'bottles' && hasCamera && files.length === 0) {
-                onVoiceScan(); // Prompt voice scanner for bottles
-            }
-        }, 800);
-        return () => clearTimeout(timer);
-    }, []);
-
     // Auto-scroll
     useEffect(() => {
         chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [messages, isThinking, ttsStatus]);
+    }, [messages, isThinking, ttsStatus, files.length, status]); // Trigger scroll when status changes (analysis complete)
 
-    // Handle File Selection with Auto-Extract
+    // Detect file removal state
+    useEffect(() => {
+        if (prevFileCount.current > 0 && files.length === 0) {
+            setMessages(prev => [
+                ...prev,
+                {
+                    id: Date.now().toString(),
+                    role: 'model',
+                    text: "It looks like all documents were removed. Please upload your discharge papers or pill bottle photos to continue, or enter details manually.",
+                    timestamp: Date.now(),
+                    widget: 'upload'
+                }
+            ]);
+        }
+        prevFileCount.current = files.length;
+    }, [files.length]);
+
+    // Handle File Selection - Staged Flow
     const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files.length > 0) {
             setIsThinking(true);
-            const newFiles: UploadedFile[] = [];
+            const selectedFiles = Array.from(e.target.files);
             
-            // Process files
-            const promises = Array.from(e.target.files).map((file: File) => new Promise<void>((resolve) => {
-                const reader = new FileReader();
-                reader.onload = (ev) => {
-                    if(ev.target?.result) {
-                        const dataUrl = ev.target.result as string;
-                        addFile(dataUrl, file.type);
-                        newFiles.push({
-                            id: Math.random().toString(),
-                            data: dataUrl.split(',')[1],
-                            mimeType: file.type,
-                            preview: dataUrl
-                        });
-                    }
-                    resolve();
-                };
-                reader.readAsDataURL(file);
-            }));
+            // Process files sequentially to maintain order in state
+            for (const fileItem of selectedFiles) {
+                const file = fileItem as File;
+                await new Promise<void>((resolve) => {
+                    const reader = new FileReader();
+                    reader.onload = (ev) => {
+                        if(ev.target?.result) {
+                            const dataUrl = ev.target.result as string;
+                            const newId = Math.random().toString(36).substr(2, 9);
+                            
+                            // 1. Add to App State
+                            addFile({
+                                id: newId,
+                                data: dataUrl.split(',')[1],
+                                mimeType: file.type,
+                                preview: dataUrl,
+                                name: file.name,
+                                size: (file.size / 1024 / 1024).toFixed(1) + " MB"
+                            });
 
-            await Promise.all(promises);
-
-            // Trigger Auto-Extraction
-            try {
-               const allFiles = [...files, ...newFiles];
-               const extracted = await identifyPatientFromFiles(allFiles);
-               
-               if (extracted.name || extracted.primary_condition) {
-                   setPatientInfo(prev => ({...prev, ...extracted}));
-                   const infoStr = `Found: ${extracted.name || 'Name'}, ${extracted.age || 'Age'}, ${extracted.primary_condition || 'Condition'}.`;
-                   handleSend(`I've uploaded the documents. ${infoStr}`);
-               } else {
-                   handleSend("I've uploaded the documents, but couldn't read the text clearly.");
-               }
-            } catch (err) {
-               console.error("Auto-extract failed", err);
-               handleSend("I've uploaded the documents.");
+                            // 2. Add Staged Message to Chat
+                            setMessages(prev => [
+                                ...prev, 
+                                { 
+                                    id: `msg-${newId}`, 
+                                    role: 'user', 
+                                    text: '', // Empty text, renders as card
+                                    timestamp: Date.now(),
+                                    fileId: newId // Links to the file
+                                }
+                            ]);
+                        }
+                        resolve();
+                    };
+                    reader.readAsDataURL(file);
+                });
             }
+
+            // 3. Bot Response logic based on total count (current + new)
+            const newTotal = files.length + selectedFiles.length;
+            const botMsg: ChatMessage = {
+                id: Date.now().toString(),
+                role: 'model',
+                text: newTotal === 1 
+                    ? "Got it! I see you uploaded a document. Would you like to add more, or shall I start analyzing?" 
+                    : `Perfect! You've uploaded ${newTotal} documents. Ready to create your care plan?`,
+                timestamp: Date.now() + 100,
+                widget: 'upload_options' // Custom widget state for the staged buttons
+            };
+            setMessages(prev => [...prev, botMsg]);
+            
             setIsThinking(false);
         }
     };
@@ -775,6 +846,23 @@ function AgentIntake({
         recognition.start();
     };
 
+    // Trigger explicit analyze flow with manual progress tracking
+    const handleAnalyzeClick = () => {
+        setMessages(prev => [
+            ...prev,
+            { id: 'usr-analyze', role: 'user', text: "✨ Analyze My Documents", timestamp: Date.now() },
+            // Add a progress widget instead of a static message
+            { 
+                id: 'bot-analyze', 
+                role: 'model', 
+                text: "Analysis started...", 
+                timestamp: Date.now() + 100,
+                widget: 'analysis_progress' as any // Cast to allow custom widget 
+            }
+        ]);
+        onAnalyze();
+    };
+
     const completionScore = calculateProgress(patientInfo, files);
 
     return (
@@ -807,10 +895,90 @@ function AgentIntake({
 
                 {/* Chat Area */}
                 <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50/50">
-                    {messages.map((m) => (
+                    {messages.map((m, index) => {
+                        const isLastMessage = index === messages.length - 1;
+
+                        // Check if this message is a File Card (User message with fileId)
+                        if (m.role === 'user' && m.fileId) {
+                            const stagedFile = files.find(f => f.id === m.fileId);
+                            // If file was deleted, we render a placeholder or nothing
+                            if (!stagedFile) return (
+                                <div key={m.id} className="flex justify-end">
+                                    <span className="text-xs text-slate-400 italic">Document removed</span>
+                                </div>
+                            );
+                            
+                            return (
+                                <div key={m.id} className="flex justify-end">
+                                    <DocumentCard file={stagedFile} onRemove={() => removeFile(stagedFile.id)} />
+                                </div>
+                            );
+                        }
+
+                        // Special Progress Widget Message
+                        if (m.widget === 'analysis_progress') {
+                            const isAnalyzing = status === 'analyzing';
+                            const isComplete = status === 'analysis_complete' || status === 'verifying'; // Show complete even if in verifying so history looks correct
+
+                            return (
+                                <div key={m.id} className="flex flex-col items-start w-full max-w-[90%]">
+                                    {isAnalyzing && (
+                                        <div className="bg-white p-5 rounded-2xl border border-blue-100 shadow-sm animate-fade-in-up w-full rounded-bl-none">
+                                            <div className="flex items-center gap-4 mb-4">
+                                                <div className="relative flex-shrink-0">
+                                                    <div className="w-10 h-10 rounded-full border-4 border-blue-50 border-t-blue-600 animate-spin"></div>
+                                                    <div className="absolute inset-0 flex items-center justify-center">
+                                                        <Icons.Sparkle className="w-4 h-4 text-blue-600 animate-pulse" />
+                                                    </div>
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="font-bold text-slate-800 text-sm">Analyzing Documents...</p>
+                                                    <p className="text-xs text-slate-500 font-mono mt-1">{progressMsg}</p>
+                                                </div>
+                                            </div>
+                                            {/* Progress Bar Animation */}
+                                            <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                                                <div className="h-full bg-gradient-to-r from-blue-400 to-purple-500 animate-progress-indeterminate"></div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {isComplete && (
+                                        <div className="bg-emerald-50 p-5 rounded-2xl border border-emerald-100 shadow-sm animate-scale-in w-full rounded-bl-none">
+                                            <div className="flex items-center gap-4 mb-4">
+                                                <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 flex-shrink-0">
+                                                    <Icons.Check className="w-6 h-6 stroke-[3]" />
+                                                </div>
+                                                <div>
+                                                    <p className="font-bold text-emerald-900 text-lg">Analysis Complete</p>
+                                                    <p className="text-sm text-emerald-700">Successfully extracted care plan details.</p>
+                                                </div>
+                                            </div>
+                                            
+                                            {onReview && (
+                                                <button 
+                                                    onClick={onReview}
+                                                    className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-base shadow-md transition-all flex items-center justify-center gap-2 group"
+                                                >
+                                                    Review Extracted Plan <Icons.ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                                                </button>
+                                            )}
+                                        </div>
+                                    )}
+                                    
+                                    {/* Fallback for error state handled by parent status message, but we can hide this bubble if error */}
+                                    {status === 'error' && (
+                                        <p className="text-xs text-red-400 italic mt-2">Analysis interrupted.</p>
+                                    )}
+                                </div>
+                            );
+                        }
+
+                        // Normal Text Messages
+                        return (
                         <div key={m.id} className={`flex flex-col ${m.role === 'user' ? 'items-end' : 'items-start'}`}>
                             
-                            {/* Message Bubble + Actions */}
+                            {/* Message Bubble */}
                             <div className={`flex items-end gap-2 max-w-[95%] ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                                 
                                 {m.role === 'model' && (
@@ -818,7 +986,7 @@ function AgentIntake({
                                         <div className={`bg-white p-5 rounded-2xl text-base leading-relaxed shadow-sm border text-slate-800 rounded-bl-none transition-colors ${activeAudioId === m.id && ttsStatus === 'playing' ? 'border-green-300 ring-2 ring-green-50' : 'border-slate-200'}`}>
                                             {m.text}
                                         </div>
-                                        <button 
+                                        {m.text && <button 
                                             onClick={() => playTTS(m.text, m.id)}
                                             disabled={ttsStatus !== 'idle'}
                                             className="p-2 mb-1 bg-white border border-slate-200 text-slate-400 hover:text-blue-600 hover:border-blue-200 rounded-full transition-all shadow-sm flex-shrink-0 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -830,20 +998,23 @@ function AgentIntake({
                                             ) : (
                                                 <Icons.Speaker className={`w-4 h-4 ${activeAudioId === m.id && ttsStatus === 'playing' ? 'text-green-500 animate-pulse' : ''}`} />
                                             )}
-                                        </button>
+                                        </button>}
                                     </>
                                 )}
 
-                                {m.role === 'user' && (
+                                {m.role === 'user' && m.text && (
                                     <div className="bg-slate-900 text-white p-5 rounded-2xl text-base leading-relaxed shadow-sm rounded-br-none">
                                         {m.text}
                                     </div>
                                 )}
                             </div>
                             
-                            {/* WIDGETS */}
+                            {/* WIDGETS & SUGGESTIONS */}
+                            {/* Only render widgets for the LAST message to avoid history clutter/duplicate actions */}
+                            {isLastMessage && (
                             <div className="w-full">
-                                {(m.widget === 'upload' || m.widget === 'camera') && (
+                                {/* Initial Upload Widget (State 1) */}
+                                {(m.widget === 'upload' || m.widget === 'camera') && files.length === 0 && (
                                     <div className="mt-3 bg-white p-4 rounded-2xl border border-blue-100 shadow-sm flex gap-3 animate-fade-in-up w-full max-w-[95%]">
                                         <button 
                                             onClick={() => fileInputRef.current?.click()}
@@ -860,15 +1031,38 @@ function AgentIntake({
                                             >
                                                 <Icons.Camera className="w-5 h-5" /> Scan
                                             </button>
-                                            <button 
-                                                onClick={onVoiceScan}
-                                                className={`p-3 font-bold rounded-xl transition-colors flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-offset-2 bg-gradient-to-r from-purple-50 to-pink-50 text-purple-700 hover:shadow-md border border-purple-100`}
-                                                title="Use AI Voice-Guided Scanner"
-                                            >
-                                                <Icons.Mic className="w-5 h-5" />
-                                            </button>
                                             </>
                                         )}
+                                    </div>
+                                )}
+
+                                {/* Staged Upload Widget (State 2 & 3) */}
+                                {m.widget === 'upload_options' && (
+                                    <div className="mt-3 flex flex-col gap-2 animate-fade-in-up w-full max-w-[95%]">
+                                        <button 
+                                            onClick={handleAnalyzeClick}
+                                            className="w-full py-4 px-4 bg-slate-900 text-white font-bold rounded-xl shadow-lg shadow-blue-900/20 hover:bg-slate-800 transition-all flex items-center justify-center gap-2"
+                                        >
+                                            <Icons.Sparkle className="w-5 h-5" /> ✨ Analyze My Documents
+                                        </button>
+                                        
+                                        <div className="flex gap-2">
+                                            <button 
+                                                onClick={() => fileInputRef.current?.click()}
+                                                className="flex-1 py-3 px-4 bg-white border border-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-50 transition-colors flex items-center justify-center gap-2"
+                                            >
+                                                <input type="file" multiple ref={fileInputRef} className="hidden" onChange={handleFileSelect} accept="image/*,application/pdf" />
+                                                <Icons.Upload className="w-4 h-4" /> Add Another
+                                            </button>
+                                            {hasCamera && (
+                                                <button 
+                                                    onClick={onCamera}
+                                                    className="flex-1 py-3 px-4 bg-white border border-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-50 transition-colors flex items-center justify-center gap-2"
+                                                >
+                                                    <Icons.Camera className="w-4 h-4" /> Scan
+                                                </button>
+                                            )}
+                                        </div>
                                     </div>
                                 )}
 
@@ -887,8 +1081,10 @@ function AgentIntake({
                                     </div>
                                 )}
                             </div>
+                            )}
                         </div>
-                    ))}
+                        );
+                    })}
                     
                     {isThinking && (
                         <div className="flex items-start">
@@ -896,7 +1092,7 @@ function AgentIntake({
                                 <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce"></span>
                                 <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce delay-100"></span>
                                 <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce delay-200"></span>
-                                <span className="text-xs text-slate-400 font-semibold ml-2">Reading files...</span>
+                                <span className="text-xs text-slate-400 font-semibold ml-2">Processing...</span>
                             </div>
                         </div>
                     )}
@@ -977,16 +1173,21 @@ function AgentIntake({
                             </div>
                             <div className="grid grid-cols-4 gap-2">
                                 {files.map((f, i) => (
-                                    <div key={i} className="aspect-square bg-slate-100 rounded-xl overflow-hidden border border-slate-200 relative group shadow-sm">
+                                    <div key={f.id} className="aspect-square bg-slate-100 rounded-xl overflow-hidden border border-slate-200 relative group shadow-sm">
                                         {f.mimeType.includes('image') ? (
                                             <img src={f.preview} className="w-full h-full object-cover" />
                                         ) : (
                                             <div className="w-full h-full flex items-center justify-center text-xs text-slate-400 font-bold bg-white">PDF</div>
                                         )}
-                                        <div className="absolute inset-0 bg-emerald-500/20 flex items-center justify-center backdrop-blur-[1px]">
-                                            <div className="bg-white rounded-full p-0.5">
-                                               <Icons.Check className="w-3 h-3 text-emerald-600" />
-                                            </div>
+                                        <div className="absolute inset-0 bg-emerald-500/20 flex items-center justify-center backdrop-blur-[1px] opacity-0 group-hover:opacity-100 transition-opacity">
+                                            {/* Delete button for right panel */}
+                                            <button 
+                                                onClick={(e) => { e.stopPropagation(); removeFile(f.id); }}
+                                                className="bg-white text-red-500 rounded-full p-1.5 shadow-sm hover:bg-red-50 transition-colors"
+                                                title="Remove"
+                                            >
+                                                <Icons.Trash className="w-4 h-4" />
+                                            </button>
                                         </div>
                                     </div>
                                 ))}

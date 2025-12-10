@@ -3,7 +3,7 @@ import React from 'react';
 import { Icons } from './ui';
 
 interface StatusMessageProps {
-  status: 'idle' | 'analyzing' | 'verifying' | 'generating' | 'done' | 'error';
+  status: 'idle' | 'analyzing' | 'analysis_complete' | 'verifying' | 'generating' | 'done' | 'error';
   errorMsg: string | null;
   onDismiss: () => void;
   onRetry?: () => void;

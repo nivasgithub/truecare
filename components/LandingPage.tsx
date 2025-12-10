@@ -1,9 +1,34 @@
+
 import React, { useState } from 'react';
 import { Icons, Card } from './ui';
 
 interface CareTransiaLandingPageProps {
   onGetStarted: () => void;
 }
+
+// Define expected paths for marketing assets
+const ASSETS = {
+  hero: '/assets/marketing/hero-mockup.png',
+  caregiver: '/assets/marketing/caregiver.jpg',
+  patient: '/assets/marketing/patient.jpg',
+  doctor: '/assets/marketing/doctor.jpg',
+  features: '/assets/marketing/features-highlight.jpg'
+};
+
+// Helper: Image with Fallback
+// Renders the image if available/valid, otherwise renders the fallback ReactNode
+const ImageWithFallback = ({ src, alt, className, fallback }: { src: string, alt: string, className?: string, fallback: React.ReactNode }) => {
+    const [error, setError] = useState(false);
+    if (error) return <>{fallback}</>;
+    return (
+        <img 
+            src={src} 
+            alt={alt} 
+            className={className} 
+            onError={() => setError(true)} 
+        />
+    );
+};
 
 export default function CareTransiaLandingPage({ onGetStarted }: CareTransiaLandingPageProps) {
   
@@ -64,8 +89,14 @@ export default function CareTransiaLandingPage({ onGetStarted }: CareTransiaLand
         {/* Hero Visual */}
         <div className="relative w-full flex items-center justify-center perspective-[2000px] animate-fade-in-right delay-200 py-10 md:py-0 md:h-[500px]">
             {/* Added max-w-full to prevent overflow on very small devices */}
-            <div className="w-full max-w-[320px] xs:max-w-[380px] sm:max-w-[420px] cursor-pointer" onClick={onGetStarted} title="Click to try demo">
-                <HeroDashboardUI />
+            <div className="w-full max-w-[320px] xs:max-w-[380px] sm:max-w-[420px] cursor-pointer relative" onClick={onGetStarted} title="Click to try demo">
+                {/* Fallback to CSS UI if image fails */}
+                <ImageWithFallback 
+                    src={ASSETS.hero}
+                    alt="CareTransia App Preview"
+                    className="w-full h-auto rounded-3xl shadow-2xl border-4 border-white transform rotate-[-5deg] hover:rotate-0 transition-transform duration-500"
+                    fallback={<HeroDashboardUI />}
+                />
             </div>
         </div>
       </section>
@@ -170,25 +201,38 @@ export default function CareTransiaLandingPage({ onGetStarted }: CareTransiaLand
                title="Family Caregivers"
                desc="Juggling work, kids, and a loved one’s recovery? Get a straightforward plan so you’re not guessing."
                emoji="🏡"
+               imageSrc={ASSETS.caregiver}
             />
             <PersonaCard 
                title="Patients w/ Chronic Conditions"
                desc="When you’re discharged with multiple meds, see everything in one place instead of drowning in paper."
                emoji="❤️"
+               imageSrc={ASSETS.patient}
             />
             <PersonaCard 
                title="Clinicians & Care Teams"
                desc="Use it as a conversation tool to make sure your patient truly understands their next steps."
                emoji="🩺"
+               imageSrc={ASSETS.doctor}
             />
          </div>
       </section>
 
       {/* --- 6. CORE HIGHLIGHTS --- */}
       <section className="bg-slate-900 text-white py-24 rounded-[3rem] mx-4 md:mx-8 mb-24 relative overflow-hidden">
-          {/* Decorative gradients */}
-          <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-blue-600/20 rounded-full blur-[100px] pointer-events-none"></div>
-          <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-purple-600/20 rounded-full blur-[100px] pointer-events-none"></div>
+          {/* Background Image if available */}
+          <div className="absolute inset-0 z-0 opacity-20">
+              <ImageWithFallback 
+                  src={ASSETS.features} 
+                  alt="" 
+                  className="w-full h-full object-cover" 
+                  fallback={<div className="w-full h-full bg-slate-900"></div>} 
+              />
+          </div>
+          
+          {/* Decorative gradients (Overlay) */}
+          <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-blue-600/20 rounded-full blur-[100px] pointer-events-none z-0"></div>
+          <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-purple-600/20 rounded-full blur-[100px] pointer-events-none z-0"></div>
 
           <div className="max-w-5xl mx-auto px-4 relative z-10">
              <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
@@ -271,12 +315,28 @@ function StepCard({ number, title, desc, icon }: { number: string, title: string
    );
 }
 
-function PersonaCard({ title, desc, emoji }: { title: string, desc: string, emoji: string }) {
+function PersonaCard({ title, desc, emoji, imageSrc }: { title: string, desc: string, emoji: string, imageSrc?: string }) {
     return (
-        <div className="bg-slate-50 rounded-3xl p-8 border border-slate-100 hover:bg-white hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group">
-            <div className="text-4xl mb-6 group-hover:scale-110 transition-transform duration-300">{emoji}</div>
-            <h3 className="text-xl font-bold text-slate-900 mb-3">{title}</h3>
-            <p className="text-slate-600 text-sm leading-relaxed">{desc}</p>
+        <div className="bg-slate-50 rounded-3xl border border-slate-100 hover:bg-white hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group overflow-hidden h-full flex flex-col">
+            {/* Visual Header: Image or Emoji Area */}
+            <div className="h-48 bg-slate-200 w-full relative">
+                {/* Fallback to emoji if image fails/missing inside ImageWithFallback logic */}
+                <ImageWithFallback 
+                    src={imageSrc || ''}
+                    alt={title}
+                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                    fallback={
+                        <div className="w-full h-full flex items-center justify-center bg-slate-100 text-6xl group-hover:scale-110 transition-transform duration-300">
+                            {emoji}
+                        </div>
+                    }
+                />
+            </div>
+            
+            <div className="p-8 flex-1 flex flex-col">
+                <h3 className="text-xl font-bold text-slate-900 mb-3">{title}</h3>
+                <p className="text-slate-600 text-sm leading-relaxed">{desc}</p>
+            </div>
         </div>
     );
 }
@@ -295,7 +355,7 @@ function FeatureItem({ title, desc }: { title: string, desc: string }) {
     );
 }
 
-// --- HERO VISUAL UI ---
+// --- HERO VISUAL UI (Fallback) ---
 
 function HeroDashboardUI() {
     const [active, setActive] = useState(false);
