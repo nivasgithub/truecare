@@ -35,6 +35,11 @@ export default function VerificationView({ data, onConfirm, isLoading, progressM
       setMeds(prev => prev.map(m => m._id === id ? { ...m, verified: !m.verified } : m));
   };
 
+  const toggleAllMeds = () => {
+      const allVerified = meds.every(m => m.verified);
+      setMeds(prev => prev.map(m => ({ ...m, verified: !allVerified })));
+  };
+
   const removeMed = (id: string) => {
       if (window.confirm("Are you sure you want to remove this medication?")) {
           setMeds(prev => prev.filter(m => m._id !== id));
@@ -164,9 +169,17 @@ export default function VerificationView({ data, onConfirm, isLoading, progressM
         {/* Medications List */}
         <div className="space-y-4 mb-10">
             {meds.length > 0 && (
-                <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider px-2">
-                    Medications ({meds.filter(m => m.verified).length}/{meds.length} Confirmed)
-                </h3>
+                <div className="flex items-center justify-between px-2 mb-2">
+                    <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider">
+                        Medications ({meds.filter(m => m.verified).length}/{meds.length} Confirmed)
+                    </h3>
+                    <button
+                        onClick={toggleAllMeds}
+                        className="text-xs font-bold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                        {meds.every(m => m.verified) ? "Uncheck All" : "Select All"}
+                    </button>
+                </div>
             )}
             
             {meds.map((med) => {

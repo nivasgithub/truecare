@@ -6,9 +6,9 @@ interface CareTransiaLandingPageProps {
   onGetStarted: () => void;
 }
 
-// Define expected paths for marketing assets
+// Updated to use local assets from the public/assets/marketing folder
 const ASSETS = {
-  hero: '/assets/marketing/hero-mockup.png',
+  hero: '/assets/marketing/hero-mockup.png', 
   caregiver: '/assets/marketing/caregiver.jpg',
   patient: '/assets/marketing/patient.jpg',
   doctor: '/assets/marketing/doctor.jpg',

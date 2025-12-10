@@ -1,3 +1,4 @@
+
 import { Type, HarmCategory, HarmBlockThreshold, GenerateContentResponse } from "@google/genai";
 import { ai } from "./gemini";
 import { cleanAndParseJSON, runWithRetry } from "./utils";
@@ -24,12 +25,9 @@ The images may be:
 2. Multi-page Discharge Summaries.
 3. Handwritten Notes.
 
-CONFIDENCE SCORING:
-- **extraction_confidence**: Assess the clarity of the text and images.
-  - "high": Text is crisp, clear, and unambiguous.
-  - "medium": Some text is blurry, handwritten, or partially obscured.
-  - "low": Image is very blurry, low contrast, or handwriting is illegible.
-- **low_confidence_items**: List specific fields or text snippets where you had trouble reading (e.g. "Dose for Metformin", "Appointment Date").
+VALIDATION & ERROR HANDLING:
+- **Irrelevant Images**: If the image is NOT a medical document, medication label, or patient note (e.g., it is a sunset, a cat, a company logo, or blank), set "status" to "error" and "error_message" to "The image provided does not contain any medical data. Please upload a discharge paper or medication label.".
+- **Unreadable**: If the image is too blurry to read, set "status" to "error".
 
 CRITICAL RULES FOR PILL BOTTLES & MED LISTS:
 - **Name**: Drug name (e.g. "Lisinopril").
@@ -74,8 +72,6 @@ Focus on extracting the "Dose" and "Frequency" for every medication found.
         properties: {
           status: { type: Type.STRING, enum: ["success", "error"] },
           error_message: { type: Type.STRING },
-          extraction_confidence: { type: Type.STRING, enum: ["high", "medium", "low"] },
-          low_confidence_items: { type: Type.ARRAY, items: { type: Type.STRING } },
           patient: {
             type: Type.OBJECT,
             properties: {
@@ -150,11 +146,22 @@ Focus on extracting the "Dose" and "Frequency" for every medication found.
   // Safe parsing with default fallbacks. Guard against null returns.
   const rawParsed = cleanAndParseJSON<Partial<ParsedEpisode>>(response.text) || {};
   
+  // Post-processing Validation
+  // If status is success but NO data was found, override it to error.
+  const hasContent = 
+      (Array.isArray(rawParsed.medications) && rawParsed.medications.length > 0) ||
+      (Array.isArray(rawParsed.appointments) && rawParsed.appointments.length > 0) ||
+      (Array.isArray(rawParsed.warnings) && rawParsed.warnings.length > 0) ||
+      (rawParsed.patient && rawParsed.patient.name);
+
+  if (rawParsed.status === 'success' && !hasContent) {
+      rawParsed.status = 'error';
+      rawParsed.error_message = "No extractable medical data found in the provided image. The image appears to be a logo or marketing graphic.";
+  }
+
   const parsedEpisode: ParsedEpisode = {
       status: rawParsed.status || 'success',
       error_message: rawParsed.error_message || '',
-      extraction_confidence: rawParsed.extraction_confidence || 'high', // Default to high if not provided, though prompt asks for it
-      low_confidence_items: Array.isArray(rawParsed.low_confidence_items) ? rawParsed.low_confidence_items : [],
       patient: rawParsed.patient || { 
           name: patientInfo.name || null, 
           age: patientInfo.age || null, 

@@ -259,6 +259,7 @@ export default function CareTransiaIntake({
                 hasCamera={hasCamera}
                 initialContext={agentContext}
                 status={status}
+                errorMsg={errorMsg} // PASS ERROR MSG HERE
             />
             {files.length === 0 && (
                 <div className="text-center mt-4">
@@ -597,7 +598,7 @@ function AgentIntake({
     files, addFile, removeFile,
     onCamera, onVoiceScan, onAnalyze, onReview,
     isLoading, progressMsg, hasCamera,
-    initialContext, status
+    initialContext, status, errorMsg
 }: {
     patientInfo: PatientInfo;
     setPatientInfo: React.Dispatch<React.SetStateAction<PatientInfo>>;
@@ -613,6 +614,7 @@ function AgentIntake({
     hasCamera: boolean;
     initialContext: 'papers' | 'bottles' | 'mixed' | null;
     status?: string;
+    errorMsg?: string | null;
 }) {
     // Generate context-aware welcome
     const getWelcomeMsg = () => {
@@ -652,7 +654,29 @@ function AgentIntake({
     // Auto-scroll
     useEffect(() => {
         chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [messages, isThinking, ttsStatus, files.length, status]); // Trigger scroll when status changes (analysis complete)
+    }, [messages, isThinking, ttsStatus, files.length, status]); 
+
+    // Error Handling Effect: Inject conversational error message
+    useEffect(() => {
+        if (status === 'error' && errorMsg) {
+            setMessages(prev => {
+                const last = prev[prev.length - 1];
+                // Prevent duplicate error messages if component re-renders
+                if (last.text.includes(errorMsg) || (last.text.includes("issue") && last.role === 'model')) return prev;
+                
+                return [
+                    ...prev,
+                    {
+                        id: Date.now().toString(),
+                        role: 'model',
+                        text: `I encountered an issue analyzing your documents: "${errorMsg}".\n\nPlease make sure you uploaded a clear photo of a discharge summary, medication label, or doctor's note. Would you like to try uploading again?`,
+                        timestamp: Date.now(),
+                        widget: 'upload' // Give them the upload button back immediately
+                    }
+                ];
+            });
+        }
+    }, [status, errorMsg]);
 
     // Detect file removal state
     useEffect(() => {
@@ -966,10 +990,7 @@ function AgentIntake({
                                         </div>
                                     )}
                                     
-                                    {/* Fallback for error state handled by parent status message, but we can hide this bubble if error */}
-                                    {status === 'error' && (
-                                        <p className="text-xs text-red-400 italic mt-2">Analysis interrupted.</p>
-                                    )}
+                                    {/* Don't show technical error here, allow conversational error message to appear below */}
                                 </div>
                             );
                         }
@@ -1014,7 +1035,7 @@ function AgentIntake({
                             {isLastMessage && (
                             <div className="w-full">
                                 {/* Initial Upload Widget (State 1) */}
-                                {(m.widget === 'upload' || m.widget === 'camera') && files.length === 0 && (
+                                {(m.widget === 'upload' || m.widget === 'camera') && (
                                     <div className="mt-3 bg-white p-4 rounded-2xl border border-blue-100 shadow-sm flex gap-3 animate-fade-in-up w-full max-w-[95%]">
                                         <button 
                                             onClick={() => fileInputRef.current?.click()}
