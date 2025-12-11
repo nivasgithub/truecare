@@ -198,8 +198,11 @@ export interface GeneratedVideo {
 export interface IntakeAgentResponse {
   text: string;
   widget: 'upload' | 'camera' | 'analyze' | 'none';
+  action?: 'validate_files' | 'extract_data' | 'ask_for_info' | 'confirm_summary' | 'proceed_to_verification' | 'wait';
+  action_reason?: string;
   suggestions: string[];
   extracted_info: Partial<PatientInfo>;
+  state_updates?: Partial<PatientInfo>;
 }
 
 // --- App Settings ---

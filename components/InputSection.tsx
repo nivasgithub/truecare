@@ -268,7 +268,7 @@ export default function CareTransiaIntake({
         <>
             <AgentIntake 
                 patientInfo={patientInfo} setPatientInfo={setPatientInfo}
-                files={files} addFile={addFile} removeFile={removeFile}
+                files={files} addFile={addFile} removeFile={removeFile} setFiles={setFiles}
                 onCamera={() => setShowCamera(true)}
                 onVoiceScan={() => setShowVoiceScanner(true)}
                 onAnalyze={onAnalyze}
@@ -664,7 +664,7 @@ function DocumentCard({ file, onRemove }: { file: UploadedFile, onRemove: () => 
 
 function AgentIntake({ 
     patientInfo, setPatientInfo, 
-    files, addFile, removeFile,
+    files, addFile, removeFile, setFiles,
     onCamera, onVoiceScan, onAnalyze, onReview, onReAnalyze,
     isLoading, progressMsg, hasCamera,
     initialContext, status, errorMsg,
@@ -675,6 +675,7 @@ function AgentIntake({
     files: UploadedFile[];
     addFile: (f: UploadedFile) => void;
     removeFile: (id: string) => void;
+    setFiles: React.Dispatch<React.SetStateAction<UploadedFile[]>>;
     onCamera: () => void;
     onVoiceScan: () => void;
     onAnalyze: () => void;
@@ -752,120 +753,6 @@ function AgentIntake({
         }
     }, [status, errorMsg]);
 
-    // ** MISSING INFO & CONFLICT CHECK EFFECT **
-    // Triggers when analysis completes
-    useEffect(() => {
-        // Only run when transitioning INTO analysis_complete
-        if (status === 'analysis_complete' && prevStatusRef.current !== 'analysis_complete') {
-            
-            // 1. Conflict Check: Document vs User Name
-            const docName = parsedEpisode?.patient?.name;
-            const userName = patientInfo.name;
-            
-            // Check if both exist, differ significantly (simple casing/trim check), and exclude simple substrings (e.g. "James" vs "James Mike")
-            if (docName && userName && docName.toLowerCase().trim() !== userName.toLowerCase().trim()) {
-                 setMessages(prev => {
-                    const last = prev[prev.length - 1];
-                    if (last.text.includes("Doc says")) return prev;
-                    
-                    return [
-                        ...prev,
-                        {
-                            id: `conflict-${Date.now()}`,
-                            role: 'model',
-                            text: `I noticed a small difference. The document lists the patient as **"${docName}"**, but you told me **"${userName}"**. Which one should I use for the plan?`,
-                            timestamp: Date.now(),
-                            suggestions: [docName, userName] // These will appear as clickable chips
-                        }
-                    ];
-                });
-                // Stop further processing so we don't ask for missing info while handling conflict
-                prevStatusRef.current = status;
-                return;
-            }
-
-            // 2. Missing Info Check
-            const missing = [];
-            if (!patientInfo.name) missing.push("patient's name");
-            if (!patientInfo.age) missing.push("age");
-            if (!patientInfo.primary_condition) missing.push("primary condition");
-
-            if (missing.length > 0) {
-                // Add a prompt if not already the last message to avoid loop
-                setMessages(prev => {
-                    const last = prev[prev.length - 1];
-                    // Check to prevent duplicate asking
-                    if (last.text.includes("couldn't find the") || last.text.includes("provide these details")) return prev;
-                    
-                    return [
-                        ...prev,
-                        {
-                            id: `missing-info-${Date.now()}`,
-                            role: 'model',
-                            text: `I've analyzed the documents, but I couldn't find the ${missing.join(', ')}. Could you please provide these details so I can build a safe plan?`,
-                            timestamp: Date.now(),
-                            // Add contextual suggestions based on what's missing
-                            suggestions: missing.includes("patient's name") 
-                                ? ["The patient is...", "My name is..."]
-                                : missing.includes("primary condition") 
-                                    ? ["The condition is...", "Hip surgery", "Heart procedure"]
-                                    : ["Let me tell you..."]
-                        }
-                    ];
-                });
-                prevStatusRef.current = status;
-                return; // Stop here if basic info missing
-            } 
-            
-            // 3. NEW: Critical Gap Check (Phase 5)
-            // If there are critical gaps, ask about them
-            if (consistencyReport?.gaps && consistencyReport.gaps.length > 0) {
-                const criticalGaps = consistencyReport.gaps.filter(g => 
-                    g.severity === 'critical' || g.severity === 'important'
-                );
-                
-                if (criticalGaps.length > 0) {
-                    // Use the suggested_question from safety check (Phase 1 result)
-                    const topGap = criticalGaps[0];
-                    setMessages(prev => [
-                        ...prev,
-                        {
-                            id: `gap-question-${Date.now()}`,
-                            role: 'model',
-                            text: topGap.suggested_question || `I found a gap: ${topGap.summary}. Can you help clarify?`,
-                            timestamp: Date.now(),
-                            suggestions: ['I\'m not sure', 'Let me check the papers', 'Skip this']
-                        }
-                    ]);
-                    prevStatusRef.current = status;
-                    return; // Stop here if gap question asked
-                }
-            }
-
-            // 4. Post-Extraction Summary (Phase 3)
-            // If NO conflicts and NO missing info and NO critical gaps, show summary
-            if (parsedEpisode) {
-                setMessages(prev => {
-                    const hasExistingSummary = prev.some(m => m.text.includes('Extraction Complete'));
-                    if (hasExistingSummary) return prev;
-                    
-                    const summary = generateExtractionSummary(parsedEpisode, consistencyReport || null);
-                    return [
-                        ...prev,
-                        {
-                            id: `summary-${Date.now()}`,
-                            role: 'model',
-                            text: summary,
-                            timestamp: Date.now(),
-                            widget: 'post_analysis_options' // Show "Add More" and "Review" buttons
-                        }
-                    ];
-                });
-            }
-        }
-        prevStatusRef.current = status;
-    }, [status, patientInfo.name, patientInfo.age, patientInfo.primary_condition, parsedEpisode, consistencyReport]);
-
     // Detect file removal state
     useEffect(() => {
         if (prevFileCount.current > 0 && files.length === 0) {
@@ -883,7 +770,7 @@ function AgentIntake({
         prevFileCount.current = files.length;
     }, [files.length]);
 
-    // Handle File Selection - Staged Flow
+    // Handle File Selection - Staged Flow with Agentic Scan
     const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files.length > 0) {
             
@@ -891,59 +778,37 @@ function AgentIntake({
             const selectedFiles = Array.from(e.target.files);
             const processedFiles: UploadedFile[] = [];
 
-            for (const fileItem of selectedFiles) {
-                const file = fileItem as File;
-                await new Promise<void>((resolve) => {
+            // Helper to read file
+            const readFile = (file: File): Promise<UploadedFile> => {
+                return new Promise((resolve) => {
                     const reader = new FileReader();
                     reader.onload = (ev) => {
                         if(ev.target?.result) {
                             const dataUrl = ev.target.result as string;
-                            const newId = Math.random().toString(36).substr(2, 9);
-                            
-                            // 1. Create File Object
-                            const fileObj = {
-                                id: newId,
+                            resolve({
+                                id: Math.random().toString(36).substr(2, 9),
                                 data: dataUrl.split(',')[1],
                                 mimeType: file.type,
                                 preview: dataUrl,
                                 name: file.name,
                                 size: (file.size / 1024 / 1024).toFixed(1) + " MB"
-                            };
-                            processedFiles.push(fileObj);
-                            
-                            // 2. Add to App State (only if NOT triggering immediate re-analysis, 
-                            // as reAnalyzeWithMoreFiles handles state update itself in the hook)
-                            // But wait, reAnalyzeWithMoreFiles merges with EXISTING files state.
-                            // If we call addFile here, we duplicate if reAnalyze also adds.
-                            // However, UI needs to show it immediately.
-                            // Best approach: If NOT re-analyzing, addFile. If re-analyzing, let the hook handle it.
-                            if (!(status === 'analysis_complete' && onReAnalyze)) {
-                                addFile(fileObj);
-                                
-                                // 3. Add Staged Message to Chat (Visual feedback)
-                                setMessages(prev => [
-                                    ...prev, 
-                                    { 
-                                        id: `msg-${newId}`, 
-                                        role: 'user', 
-                                        text: '', // Empty text, renders as card
-                                        timestamp: Date.now(),
-                                        fileId: newId // Links to the file
-                                    }
-                                ]);
-                            }
+                            });
                         }
-                        resolve();
                     };
                     reader.readAsDataURL(file);
                 });
+            };
+
+            // Process all selected files
+            for (const fileItem of selectedFiles) {
+                const fileObj = await readFile(fileItem);
+                processedFiles.push(fileObj);
             }
 
             // ** RE-ANALYZE FLOW (Phase 6) **
             if (status === 'analysis_complete' && onReAnalyze) {
                 // Trigger re-analysis with collected files
                 onReAnalyze(processedFiles);
-                
                 // Add system message indicating update
                 setMessages(prev => [
                     ...prev,
@@ -958,23 +823,95 @@ function AgentIntake({
                 return;
             }
 
-            // ** STANDARD FLOW **
+            // ** STANDARD AGENTIC FLOW (Phase 8) **
+            // 1. Add files to React State
+            const newFiles = [...files, ...processedFiles];
+            setFiles(newFiles); // Update global state
+            
+            // 2. Add visual feedback cards immediately
+            setMessages(prev => [
+                ...prev,
+                ...processedFiles.map(f => ({
+                    id: `msg-${f.id}`,
+                    role: 'user' as const,
+                    text: '', // Empty text, renders as card
+                    timestamp: Date.now(),
+                    fileId: f.id
+                })),
+                {
+                    id: `scanning-${Date.now()}`,
+                    role: 'model',
+                    text: "Reading documents...", // Temporary status
+                    timestamp: Date.now() + 100,
+                    widget: 'none'
+                }
+            ]);
+
             setIsThinking(true);
-            
-            // 4. Bot Response logic based on total count (current + new)
-            const newTotal = files.length + selectedFiles.length;
-            const botMsg: ChatMessage = {
-                id: Date.now().toString(),
-                role: 'model',
-                text: newTotal === 1 
-                    ? "Got it! I see you uploaded a document. Would you like to add more, or shall I start analyzing?" 
-                    : `Perfect! You've uploaded ${newTotal} documents. Ready to create your care plan?`,
-                timestamp: Date.now() + 100,
-                widget: 'upload_options' // Custom widget state for the staged buttons
-            };
-            setMessages(prev => [...prev, botMsg]);
-            
-            setIsThinking(false);
+
+            // 3. Run Quick Scan (Extraction of Demographics)
+            // This is the "READ FIRST" logic.
+            try {
+                // Identify patient info from newly added files
+                const extractedInfo = await identifyPatientFromFiles(processedFiles);
+                
+                // Merge with existing info
+                const updatedInfo = {
+                    ...patientInfo,
+                    ...extractedInfo,
+                    // Prefer new info if existing was empty, otherwise keep existing
+                    name: patientInfo.name || extractedInfo.name || "",
+                    age: patientInfo.age || extractedInfo.age || "",
+                    primary_condition: patientInfo.primary_condition || extractedInfo.primary_condition || ""
+                };
+                
+                setPatientInfo(updatedInfo); // Update global state
+
+                // 4. Invoke Orchestrator Agent
+                // We send a hidden system event trigger so the agent knows to react
+                const response = await runIntakeAgent(
+                    updatedInfo, 
+                    newFiles.length, 
+                    messages, 
+                    `[SYSTEM_EVENT: FILES_UPLOADED] New documents scanned. Found: Name=${updatedInfo.name || 'Unknown'}, Age=${updatedInfo.age || 'Unknown'}, Condition=${updatedInfo.primary_condition || 'Unknown'}`
+                );
+
+                // 5. Update Chat with Agent's Reaction
+                setMessages(prev => {
+                    // Remove the "Reading documents..." temp message
+                    const filtered = prev.filter(m => !m.text.includes("Reading documents..."));
+                    return [
+                        ...filtered,
+                        {
+                            id: (Date.now() + 1).toString(),
+                            role: 'model',
+                            text: response.text,
+                            timestamp: Date.now(),
+                            widget: response.widget
+                        }
+                    ];
+                });
+                setSuggestions(response.suggestions || []);
+
+            } catch (e) {
+                console.error("Agent Scan Error", e);
+                // Fallback message
+                setMessages(prev => {
+                    const filtered = prev.filter(m => !m.text.includes("Reading documents..."));
+                    return [
+                        ...filtered,
+                        {
+                            id: Date.now().toString(),
+                            role: 'model',
+                            text: "I've uploaded the files. Ready to analyze?",
+                            timestamp: Date.now(),
+                            widget: 'upload_options'
+                        }
+                    ];
+                });
+            } finally {
+                setIsThinking(false);
+            }
         }
     };
 
@@ -1033,7 +970,15 @@ function AgentIntake({
         }
 
         try {
-            const response = await runIntakeAgent(patientInfo, files.length, messages, text);
+            // Call Agent with full context
+            const response = await runIntakeAgent(
+                patientInfo, 
+                files.length, 
+                messages, 
+                text,
+                status === 'analysis_complete' || status === 'verifying', // isExtractionComplete
+                parsedEpisode
+            );
             
             if (response.extracted_info) {
                 setPatientInfo(prev => ({
@@ -1054,6 +999,18 @@ function AgentIntake({
 
             if (autoPlayResponse) {
                 playTTS(response.text, botMsg.id);
+            }
+
+            // --- ORCHESTRATOR ACTION HANDLER ---
+            if (response.action === 'proceed_to_verification') {
+                if (onReview) {
+                    onReview();
+                } else {
+                    console.warn("onReview handler not provided to AgentIntake");
+                }
+            } else if (response.action === 'extract_data') {
+                // Auto-trigger extract/analyze
+                handleAnalyzeClick();
             }
 
         } catch (e) {

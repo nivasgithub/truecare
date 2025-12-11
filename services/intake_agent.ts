@@ -9,57 +9,93 @@ export async function runIntakeAgent(
   currentInfo: PatientInfo,
   fileCount: number,
   chatHistory: ChatMessage[],
-  lastUserMessage: string
+  lastUserMessage: string,
+  isExtractionComplete: boolean = false,
+  parsedEpisode?: ParsedEpisode | null
 ): Promise<IntakeAgentResponse> {
+
+  // Construct Session State Object for Prompt
+  const sessionState = {
+    files_count: fileCount,
+    files_validated: fileCount > 0, // Assumption: App validates mimetype on upload
+    extracted: isExtractionComplete ? {
+      patient: parsedEpisode?.patient,
+      // Minimal summary to save context window
+      medication_count: parsedEpisode?.medications?.length || 0,
+      confidence: parsedEpisode?.extraction_confidence || "high",
+    } : null,
+    user_provided: currentInfo,
+    requirements: {
+      has_files: fileCount > 0,
+      has_name: !!currentInfo.name,
+      has_age: !!currentInfo.age,
+      has_condition: !!currentInfo.primary_condition,
+      all_met: fileCount > 0 && !!currentInfo.name && !!currentInfo.age && !!currentInfo.primary_condition
+    },
+    // Infer pending action based on state
+    pending_action: isExtractionComplete ? "review_summary" : (fileCount > 0 ? "ready_for_extraction" : "awaiting_upload")
+  };
 
   const systemPrompt = `
     ${SAFETY_GUIDELINES}
 
-    You are "CareTransia Agent", a helpful, empathetic medical intake coordinator.
-    Your goal is to prepare a care plan by gathering key info.
+    You are "CareTransia Orchestrator", an autonomous AI agent managing a medical care plan intake session.
     
-    CRITICAL INSTRUCTION: 
-    Prioritize asking the user to UPLOAD or SCAN discharge papers FIRST. 
-    If they do this, assume we will extract details automatically. 
-    Only ask for Name/Age/Condition if the user refuses to upload or if extraction failed (i.e. fields are still missing after upload).
-    
-    REQUIRED INFO:
-    1. Patient Name
-    2. Patient Age
-    3. Primary Condition (Why they went to the doctor)
-    
-    CURRENT STATE:
-    - Name: ${currentInfo.name || "(Missing)"}
-    - Age: ${currentInfo.age || "(Missing)"}
-    - Condition: ${currentInfo.primary_condition || "(Missing)"}
-    - Files Uploaded: ${fileCount}
+    === YOUR ROLE ===
+    You orchestrate the entire flow. You decide what happens next based on the current state.
+    You behave like a helpful human medical coordinator would.
 
-    LOGIC:
-    1. If FileCount is 0, strongly encourage uploading files to save time. Widget = "upload".
-    2. If FileCount > 0 but info is still missing, say "I see the files, but I need a bit more info." and ask for missing fields.
-    3. If Name, Age, and Condition are present, confirm them briefly: "Thanks, I have a plan for [Name] for [Condition]. Ready to build the plan?" and set Widget = "analyze".
-    
-    SMART SUGGESTIONS:
-    Generate contextual suggestions based on CURRENT STATE:
-    - If files=0: ["Upload discharge papers", "Scan with camera", "I don't have papers"]
-    - If files>0 but Name missing: ["My name is...", "The patient's name is..."]
-    - If files>0, Name present, but Condition missing: ["The condition is...", "Hip replacement", "Heart surgery"]
-    - If all info present: ["Analyze now", "Add more documents", "Edit patient info"]
-    DO NOT use generic suggestions like "Yes" or "No" unless they directly answer a question.
+    === CURRENT SESSION STATE ===
+    Files: ${sessionState.files_count} uploaded, validated: ${sessionState.files_validated}
+    Extraction complete: ${!!sessionState.extracted}
+    Extracted patient: ${JSON.stringify(sessionState.extracted?.patient || {})}
+    User info known: ${JSON.stringify(sessionState.user_provided)}
+    Requirements Met: ${JSON.stringify(sessionState.requirements)}
+    Pending action context: ${sessionState.pending_action}
 
-    EXTRACTION RULE:
-    The user might provide info in a messy way (e.g. "72 James Smith fever").
-    YOU MUST EXTRACT THIS into the "extracted_info" object.
-    - If user provides "James Smith", extract Name="James Smith".
-    - If user provides "72", extract Age="72".
-    - If user provides "fever", extract PrimaryCondition="Fever".
-    
-    OUTPUT FORMAT:
-    Return ONLY a JSON object:
+    === AVAILABLE ACTIONS ===
+    1. "validate_files" - Check if uploaded files are medical documents (use if files present but state unknown).
+    2. "extract_data" - Run extraction on uploaded files (Use if files uploaded, basic info known, but extraction NOT complete).
+    3. "ask_for_info" - Ask user for specific missing information (Name, Age, Condition).
+    4. "confirm_summary" - Present summary of findings for user confirmation.
+    5. "proceed_to_verification" - Move to verification phase (Use ONLY if user explicitly confirms summary).
+    6. "wait" - Wait for user input (e.g. if asking for files).
+
+    === DECISION LOGIC ===
+
+    **Scenario: Files Just Uploaded (Trigger: user upload)**
+    - If extraction is NOT complete -> check requirements.
+    - If Name/Age/Condition missing -> You can ask for them OR try "extract_data" to see if documents have them. 
+    - PREFERENCE: "extract_data" immediately if files are present to read them first.
+
+    **Scenario: After Extraction Completes**
+    - Review what was found in 'Extracted patient' vs 'User info'.
+    - If critical gaps (Name/Age/Condition missing) -> action: "ask_for_info".
+    - If no gaps -> action: "confirm_summary" (e.g., "I found records for [Name]. Ready to build the plan?").
+
+    **Scenario: User Message (Trigger: user text)**
+    - Understand what user is telling you.
+    - Extract any information they provided into 'state_updates'.
+    - Update your understanding.
+    - Decide: still have gaps? ask more. All complete? confirm.
+
+    **Scenario: On Confirmation (user says yes/confirm/looks good)**
+    - If requirements.all_met -> action: "proceed_to_verification".
+    - If not -> explain what's still needed.
+
+    === HUMAN-LIKE BEHAVIOR ===
+    - DON'T ask for info that is already in "Extracted patient".
+    - DO extract first, then ask only for what's missing.
+    - DO reference specific things you found ("I see you're taking [Drug Name]...").
+    - DON'T be robotic.
+
+    OUTPUT JSON FORMAT:
     {
-      "text": "Your conversational response here...",
+      "text": "Your conversational response...",
       "widget": "none" | "upload" | "camera" | "analyze",
-      "suggestions": ["suggestion 1", "suggestion 2"],
+      "action": "validate_files" | "extract_data" | "ask_for_info" | "confirm_summary" | "proceed_to_verification" | "wait",
+      "action_reason": "Why you chose this action",
+      "suggestions": ["...", "..."],
       "extracted_info": { "name": "...", "age": "...", "primary_condition": "..." }
     }
   `;
@@ -74,7 +110,7 @@ export async function runIntakeAgent(
     model: AppConfig.models.fast, // Use fast model for snappy chat
     contents: [
       ...historyForApi,
-      { role: 'user', parts: [{ text: lastUserMessage }] }
+      { role: 'user', parts: [{ text: `Current Input: "${lastUserMessage}". State: ${JSON.stringify(sessionState)}` }] }
     ],
     config: {
       systemInstruction: systemPrompt,
@@ -84,6 +120,8 @@ export async function runIntakeAgent(
         properties: {
             text: { type: Type.STRING },
             widget: { type: Type.STRING, enum: ["none", "upload", "camera", "analyze"] },
+            action: { type: Type.STRING, enum: ["validate_files", "extract_data", "ask_for_info", "confirm_summary", "proceed_to_verification", "wait"] },
+            action_reason: { type: Type.STRING },
             suggestions: { type: Type.ARRAY, items: { type: Type.STRING } },
             extracted_info: {
                 type: Type.OBJECT,
