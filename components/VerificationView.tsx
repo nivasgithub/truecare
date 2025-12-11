@@ -16,10 +16,18 @@ interface VerificationViewProps {
 type EditableMedication = Medication & { _id: string; verified: boolean };
 type EditableAppointment = Appointment & { _id: string; verified: boolean };
 
+interface EditLog {
+    field: string;
+    originalValue: string;
+    newValue: string;
+    timestamp: number;
+}
+
 export default function VerificationView({ data, onConfirm, isLoading, progressMsg, consistency, onBack }: VerificationViewProps) {
   // Initialize local state with unique IDs for stable rendering and verification tracking
   const [meds, setMeds] = useState<EditableMedication[]>([]);
   const [appts, setAppts] = useState<EditableAppointment[]>([]);
+  const [editLog, setEditLog] = useState<EditLog[]>([]);
 
   useEffect(() => {
       setMeds(data.medications.map((m, i) => ({ ...m, _id: `med-${i}`, verified: false })));
@@ -28,6 +36,16 @@ export default function VerificationView({ data, onConfirm, isLoading, progressM
 
   // Handlers for Meds
   const updateMed = (id: string, field: keyof Medication, value: string) => {
+      // Log changes
+      const med = meds.find(m => m._id === id);
+      if (med && med[field] !== value) {
+          setEditLog(prev => [...prev, {
+              field: `${med.name} - ${field}`,
+              originalValue: String(med[field] || ''),
+              newValue: value,
+              timestamp: Date.now()
+          }]);
+      }
       setMeds(prev => prev.map(m => m._id === id ? { ...m, [field]: value, verified: true } : m));
   };
 
@@ -37,6 +55,15 @@ export default function VerificationView({ data, onConfirm, isLoading, progressM
 
   const removeMed = (id: string) => {
       if (window.confirm("Are you sure you want to remove this medication?")) {
+          const med = meds.find(m => m._id === id);
+          if (med) {
+              setEditLog(prev => [...prev, {
+                  field: `${med.name} - Removed`,
+                  originalValue: 'Active',
+                  newValue: 'Removed',
+                  timestamp: Date.now()
+              }]);
+          }
           setMeds(prev => prev.filter(m => m._id !== id));
       }
   };
@@ -64,7 +91,13 @@ export default function VerificationView({ data, onConfirm, isLoading, progressM
       onConfirm({
           ...data,
           medications: cleanMeds,
-          appointments: cleanAppts
+          appointments: cleanAppts,
+          // Include audit metadata
+          _verificationMeta: {
+              verifiedAt: new Date().toISOString(),
+              changesCount: editLog.length,
+              editLog: editLog
+          }
       });
   };
 
@@ -82,9 +115,9 @@ export default function VerificationView({ data, onConfirm, isLoading, progressM
       return (
           <div className="flex flex-col items-center justify-center min-h-[50vh] space-y-6">
               <div className="relative">
-                  <div className="w-20 h-20 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin"></div>
+                  <div className="w-20 h-20 border-4 border-teal-100 border-t-teal-500 rounded-full animate-spin"></div>
                   <div className="absolute inset-0 flex items-center justify-center">
-                      <Icons.Sparkle className="w-6 h-6 text-blue-600 animate-pulse" />
+                      <Icons.Sparkle className="w-6 h-6 text-teal-500 animate-pulse" />
                   </div>
               </div>
               <div className="text-center">
@@ -113,7 +146,7 @@ export default function VerificationView({ data, onConfirm, isLoading, progressM
         <div className="absolute top-0 left-0 md:-ml-16 hidden md:block">
             <button 
                 onClick={onBack}
-                className="p-3 rounded-full bg-white hover:bg-slate-50 text-slate-400 hover:text-slate-600 border border-slate-200 shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="p-3 rounded-full bg-white hover:bg-slate-50 text-slate-400 hover:text-slate-600 border border-slate-200 shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-teal-500"
                 title="Back to Uploads"
             >
                 <Icons.ArrowRight className="w-5 h-5 rotate-180" />
@@ -132,6 +165,21 @@ export default function VerificationView({ data, onConfirm, isLoading, progressM
         
         {/* Header Section */}
         <div className="text-center mb-8">
+            
+            {/* Confidence Badge */}
+            {confidence !== 'high' && (
+                <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-bold mb-4 ${
+                    confidence === 'low'
+                       ? 'bg-amber-100 text-amber-700 border border-amber-200'
+                       : 'bg-blue-50 text-blue-600 border border-blue-200'
+                }`}>
+                    <Icons.Alert className="w-4 h-4" />
+                    {confidence === 'low'
+                       ? 'Low confidence extraction - verify carefully'
+                       : 'Some items may need verification'}
+                </div>
+            )}
+
             {hasSafetyWarnings ? (
                 <div className="inline-block bg-red-100 border border-red-200 rounded-2xl p-6 mb-6 w-full text-left">
                     <div className="flex items-center gap-3 mb-3">
@@ -183,23 +231,23 @@ export default function VerificationView({ data, onConfirm, isLoading, progressM
                                 ? 'border-red-300 shadow-[0_0_0_1px_rgba(252,165,165,0.5)]' 
                                 : med.verified 
                                     ? 'border-emerald-200 bg-emerald-50/10' 
-                                    : 'border-slate-200 hover:border-blue-300 shadow-sm'
+                                    : 'border-slate-200 hover:border-teal-300 shadow-sm'
                         }`}
                     >
                         <div className="p-4 flex items-start gap-4">
                             
-                            {/* Custom Checkbox */}
+                            {/* Custom Checkbox (Circular for new theme) */}
                             <button
                                 type="button"
                                 onClick={() => toggleMedVerified(med._id)}
-                                className={`mt-1 w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                                className={`mt-1 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 ${
                                     med.verified 
-                                        ? 'bg-emerald-500 border-emerald-500 text-white focus:ring-emerald-500' 
-                                        : 'bg-white border-slate-300 text-transparent hover:border-blue-400 focus:ring-blue-500'
+                                        ? 'bg-teal-500 border-teal-500 text-white focus:ring-teal-500' 
+                                        : 'bg-white border-slate-300 text-transparent hover:border-teal-400 focus:ring-teal-500'
                                 }`}
                                 aria-label={`Confirm ${med.name}`}
                             >
-                                <Icons.Check className="w-4 h-4 stroke-[3]" />
+                                <Icons.Check className="w-3 h-3 stroke-[3]" />
                             </button>
 
                             {/* Content */}
@@ -211,7 +259,7 @@ export default function VerificationView({ data, onConfirm, isLoading, progressM
                                     <input 
                                         value={med.name} 
                                         onChange={(e) => updateMed(med._id, 'name', e.target.value)}
-                                        className="w-full font-bold text-slate-900 bg-transparent border-b border-transparent focus:border-blue-500 outline-none transition-colors py-0.5"
+                                        className="w-full font-bold text-slate-900 bg-transparent border-b border-transparent focus:border-teal-500 outline-none transition-colors py-0.5"
                                     />
                                     
                                     {/* Inline Warnings */}
@@ -240,7 +288,7 @@ export default function VerificationView({ data, onConfirm, isLoading, progressM
                                         className={`w-full font-medium bg-transparent border-b outline-none transition-colors py-0.5 ${
                                             doseWarning 
                                                 ? 'text-red-700 border-red-300 focus:border-red-500 bg-red-50/50' 
-                                                : 'text-slate-700 border-transparent focus:border-blue-500'
+                                                : 'text-slate-700 border-transparent focus:border-teal-500'
                                         }`}
                                     />
                                 </div>
@@ -251,7 +299,7 @@ export default function VerificationView({ data, onConfirm, isLoading, progressM
                                     <input 
                                         value={med.frequency} 
                                         onChange={(e) => updateMed(med._id, 'frequency', e.target.value)}
-                                        className="w-full text-slate-600 bg-transparent border-b border-transparent focus:border-blue-500 outline-none transition-colors py-0.5"
+                                        className="w-full text-slate-600 bg-transparent border-b border-transparent focus:border-teal-500 outline-none transition-colors py-0.5"
                                     />
                                 </div>
 
@@ -274,7 +322,7 @@ export default function VerificationView({ data, onConfirm, isLoading, progressM
                         
                         {/* Validation overlay for unverified items to draw attention */}
                         {!med.verified && (
-                            <div className="absolute inset-0 bg-slate-50/0 pointer-events-none rounded-2xl ring-1 ring-inset ring-slate-200 group-hover:ring-blue-200 transition-all" />
+                            <div className="absolute inset-0 bg-slate-50/0 pointer-events-none rounded-2xl ring-1 ring-inset ring-slate-200 group-hover:ring-teal-200 transition-all" />
                         )}
                     </div>
                 );
@@ -298,10 +346,10 @@ export default function VerificationView({ data, onConfirm, isLoading, progressM
                          <button
                             type="button"
                             onClick={() => toggleApptVerified(appt._id)}
-                            className={`w-5 h-5 rounded border flex items-center justify-center transition-all ${
+                            className={`w-5 h-5 rounded-full border flex items-center justify-center transition-all ${
                                 appt.verified 
-                                    ? 'bg-blue-500 border-blue-500 text-white' 
-                                    : 'bg-white border-slate-300 text-transparent hover:border-blue-400'
+                                    ? 'bg-teal-500 border-teal-500 text-white' 
+                                    : 'bg-white border-slate-300 text-transparent hover:border-teal-400'
                             }`}
                         >
                             <Icons.Check className="w-3 h-3 stroke-[3]" />
@@ -310,13 +358,13 @@ export default function VerificationView({ data, onConfirm, isLoading, progressM
                             <input 
                                 value={appt.specialty_or_clinic || ''} 
                                 onChange={(e) => updateAppt(appt._id, 'specialty_or_clinic', e.target.value)}
-                                className="font-bold text-slate-900 border-b border-transparent focus:border-blue-500 outline-none bg-transparent"
+                                className="font-bold text-slate-900 border-b border-transparent focus:border-teal-500 outline-none bg-transparent"
                                 placeholder="Clinic Name"
                             />
                             <input 
                                 value={appt.target_date_or_window} 
                                 onChange={(e) => updateAppt(appt._id, 'target_date_or_window', e.target.value)}
-                                className="text-slate-600 border-b border-transparent focus:border-blue-500 outline-none bg-transparent"
+                                className="text-slate-600 border-b border-transparent focus:border-teal-500 outline-none bg-transparent"
                                 placeholder="Date/Time"
                             />
                         </div>
@@ -359,7 +407,7 @@ export default function VerificationView({ data, onConfirm, isLoading, progressM
                     <Button 
                         onClick={handleConfirm} 
                         disabled={!canProceed}
-                        className={`flex-1 md:flex-none px-8 py-3 text-lg shadow-xl transition-all ${canProceed ? 'shadow-blue-500/20' : 'opacity-50 cursor-not-allowed bg-slate-300'}`}
+                        className={`flex-1 md:flex-none px-8 py-3 text-lg shadow-xl transition-all ${canProceed ? 'shadow-teal-500/20' : 'opacity-50 cursor-not-allowed bg-slate-300'}`}
                     >
                         Continue to Care Plan <Icons.ArrowRight className="w-5 h-5" />
                     </Button>

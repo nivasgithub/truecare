@@ -3,7 +3,7 @@ import { Type } from "@google/genai";
 import { ai } from "./gemini";
 import { AppConfig, SAFETY_GUIDELINES } from "../config";
 import { cleanAndParseJSON } from "./utils";
-import { PatientInfo, ChatMessage, IntakeAgentResponse } from "../types";
+import { PatientInfo, ChatMessage, IntakeAgentResponse, ConsistencyIssue, ParsedEpisode } from "../types";
 
 export async function runIntakeAgent(
   currentInfo: PatientInfo,
@@ -39,6 +39,14 @@ export async function runIntakeAgent(
     2. If FileCount > 0 but info is still missing, say "I see the files, but I need a bit more info." and ask for missing fields.
     3. If Name, Age, and Condition are present, confirm them briefly: "Thanks, I have a plan for [Name] for [Condition]. Ready to build the plan?" and set Widget = "analyze".
     
+    SMART SUGGESTIONS:
+    Generate contextual suggestions based on CURRENT STATE:
+    - If files=0: ["Upload discharge papers", "Scan with camera", "I don't have papers"]
+    - If files>0 but Name missing: ["My name is...", "The patient's name is..."]
+    - If files>0, Name present, but Condition missing: ["The condition is...", "Hip replacement", "Heart surgery"]
+    - If all info present: ["Analyze now", "Add more documents", "Edit patient info"]
+    DO NOT use generic suggestions like "Yes" or "No" unless they directly answer a question.
+
     EXTRACTION RULE:
     The user might provide info in a messy way (e.g. "72 James Smith fever").
     YOU MUST EXTRACT THIS into the "extracted_info" object.
@@ -92,4 +100,52 @@ export async function runIntakeAgent(
 
   if (!response.text) throw new Error("Agent failed to respond.");
   return cleanAndParseJSON<IntakeAgentResponse>(response.text);
+}
+
+export async function askGapQuestion(
+  gaps: ConsistencyIssue[],
+  parsedEpisode: ParsedEpisode,
+  patientInfo: PatientInfo
+): Promise<{ text: string; suggestions: string[] }> {
+    // Find the most critical gap
+    const criticalGap = gaps.find(g => g.severity === 'critical') || gaps[0];
+    if (!criticalGap) return { text: '', suggestions: [] };
+
+    const systemPrompt = `
+    ${SAFETY_GUIDELINES}
+    
+    You are CareTransia Agent. A safety gap was detected in the patient's discharge papers.
+    
+    Gap: ${criticalGap.summary}
+    Details: ${criticalGap.details}
+    Suggested Question: ${criticalGap.suggested_question}
+    
+    Patient: ${patientInfo.name}, ${patientInfo.age}, ${patientInfo.primary_condition}
+    
+    Task:
+    Rewrite the "Suggested Question" to be friendly, clear, and empathetic for a layperson caregiver.
+    Keep it under 2 sentences. Be specific.
+    Also provide 2-3 helpful suggestion buttons that might be the answer.
+    
+    Return JSON: { "text": "...", "suggestions": ["...", "..."] }
+    `;
+
+    const response = await ai.models.generateContent({
+        model: AppConfig.models.fast,
+        contents: [{ role: 'user', parts: [{ text: "Generate gap question." }] }],
+        config: {
+            systemInstruction: systemPrompt,
+            responseMimeType: "application/json",
+            responseSchema: {
+                type: Type.OBJECT,
+                properties: {
+                    text: { type: Type.STRING },
+                    suggestions: { type: Type.ARRAY, items: { type: Type.STRING } }
+                }
+            }
+        }
+    });
+
+    if (!response.text) return { text: criticalGap.suggested_question, suggestions: ["I don't know"] };
+    return cleanAndParseJSON<{ text: string; suggestions: string[] }>(response.text);
 }

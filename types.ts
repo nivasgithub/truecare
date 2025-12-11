@@ -1,5 +1,4 @@
 
-
 export interface PatientInfo {
   name: string;
   age: string;
@@ -68,6 +67,17 @@ export interface ParsedEpisode {
   // Confidence Scoring
   extraction_confidence?: 'high' | 'medium' | 'low';
   low_confidence_items?: string[];
+  // Verification Audit
+  _verificationMeta?: {
+      verifiedAt: string;
+      changesCount: number;
+      editLog: Array<{
+          field: string;
+          originalValue: string;
+          newValue: string;
+          timestamp: number;
+      }>;
+  };
 }
 
 export interface ConsistencyIssue {
@@ -174,7 +184,7 @@ export interface ChatMessage {
   text: string;
   timestamp: number;
   // For Intake Agent
-  widget?: 'upload' | 'camera' | 'analyze' | 'upload_options' | 'none' | 'analysis_progress';
+  widget?: 'upload' | 'camera' | 'analyze' | 'upload_options' | 'none' | 'analysis_progress' | 'post_analysis_options';
   extractedInfo?: Partial<PatientInfo>;
   fileId?: string; // Reference to a staged file
 }

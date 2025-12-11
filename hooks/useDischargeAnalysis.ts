@@ -85,10 +85,6 @@ export function useCareTransiaFlow(userId?: string) {
       setConsistencyReport(result.consistencyReport);
       
       // Smart Merge Logic:
-      // 1. If user provided info manually (prev), KEEP IT to avoid "amnesia" loop.
-      // 2. Only overwrite if the extraction found something NEW and the user field was empty.
-      // 3. We do NOT overwrite conflicts here automatically. We let the UI detect differences between 
-      //    result.parsedEpisode.patient (Doc) and patientInfo (User) so the Agent can ask about it.
       if (result.parsedEpisode.patient) {
           setPatientInfo(prev => {
               return {
@@ -96,7 +92,6 @@ export function useCareTransiaFlow(userId?: string) {
                   name: prev.name || result.parsedEpisode.patient.name || "",
                   age: prev.age || result.parsedEpisode.patient.age || "",
                   primary_condition: prev.primary_condition || result.parsedEpisode.patient.primary_condition || "",
-                  // For less critical fields, we can default to doc if user is default
                   language_preference: prev.language_preference !== 'English' ? prev.language_preference : (result.parsedEpisode.patient.language_preference || 'English'),
                   caregiver_role: prev.caregiver_role || result.parsedEpisode.patient.caregiver_role || ""
               };
@@ -109,6 +104,52 @@ export function useCareTransiaFlow(userId?: string) {
       console.error(e);
       setErrorMsg(e.message || "An unexpected error occurred during extraction.");
       setStatus('error');
+    }
+  };
+
+  const reAnalyzeWithMoreFiles = async (additionalFiles: UploadedFile[]) => {
+    // Merge new files with existing
+    const allFiles = [...files, ...additionalFiles];
+    setFiles(allFiles);
+    
+    // Re-run extraction with all files
+    try {
+        setStatus('analyzing');
+        setProgressMsg('Re-analyzing with new documents...');
+        
+        const result = await runExtractionPhase(allFiles, notes, patientInfo, setProgressMsg);
+        
+        // Merge results - prioritize keeping existing verified data if we can, 
+        // but for now we merge and dedupe based on name.
+        setParsedEpisode(prev => {
+            if (!prev) return result.parsedEpisode;
+
+            const mergedMeds = [...prev.medications, ...result.parsedEpisode.medications];
+            // Dedupe meds by name (case-insensitive)
+            const uniqueMeds = mergedMeds.filter((med, index, self) => 
+                index === self.findIndex((m) => m.name.toLowerCase() === med.name.toLowerCase())
+            );
+
+            const mergedAppts = [...prev.appointments, ...result.parsedEpisode.appointments];
+            // Dedupe appointments by type and date
+            const uniqueAppts = mergedAppts.filter((appt, index, self) => 
+                index === self.findIndex((a) => a.type === appt.type && a.target_date_or_window === appt.target_date_or_window)
+            );
+
+            return {
+                ...result.parsedEpisode, // Take latest structure
+                medications: uniqueMeds,
+                appointments: uniqueAppts,
+                // Merge warnings
+                warnings: [...prev.warnings, ...result.parsedEpisode.warnings].filter((w, i, arr) => arr.findIndex(x => x.description === w.description) === i)
+            };
+        });
+        
+        setConsistencyReport(result.consistencyReport);
+        setStatus('analysis_complete');
+    } catch (e: any) {
+        setErrorMsg(e.message);
+        setStatus('error');
     }
   };
 
@@ -189,6 +230,6 @@ export function useCareTransiaFlow(userId?: string) {
     intake: { patientInfo, setPatientInfo, files, setFiles, notes, setNotes },
     results: { parsedEpisode, consistencyReport, carePlan },
     ui: { status, errorMsg, dismissError, progressMsg, isOffline },
-    actions: { analyze, startVerification, confirmAndGenerate, reset, loadRecord, loadDemoData }
+    actions: { analyze, reAnalyzeWithMoreFiles, startVerification, confirmAndGenerate, reset, loadRecord, loadDemoData }
   };
 }

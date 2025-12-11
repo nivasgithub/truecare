@@ -1,7 +1,7 @@
 
 import React, { useRef, useState, useEffect } from 'react';
 import { Icons, Card, Button, SectionTitle, HelpTip, Breadcrumbs } from './ui';
-import { PatientInfo, UploadedFile, ChatMessage, ParsedEpisode } from '../types';
+import { PatientInfo, UploadedFile, ChatMessage, ParsedEpisode, ConsistencyReport } from '../types';
 import SmartCamera from './SmartCamera';
 import VoiceGuidedScanner from './VoiceGuidedScanner';
 import { runIntakeAgent } from '../services/intake_agent';
@@ -27,6 +27,9 @@ interface CareTransiaIntakeProps {
   isOffline?: boolean;
   // NEW: Pass parsed episode for conflict detection
   parsedEpisode?: ParsedEpisode | null;
+  consistencyReport?: ConsistencyReport | null;
+  // NEW: Action to handle adding more files after initial analysis
+  onReAnalyze?: (files: UploadedFile[]) => void;
 }
 
 type IntakeMode = 'selection' | 'agent' | 'manual';
@@ -39,7 +42,8 @@ export default function CareTransiaIntake({
   progressMsg = "Processing...",
   onLoadDemo,
   status, errorMsg, onDismissError, isOffline,
-  parsedEpisode
+  parsedEpisode, consistencyReport,
+  onReAnalyze
 }: CareTransiaIntakeProps) {
   
   // Default to selection unless files already exist (returning user/state)
@@ -79,14 +83,26 @@ export default function CareTransiaIntake({
 
   // Helper for components that just want to pass data/type
   const addFileData = (dataUrl: string, mimeType: string, name = "Scanned Image") => {
-      addFile({
+      // Logic split: If analyzing/done, we might need to trigger re-analysis differently
+      // But for simplicity, we add to state. If in re-analyze mode, we handle inside the component triggering this.
+      const newFile = {
           id: Math.random().toString(36).substr(2, 9),
           data: dataUrl.split(',')[1],
           mimeType: mimeType,
           preview: dataUrl,
           name: name,
           size: "Unknown"
-      });
+      };
+      
+      // If we are in the main view (not agent) and status is complete, we might need a button to re-analyze.
+      // Current design assumes 'addFile' updates state, user hits 'Analyze' again.
+      // But for Agent flow, we wire specifically.
+      addFile(newFile);
+      
+      if (status === 'analysis_complete' && onReAnalyze) {
+          // If capturing via camera in post-analysis, auto-trigger re-analyze
+          onReAnalyze([newFile]);
+      }
   };
 
   const removeFile = (id: string) => {
@@ -161,14 +177,14 @@ export default function CareTransiaIntake({
                 <button 
                     id="select-papers"
                     onClick={() => handleSelection('papers')}
-                    className="group bg-white p-8 rounded-3xl border border-slate-200 shadow-sm hover:shadow-xl hover:border-blue-400 transition-all text-left flex flex-col gap-6 relative overflow-hidden"
+                    className="group bg-white p-8 rounded-3xl border border-slate-200 shadow-sm hover:shadow-xl hover:border-teal-400 transition-all text-left flex flex-col gap-6 relative overflow-hidden"
                 >
-                    <div className="absolute top-0 right-0 w-24 h-24 bg-blue-50 rounded-full -mr-10 -mt-10 group-hover:scale-150 transition-transform duration-500"></div>
-                    <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600 group-hover:scale-110 transition-transform relative z-10">
+                    <div className="absolute top-0 right-0 w-24 h-24 bg-teal-50 rounded-full -mr-10 -mt-10 group-hover:scale-150 transition-transform duration-500"></div>
+                    <div className="w-16 h-16 bg-teal-50 rounded-2xl flex items-center justify-center text-teal-600 group-hover:scale-110 transition-transform relative z-10">
                         <Icons.FileText className="w-8 h-8" />
                     </div>
                     <div className="relative z-10">
-                        <h3 className="text-xl font-bold text-slate-900 mb-2 group-hover:text-blue-700 transition-colors">Discharge Papers</h3>
+                        <h3 className="text-xl font-bold text-slate-900 mb-2 group-hover:text-teal-700 transition-colors">Discharge Papers</h3>
                         <p className="text-slate-500 text-sm leading-relaxed">Printed packets, summaries, or handwritten notes.</p>
                     </div>
                 </button>
@@ -206,11 +222,11 @@ export default function CareTransiaIntake({
             
             <div className="mt-8 text-center">
                  {onLoadDemo && (
-                    <button onClick={onLoadDemo} className="text-xs font-bold text-slate-400 hover:text-blue-600 transition-colors flex items-center gap-1 mx-auto">
+                    <button onClick={onLoadDemo} className="text-xs font-bold text-slate-400 hover:text-teal-600 transition-colors flex items-center gap-1 mx-auto">
                         <Icons.Refresh className="w-3 h-3" /> Load Demo Data
                     </button>
                  )}
-                 <button onClick={() => handleSelection('mixed')} className="text-slate-400 text-sm font-semibold hover:text-blue-600 transition-colors mt-4">
+                 <button onClick={() => handleSelection('mixed')} className="text-slate-400 text-sm font-semibold hover:text-teal-600 transition-colors mt-4">
                      I have a mix of files
                  </button>
             </div>
@@ -224,7 +240,7 @@ export default function CareTransiaIntake({
                 <div className="bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm inline-flex items-stretch">
                     <button 
                         onClick={() => setMode('agent')}
-                        className={`flex flex-col items-center justify-center gap-1 px-6 py-3 rounded-xl transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${mode === 'agent' ? 'bg-slate-900 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}
+                        className={`flex flex-col items-center justify-center gap-1 px-6 py-3 rounded-xl transition-all focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 ${mode === 'agent' ? 'bg-slate-900 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}
                     >
                         <div className="flex items-center gap-2 font-bold text-sm">
                             <Icons.Sparkle className="w-4 h-4" /> AI Assistant
@@ -233,7 +249,7 @@ export default function CareTransiaIntake({
                     </button>
                     <button 
                         onClick={() => setMode('manual')}
-                        className={`flex flex-col items-center justify-center gap-1 px-6 py-3 rounded-xl transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${mode === 'manual' ? 'bg-slate-900 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}
+                        className={`flex flex-col items-center justify-center gap-1 px-6 py-3 rounded-xl transition-all focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 ${mode === 'manual' ? 'bg-slate-900 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}
                     >
                         <div className="flex items-center gap-2 font-bold text-sm">
                             <Icons.Note className="w-4 h-4" /> Manual Form
@@ -257,13 +273,15 @@ export default function CareTransiaIntake({
                 onVoiceScan={() => setShowVoiceScanner(true)}
                 onAnalyze={onAnalyze}
                 onReview={onReview}
+                onReAnalyze={onReAnalyze}
                 isLoading={isLoading}
                 progressMsg={progressMsg}
                 hasCamera={hasCamera}
                 initialContext={agentContext}
                 status={status}
                 errorMsg={errorMsg}
-                parsedEpisode={parsedEpisode} // Pass extracted data for verification
+                parsedEpisode={parsedEpisode}
+                consistencyReport={consistencyReport}
             />
             {files.length === 0 && (
                 <div className="text-center mt-4">
@@ -309,6 +327,53 @@ function calculateProgress(info: PatientInfo, files: UploadedFile[]) {
     if (info.primary_condition) score += 20;
     if (files.length > 0) score += 40;
     return Math.min(score, 100);
+}
+
+function getCompletenessWarnings(info: PatientInfo, files: UploadedFile[]): string[] {
+    const warnings: string[] = [];
+    if (files.length === 0) warnings.push("No documents uploaded");
+    if (!info.name) warnings.push("Patient name not provided");
+    if (!info.age) warnings.push("Patient age not provided");
+    if (!info.primary_condition) warnings.push("Primary condition not provided");
+    return warnings;
+}
+
+function canSafelyAnalyze(info: PatientInfo, files: UploadedFile[]): boolean {
+    // Require at least files + one identifying field to be considered "safe" enough to likely yield a good result without massive hallucinations about who the patient is.
+    return files.length > 0 && (!!info.name || !!info.primary_condition);
+}
+
+function generateExtractionSummary(episode: ParsedEpisode, consistency: ConsistencyReport | null): string {
+    const found: string[] = [];
+    const missing: string[] = [];
+    
+    // Found counts
+    if (episode.medications.length > 0) found.push(`${episode.medications.length} medication(s)`);
+    if (episode.appointments.length > 0) found.push(`${episode.appointments.length} appointment(s)`);
+    if (episode.activities.length > 0) found.push(`${episode.activities.length} activity instruction(s)`);
+    if (episode.warnings.length > 0) found.push(`${episode.warnings.length} warning sign(s)`);
+    
+    // Missing items from safety gaps
+    if (consistency?.gaps) {
+        consistency.gaps.forEach(g => {
+            if (g.severity === 'important' || g.severity === 'critical') {
+                missing.push(g.summary);
+            }
+        });
+    }
+    
+    let msg = `**Extraction Complete!**\n\n`;
+    if (found.length > 0) msg += `✓ Found: ${found.join(', ')}\n`;
+    else msg += `✓ Analysis finished, but found limited structured data.\n`;
+
+    if (missing.length > 0) msg += `⚠️ Note: ${missing.join(', ')}\n`;
+    
+    const confidence = episode.extraction_confidence || 'high';
+    if (confidence !== 'high') {
+        msg += `\n*Note: Some text was unclear. Please verify carefully.*`;
+    }
+    
+    return msg;
 }
 
 const InfoField = ({ label, value, placeholder }: { label: string, value?: string, placeholder: string }) => (
@@ -401,7 +466,7 @@ function ManualIntake({
             <div className="space-y-6">
                 <Card className="p-6" id="intake-patient-info">
                     <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-                        <Icons.User className="text-blue-500" /> Patient Details
+                        <Icons.User className="text-teal-500" /> Patient Details
                         <HelpTip text="These basic details help the AI verify the documents belong to the right person." />
                     </h3>
                     <div className="space-y-4">
@@ -411,7 +476,7 @@ function ManualIntake({
                                 value={patientInfo.name} 
                                 onChange={e => setPatientInfo({...patientInfo, name: e.target.value})}
                                 placeholder="e.g. John Doe"
-                                className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-slate-900"
+                                className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 outline-none transition-all text-slate-900"
                             />
                         </div>
                         <div className="grid grid-cols-2 gap-4">
@@ -421,7 +486,7 @@ function ManualIntake({
                                     value={patientInfo.age} 
                                     onChange={e => setPatientInfo({...patientInfo, age: e.target.value})}
                                     placeholder="e.g. 65"
-                                    className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-slate-900"
+                                    className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 outline-none transition-all text-slate-900"
                                 />
                             </div>
                             <div>
@@ -429,7 +494,7 @@ function ManualIntake({
                                 <select 
                                     value={patientInfo.language_preference} 
                                     onChange={e => setPatientInfo({...patientInfo, language_preference: e.target.value})}
-                                    className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-slate-900"
+                                    className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 outline-none transition-all text-slate-900"
                                 >
                                     <option>English</option>
                                     <option>Spanish</option>
@@ -444,7 +509,7 @@ function ManualIntake({
                                 value={patientInfo.primary_condition} 
                                 onChange={e => setPatientInfo({...patientInfo, primary_condition: e.target.value})}
                                 placeholder="e.g. Hip Replacement, Pneumonia"
-                                className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-slate-900"
+                                className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 outline-none transition-all text-slate-900"
                             />
                         </div>
 
@@ -458,7 +523,7 @@ function ManualIntake({
                                 value={notes}
                                 onChange={e => setNotes(e.target.value)}
                                 placeholder="Add any extra instructions from the nurse or questions you have..."
-                                className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all h-32 resize-none text-slate-900"
+                                className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 outline-none transition-all h-32 resize-none text-slate-900"
                             />
                         </div>
                     </div>
@@ -467,7 +532,7 @@ function ManualIntake({
 
             {/* Right: Files & Actions */}
             <div className="space-y-6">
-                <Card className={`p-6 transition-all duration-200 ${isDragging ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200' : ''}`} id="intake-upload-section">
+                <Card className={`p-6 transition-all duration-200 ${isDragging ? 'border-teal-500 bg-teal-50 ring-2 ring-teal-200' : ''}`} id="intake-upload-section">
                     <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
                         <Icons.Upload className="text-purple-500" /> Upload Documents
                     </h3>
@@ -482,7 +547,7 @@ function ManualIntake({
                         <div className="flex gap-4 w-full">
                             <button 
                                 onClick={() => fileInputRef.current?.click()}
-                                className="flex-1 flex flex-col items-center justify-center gap-2 p-4 bg-white border border-slate-200 rounded-xl hover:border-blue-300 hover:text-blue-600 transition-all text-slate-500 shadow-sm"
+                                className="flex-1 flex flex-col items-center justify-center gap-2 p-4 bg-white border border-slate-200 rounded-xl hover:border-teal-300 hover:text-teal-600 transition-all text-slate-500 shadow-sm"
                             >
                                 <input type="file" multiple ref={fileInputRef} className="hidden" onChange={handleFileSelect} accept="image/*,application/pdf" />
                                 <Icons.Upload className="w-6 h-6" />
@@ -491,7 +556,7 @@ function ManualIntake({
                             {hasCamera && (
                                 <button 
                                     onClick={onCamera}
-                                    className="flex-1 flex flex-col items-center justify-center gap-2 p-4 bg-white border border-slate-200 rounded-xl hover:border-blue-300 hover:text-blue-600 transition-all text-slate-500 shadow-sm"
+                                    className="flex-1 flex flex-col items-center justify-center gap-2 p-4 bg-white border border-slate-200 rounded-xl hover:border-teal-300 hover:text-teal-600 transition-all text-slate-500 shadow-sm"
                                 >
                                     <Icons.Camera className="w-6 h-6" />
                                     <span className="text-sm font-bold">Scan Camera</span>
@@ -501,10 +566,10 @@ function ManualIntake({
                         {hasCamera && (
                             <button 
                                 onClick={onVoiceScan}
-                                className="w-full flex items-center justify-center gap-3 p-3 bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-xl hover:shadow-md transition-all text-blue-700 group"
+                                className="w-full flex items-center justify-center gap-3 p-3 bg-gradient-to-r from-teal-50 to-purple-50 border border-teal-200 rounded-xl hover:shadow-md transition-all text-teal-700 group"
                             >
                                 <div className="bg-white p-1.5 rounded-full shadow-sm group-hover:scale-110 transition-transform">
-                                    <Icons.Mic className="w-4 h-4 text-blue-600" />
+                                    <Icons.Mic className="w-4 h-4 text-teal-600" />
                                 </div>
                                 <span className="text-sm font-bold">Try Voice-Guided Scanner</span>
                             </button>
@@ -550,7 +615,7 @@ function ManualIntake({
                     id="intake-analyze-btn"
                     onClick={onAnalyze} 
                     disabled={isLoading || files.length === 0} 
-                    className="w-full py-5 text-lg shadow-xl shadow-blue-200/50"
+                    className="w-full py-5 text-lg shadow-xl shadow-teal-200/50"
                 >
                     {isLoading ? (
                         <><Icons.Spinner className="w-5 h-5" /> {progressMsg}</>
@@ -600,10 +665,10 @@ function DocumentCard({ file, onRemove }: { file: UploadedFile, onRemove: () => 
 function AgentIntake({ 
     patientInfo, setPatientInfo, 
     files, addFile, removeFile,
-    onCamera, onVoiceScan, onAnalyze, onReview,
+    onCamera, onVoiceScan, onAnalyze, onReview, onReAnalyze,
     isLoading, progressMsg, hasCamera,
     initialContext, status, errorMsg,
-    parsedEpisode
+    parsedEpisode, consistencyReport
 }: {
     patientInfo: PatientInfo;
     setPatientInfo: React.Dispatch<React.SetStateAction<PatientInfo>>;
@@ -614,6 +679,7 @@ function AgentIntake({
     onVoiceScan: () => void;
     onAnalyze: () => void;
     onReview?: () => void;
+    onReAnalyze?: (files: UploadedFile[]) => void;
     isLoading: boolean;
     progressMsg: string;
     hasCamera: boolean;
@@ -621,6 +687,7 @@ function AgentIntake({
     status?: string;
     errorMsg?: string | null;
     parsedEpisode?: ParsedEpisode | null;
+    consistencyReport?: ConsistencyReport | null;
 }) {
     // Generate context-aware welcome
     const getWelcomeMsg = () => {
@@ -736,14 +803,68 @@ function AgentIntake({
                             id: `missing-info-${Date.now()}`,
                             role: 'model',
                             text: `I've analyzed the documents, but I couldn't find the ${missing.join(', ')}. Could you please provide these details so I can build a safe plan?`,
-                            timestamp: Date.now()
+                            timestamp: Date.now(),
+                            // Add contextual suggestions based on what's missing
+                            suggestions: missing.includes("patient's name") 
+                                ? ["The patient is...", "My name is..."]
+                                : missing.includes("primary condition") 
+                                    ? ["The condition is...", "Hip surgery", "Heart procedure"]
+                                    : ["Let me tell you..."]
+                        }
+                    ];
+                });
+                prevStatusRef.current = status;
+                return; // Stop here if basic info missing
+            } 
+            
+            // 3. NEW: Critical Gap Check (Phase 5)
+            // If there are critical gaps, ask about them
+            if (consistencyReport?.gaps && consistencyReport.gaps.length > 0) {
+                const criticalGaps = consistencyReport.gaps.filter(g => 
+                    g.severity === 'critical' || g.severity === 'important'
+                );
+                
+                if (criticalGaps.length > 0) {
+                    // Use the suggested_question from safety check (Phase 1 result)
+                    const topGap = criticalGaps[0];
+                    setMessages(prev => [
+                        ...prev,
+                        {
+                            id: `gap-question-${Date.now()}`,
+                            role: 'model',
+                            text: topGap.suggested_question || `I found a gap: ${topGap.summary}. Can you help clarify?`,
+                            timestamp: Date.now(),
+                            suggestions: ['I\'m not sure', 'Let me check the papers', 'Skip this']
+                        }
+                    ]);
+                    prevStatusRef.current = status;
+                    return; // Stop here if gap question asked
+                }
+            }
+
+            // 4. Post-Extraction Summary (Phase 3)
+            // If NO conflicts and NO missing info and NO critical gaps, show summary
+            if (parsedEpisode) {
+                setMessages(prev => {
+                    const hasExistingSummary = prev.some(m => m.text.includes('Extraction Complete'));
+                    if (hasExistingSummary) return prev;
+                    
+                    const summary = generateExtractionSummary(parsedEpisode, consistencyReport || null);
+                    return [
+                        ...prev,
+                        {
+                            id: `summary-${Date.now()}`,
+                            role: 'model',
+                            text: summary,
+                            timestamp: Date.now(),
+                            widget: 'post_analysis_options' // Show "Add More" and "Review" buttons
                         }
                     ];
                 });
             }
         }
         prevStatusRef.current = status;
-    }, [status, patientInfo.name, patientInfo.age, patientInfo.primary_condition, parsedEpisode]);
+    }, [status, patientInfo.name, patientInfo.age, patientInfo.primary_condition, parsedEpisode, consistencyReport]);
 
     // Detect file removal state
     useEffect(() => {
@@ -765,10 +886,11 @@ function AgentIntake({
     // Handle File Selection - Staged Flow
     const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files.length > 0) {
-            setIsThinking(true);
-            const selectedFiles = Array.from(e.target.files);
             
-            // Process files sequentially to maintain order in state
+            // PREPARE FILES
+            const selectedFiles = Array.from(e.target.files);
+            const processedFiles: UploadedFile[] = [];
+
             for (const fileItem of selectedFiles) {
                 const file = fileItem as File;
                 await new Promise<void>((resolve) => {
@@ -778,27 +900,38 @@ function AgentIntake({
                             const dataUrl = ev.target.result as string;
                             const newId = Math.random().toString(36).substr(2, 9);
                             
-                            // 1. Add to App State
-                            addFile({
+                            // 1. Create File Object
+                            const fileObj = {
                                 id: newId,
                                 data: dataUrl.split(',')[1],
                                 mimeType: file.type,
                                 preview: dataUrl,
                                 name: file.name,
                                 size: (file.size / 1024 / 1024).toFixed(1) + " MB"
-                            });
-
-                            // 2. Add Staged Message to Chat
-                            setMessages(prev => [
-                                ...prev, 
-                                { 
-                                    id: `msg-${newId}`, 
-                                    role: 'user', 
-                                    text: '', // Empty text, renders as card
-                                    timestamp: Date.now(),
-                                    fileId: newId // Links to the file
-                                }
-                            ]);
+                            };
+                            processedFiles.push(fileObj);
+                            
+                            // 2. Add to App State (only if NOT triggering immediate re-analysis, 
+                            // as reAnalyzeWithMoreFiles handles state update itself in the hook)
+                            // But wait, reAnalyzeWithMoreFiles merges with EXISTING files state.
+                            // If we call addFile here, we duplicate if reAnalyze also adds.
+                            // However, UI needs to show it immediately.
+                            // Best approach: If NOT re-analyzing, addFile. If re-analyzing, let the hook handle it.
+                            if (!(status === 'analysis_complete' && onReAnalyze)) {
+                                addFile(fileObj);
+                                
+                                // 3. Add Staged Message to Chat (Visual feedback)
+                                setMessages(prev => [
+                                    ...prev, 
+                                    { 
+                                        id: `msg-${newId}`, 
+                                        role: 'user', 
+                                        text: '', // Empty text, renders as card
+                                        timestamp: Date.now(),
+                                        fileId: newId // Links to the file
+                                    }
+                                ]);
+                            }
                         }
                         resolve();
                     };
@@ -806,7 +939,29 @@ function AgentIntake({
                 });
             }
 
-            // 3. Bot Response logic based on total count (current + new)
+            // ** RE-ANALYZE FLOW (Phase 6) **
+            if (status === 'analysis_complete' && onReAnalyze) {
+                // Trigger re-analysis with collected files
+                onReAnalyze(processedFiles);
+                
+                // Add system message indicating update
+                setMessages(prev => [
+                    ...prev,
+                    {
+                        id: `reanalyze-${Date.now()}`,
+                        role: 'model',
+                        text: `I received ${processedFiles.length} new document(s). Updating your care plan now...`,
+                        timestamp: Date.now(),
+                        widget: 'analysis_progress' as any
+                    }
+                ]);
+                return;
+            }
+
+            // ** STANDARD FLOW **
+            setIsThinking(true);
+            
+            // 4. Bot Response logic based on total count (current + new)
             const newTotal = files.length + selectedFiles.length;
             const botMsg: ChatMessage = {
                 id: Date.now().toString(),
@@ -863,6 +1018,19 @@ function AgentIntake({
         setInput('');
         setIsThinking(true);
         setSuggestions([]); 
+
+        // Handle special responses (INTERCEPTION)
+        if (text.toLowerCase().includes('continue anyway')) {
+            // User acknowledged warning, proceed with analysis
+            setIsThinking(false); // Clear thinking state as we are transitioning
+            setMessages(prev => [
+                ...prev,
+                { id: 'usr-analyze', role: 'user', text: "✨ Analyze My Documents", timestamp: Date.now() },
+                { id: 'bot-analyze', role: 'model', text: "Analysis started...", timestamp: Date.now() + 100, widget: 'analysis_progress' as any }
+            ]);
+            onAnalyze();
+            return;
+        }
 
         try {
             const response = await runIntakeAgent(patientInfo, files.length, messages, text);
@@ -939,6 +1107,24 @@ function AgentIntake({
 
     // Trigger explicit analyze flow with manual progress tracking
     const handleAnalyzeClick = () => {
+        const warnings = getCompletenessWarnings(patientInfo, files);
+
+        // If critical info missing, inject warning message first
+        if (warnings.length > 0 && !canSafelyAnalyze(patientInfo, files)) {
+            setMessages(prev => [
+                ...prev,
+                {
+                    id: `warning-${Date.now()}`,
+                    role: 'model',
+                    text: `Before I analyze, I noticed:\n• ${warnings.join('\n• ')}\n\nThis might affect the accuracy of your care plan. Would you like to add this info first, or continue anyway?`,
+                    timestamp: Date.now(),
+                    widget: 'none',
+                    suggestions: ['Continue anyway', 'Let me add more info']
+                }
+            ]);
+            return; // Don't auto-proceed
+        }
+
         setMessages(prev => [
             ...prev,
             { id: 'usr-analyze', role: 'user', text: "✨ Analyze My Documents", timestamp: Date.now() },
@@ -965,7 +1151,7 @@ function AgentIntake({
                 {/* Header */}
                 <div className="p-4 border-b border-slate-100 bg-slate-50/80 backdrop-blur flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-600 to-purple-600 flex items-center justify-center text-white shadow-lg shadow-blue-200">
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-teal-500 to-cyan-500 flex items-center justify-center text-white shadow-lg shadow-teal-200">
                             <Icons.Sparkle className="w-5 h-5" />
                         </div>
                         <div>
@@ -1017,12 +1203,12 @@ function AgentIntake({
                             return (
                                 <div key={m.id} className="flex flex-col items-start w-full max-w-[90%]">
                                     {isAnalyzing && (
-                                        <div className="bg-white p-5 rounded-2xl border border-blue-100 shadow-sm animate-fade-in-up w-full rounded-bl-none">
+                                        <div className="bg-white p-5 rounded-2xl border border-teal-100 shadow-sm animate-fade-in-up w-full rounded-bl-none">
                                             <div className="flex items-center gap-4 mb-4">
                                                 <div className="relative flex-shrink-0">
-                                                    <div className="w-10 h-10 rounded-full border-4 border-blue-50 border-t-blue-600 animate-spin"></div>
+                                                    <div className="w-10 h-10 rounded-full border-4 border-teal-50 border-t-teal-500 animate-spin"></div>
                                                     <div className="absolute inset-0 flex items-center justify-center">
-                                                        <Icons.Sparkle className="w-4 h-4 text-blue-600 animate-pulse" />
+                                                        <Icons.Sparkle className="w-4 h-4 text-teal-500 animate-pulse" />
                                                     </div>
                                                 </div>
                                                 <div className="flex-1 min-w-0">
@@ -1032,13 +1218,13 @@ function AgentIntake({
                                             </div>
                                             {/* Progress Bar Animation */}
                                             <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                                                <div className="h-full bg-gradient-to-r from-blue-400 to-purple-500 animate-progress-indeterminate"></div>
+                                                <div className="h-full bg-gradient-to-r from-teal-400 to-cyan-500 animate-progress-indeterminate"></div>
                                             </div>
                                         </div>
                                     )}
 
-                                    {/* Success Card - ONLY SHOW IF COMPLETE INFO */}
-                                    {isComplete && !isMissingInfo && (
+                                    {/* Success Card - ONLY SHOW IF COMPLETE INFO (legacy logic, kept for fallback) */}
+                                    {isComplete && !isMissingInfo && !parsedEpisode && (
                                         <div className="bg-emerald-50 p-5 rounded-2xl border border-emerald-100 shadow-sm animate-scale-in w-full rounded-bl-none">
                                             <div className="flex items-center gap-4 mb-4">
                                                 <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 flex-shrink-0">
@@ -1096,12 +1282,12 @@ function AgentIntake({
                                         {m.text && <button 
                                             onClick={() => playTTS(m.text, m.id)}
                                             disabled={ttsStatus !== 'idle'}
-                                            className="p-2 mb-1 bg-white border border-slate-200 text-slate-400 hover:text-blue-600 hover:border-blue-200 rounded-full transition-all shadow-sm flex-shrink-0 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                            className="p-2 mb-1 bg-white border border-slate-200 text-slate-400 hover:text-teal-600 hover:border-teal-200 rounded-full transition-all shadow-sm flex-shrink-0 focus:outline-none focus:ring-2 focus:ring-teal-500"
                                             title="Read Aloud"
                                             aria-label="Read message aloud"
                                         >
                                             {activeAudioId === m.id && ttsStatus === 'generating' ? (
-                                                <Icons.Spinner className="w-4 h-4 text-blue-500" />
+                                                <Icons.Spinner className="w-4 h-4 text-teal-500" />
                                             ) : (
                                                 <Icons.Speaker className={`w-4 h-4 ${activeAudioId === m.id && ttsStatus === 'playing' ? 'text-green-500 animate-pulse' : ''}`} />
                                             )}
@@ -1122,10 +1308,10 @@ function AgentIntake({
                             <div className="w-full">
                                 {/* Initial Upload Widget (State 1) */}
                                 {(m.widget === 'upload' || m.widget === 'camera') && (
-                                    <div className="mt-3 bg-white p-4 rounded-2xl border border-blue-100 shadow-sm flex gap-3 animate-fade-in-up w-full max-w-[95%]">
+                                    <div className="mt-3 bg-white p-4 rounded-2xl border border-teal-100 shadow-sm flex gap-3 animate-fade-in-up w-full max-w-[95%]">
                                         <button 
                                             onClick={() => fileInputRef.current?.click()}
-                                            className={`flex-1 py-3 px-4 font-bold rounded-xl transition-colors flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-offset-2 ${m.widget === 'upload' ? 'bg-slate-900 text-white hover:bg-slate-800 ring-slate-900' : 'bg-blue-50 text-blue-700 hover:bg-blue-100 ring-blue-500'}`}
+                                            className={`flex-1 py-3 px-4 font-bold rounded-xl transition-colors flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-offset-2 ${m.widget === 'upload' ? 'bg-slate-900 text-white hover:bg-slate-800 ring-slate-900' : 'bg-teal-50 text-teal-700 hover:bg-teal-100 ring-teal-500'}`}
                                         >
                                             <input type="file" multiple ref={fileInputRef} className="hidden" onChange={handleFileSelect} accept="image/*,application/pdf" />
                                             <Icons.Upload className="w-5 h-5" /> Upload Papers
@@ -1134,7 +1320,7 @@ function AgentIntake({
                                             <>
                                             <button 
                                                 onClick={onCamera}
-                                                className={`flex-1 py-3 px-4 font-bold rounded-xl transition-colors flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-offset-2 ${m.widget === 'camera' ? 'bg-slate-900 text-white hover:bg-slate-800 ring-slate-900' : 'bg-blue-50 text-blue-700 hover:bg-blue-100 ring-blue-500'}`}
+                                                className={`flex-1 py-3 px-4 font-bold rounded-xl transition-colors flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-offset-2 ${m.widget === 'camera' ? 'bg-slate-900 text-white hover:bg-slate-800 ring-slate-900' : 'bg-teal-50 text-teal-700 hover:bg-teal-100 ring-teal-500'}`}
                                             >
                                                 <Icons.Camera className="w-5 h-5" /> Scan
                                             </button>
@@ -1148,7 +1334,7 @@ function AgentIntake({
                                     <div className="mt-3 flex flex-col gap-2 animate-fade-in-up w-full max-w-[95%]">
                                         <button 
                                             onClick={handleAnalyzeClick}
-                                            className="w-full py-4 px-4 bg-slate-900 text-white font-bold rounded-xl shadow-lg shadow-blue-900/20 hover:bg-slate-800 transition-all flex items-center justify-center gap-2"
+                                            className="w-full py-4 px-4 bg-slate-900 text-white font-bold rounded-xl shadow-lg shadow-teal-900/20 hover:bg-slate-800 transition-all flex items-center justify-center gap-2"
                                         >
                                             <Icons.Sparkle className="w-5 h-5" /> ✨ Analyze My Documents
                                         </button>
@@ -1173,16 +1359,36 @@ function AgentIntake({
                                     </div>
                                 )}
 
+                                {/* Post-Analysis Options (after extraction complete) */}
+                                {m.widget === 'post_analysis_options' && status === 'analysis_complete' && (
+                                    <div className="mt-3 flex flex-col gap-2 animate-fade-in-up w-full max-w-[95%]">
+                                        <button 
+                                            onClick={onReview}
+                                            className="w-full py-4 px-4 bg-slate-900 text-white font-bold rounded-xl shadow-lg hover:bg-slate-800 transition-all flex items-center justify-center gap-2"
+                                        >
+                                            <Icons.Check className="w-5 h-5" /> Review & Verify Extracted Data
+                                        </button>
+                                        
+                                        <button 
+                                            onClick={() => fileInputRef.current?.click()}
+                                            className="w-full py-3 px-4 bg-white border border-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-50 transition-colors flex items-center justify-center gap-2"
+                                        >
+                                            <input type="file" multiple ref={fileInputRef} className="hidden" onChange={handleFileSelect} accept="image/*,application/pdf" />
+                                            <Icons.Upload className="w-4 h-4" /> Add More Documents
+                                        </button>
+                                    </div>
+                                )}
+
                                 {m.widget === 'analyze' && (
                                     <div className="mt-3 animate-fade-in-up w-full max-w-[85%]">
                                         {!isLoading ? (
-                                            <Button onClick={onAnalyze} className="w-full text-lg py-4 shadow-xl shadow-blue-200/50">
+                                            <Button onClick={onAnalyze} className="w-full text-lg py-4 shadow-xl shadow-teal-200/50">
                                                 <Icons.Sparkle className="w-5 h-5" /> Generate Care Plan
                                             </Button>
                                         ) : (
-                                            <div className="bg-white p-4 rounded-xl border border-blue-100 flex items-center gap-3">
-                                                <Icons.Spinner className="w-5 h-5 text-blue-600" />
-                                                <span className="text-blue-600 font-bold text-sm animate-pulse">{progressMsg}</span>
+                                            <div className="bg-white p-4 rounded-xl border border-teal-100 flex items-center gap-3">
+                                                <Icons.Spinner className="w-5 h-5 text-teal-600" />
+                                                <span className="text-teal-600 font-bold text-sm animate-pulse">{progressMsg}</span>
                                             </div>
                                         )}
                                     </div>
@@ -1214,7 +1420,7 @@ function AgentIntake({
                                 <button 
                                     key={i} 
                                     onClick={() => handleSend(s)}
-                                    className="px-4 py-2 bg-slate-50 hover:bg-blue-50 hover:text-blue-700 text-slate-600 rounded-full text-sm font-bold border border-slate-200 transition-all active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                                    className="px-4 py-2 bg-slate-50 hover:bg-teal-50 hover:text-teal-700 text-slate-600 rounded-full text-sm font-bold border border-slate-200 transition-all active:scale-95 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2"
                                 >
                                     {s}
                                 </button>
@@ -1229,12 +1435,12 @@ function AgentIntake({
                                 onChange={e => setInput(e.target.value)}
                                 onKeyDown={e => e.key === 'Enter' && handleSend(input)}
                                 placeholder="Type your answer..."
-                                className="w-full bg-slate-100 rounded-2xl pl-5 pr-12 py-4 text-base outline-none focus:ring-2 focus:ring-blue-500 border border-transparent focus:bg-white transition-all placeholder-slate-400"
+                                className="w-full bg-slate-100 rounded-2xl pl-5 pr-12 py-4 text-base outline-none focus:ring-2 focus:ring-teal-500 border border-transparent focus:bg-white transition-all placeholder-slate-400"
                             />
                             {/* Mic Button Inside Input */}
                             <button
                                 onClick={toggleDictation}
-                                className={`absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-xl transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 ${isListening ? 'text-red-500 bg-red-50 animate-pulse' : 'text-slate-400 hover:text-blue-600 hover:bg-blue-50'}`}
+                                className={`absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-xl transition-all focus:outline-none focus:ring-2 focus:ring-teal-500 ${isListening ? 'text-red-500 bg-red-50 animate-pulse' : 'text-slate-400 hover:text-teal-600 hover:bg-teal-50'}`}
                                 title={isListening ? "Stop & Send" : "Dictate"}
                                 aria-label={isListening ? "Stop recording" : "Start voice input"}
                             >
@@ -1257,9 +1463,9 @@ function AgentIntake({
              {/* ... Right side ... */}
              <div className="hidden lg:flex flex-col h-full animate-fade-in-right delay-100">
                 <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-lg h-full flex flex-col relative overflow-hidden">
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-blue-50 rounded-full blur-2xl -mr-16 -mt-16 pointer-events-none"></div>
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-teal-50 rounded-full blur-2xl -mr-16 -mt-16 pointer-events-none"></div>
                     <div className="flex items-center gap-3 mb-6 border-b border-slate-100 pb-4 relative z-10">
-                        <div className="bg-blue-50 p-2.5 rounded-xl text-blue-600">
+                        <div className="bg-teal-50 p-2.5 rounded-xl text-teal-600">
                             <Icons.Clipboard className="w-5 h-5" />
                         </div>
                         <div>
@@ -1313,7 +1519,7 @@ function AgentIntake({
                         </div>
                         <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden border border-slate-100">
                             <div 
-                                className="h-full bg-gradient-to-r from-blue-500 to-emerald-500 transition-all duration-700 ease-out" 
+                                className="h-full bg-gradient-to-r from-teal-400 to-cyan-500 transition-all duration-700 ease-out" 
                                 style={{ width: `${completionScore}%` }}
                             ></div>
                         </div>

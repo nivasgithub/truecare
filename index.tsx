@@ -200,6 +200,8 @@ function CareTransiaApp() {
                       errorMsg={ui.errorMsg}
                       onDismissError={ui.dismissError}
                       isOffline={ui.isOffline}
+                      parsedEpisode={results.parsedEpisode}
+                      consistencyReport={results.consistencyReport}
                   />
                   {/* Verification Overlay Modal - Structure updated for fixed positioning context */}
                   {(ui.status === 'verifying' || ui.status === 'generating') && results.parsedEpisode && (

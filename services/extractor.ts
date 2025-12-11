@@ -36,6 +36,13 @@ CRITICAL RULES FOR PILL BOTTLES & MED LISTS:
 - **Timing/Instructions**: Specifics (e.g. "Take with food", "Until finished"). If none, use "-".
 - If patient details are visible, extract them. If not, leave patient fields null.
 
+CONFIDENCE SCORING:
+- Set "extraction_confidence" based on image clarity and data completeness:
+  - "high": Clear images, all expected fields found, no guessing.
+  - "medium": Some text was blurry OR 1-2 fields required inference.
+  - "low": Significant portions unreadable OR multiple fields missing.
+- List unclear fields in "low_confidence_items" (e.g., ["dose for Metformin", "appointment date"]).
+
 GENERAL RULES:
 1. Extract all sections as they appear.
 2. If a section is missing, return an empty array [].
@@ -72,6 +79,16 @@ Focus on extracting the "Dose" and "Frequency" for every medication found.
         properties: {
           status: { type: Type.STRING, enum: ["success", "error"] },
           error_message: { type: Type.STRING },
+          extraction_confidence: { 
+             type: Type.STRING, 
+             enum: ["high", "medium", "low"],
+             description: "Overall confidence in extraction accuracy"
+          },
+          low_confidence_items: { 
+            type: Type.ARRAY, 
+            items: { type: Type.STRING },
+            description: "List of field names where text was unclear or guessed"
+          },
           patient: {
             type: Type.OBJECT,
             properties: {
@@ -173,7 +190,9 @@ Focus on extracting the "Dose" and "Frequency" for every medication found.
       appointments: Array.isArray(rawParsed.appointments) ? rawParsed.appointments : [],
       activities: Array.isArray(rawParsed.activities) ? rawParsed.activities : [],
       warnings: Array.isArray(rawParsed.warnings) ? rawParsed.warnings : [],
-      additional_notes: rawParsed.additional_notes || ''
+      additional_notes: rawParsed.additional_notes || '',
+      extraction_confidence: rawParsed.extraction_confidence || 'high',
+      low_confidence_items: Array.isArray(rawParsed.low_confidence_items) ? rawParsed.low_confidence_items : []
   };
 
   return parsedEpisode;
