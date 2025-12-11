@@ -1,3 +1,4 @@
+
 import { Type } from "@google/genai";
 import { ai } from "./gemini";
 import { AppConfig, SAFETY_GUIDELINES } from "../config";
@@ -37,6 +38,13 @@ export async function runIntakeAgent(
     1. If FileCount is 0, strongly encourage uploading files to save time. Widget = "upload".
     2. If FileCount > 0 but info is still missing, say "I see the files, but I need a bit more info." and ask for missing fields.
     3. If Name, Age, and Condition are present, confirm them briefly: "Thanks, I have a plan for [Name] for [Condition]. Ready to build the plan?" and set Widget = "analyze".
+    
+    EXTRACTION RULE:
+    The user might provide info in a messy way (e.g. "72 James Smith fever").
+    YOU MUST EXTRACT THIS into the "extracted_info" object.
+    - If user provides "James Smith", extract Name="James Smith".
+    - If user provides "72", extract Age="72".
+    - If user provides "fever", extract PrimaryCondition="Fever".
     
     OUTPUT FORMAT:
     Return ONLY a JSON object:

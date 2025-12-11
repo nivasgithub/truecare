@@ -1,7 +1,7 @@
 
 import React, { useRef, useState, useEffect } from 'react';
 import { Icons, Card, Button, SectionTitle, HelpTip, Breadcrumbs } from './ui';
-import { PatientInfo, UploadedFile, ChatMessage } from '../types';
+import { PatientInfo, UploadedFile, ChatMessage, ParsedEpisode } from '../types';
 import SmartCamera from './SmartCamera';
 import VoiceGuidedScanner from './VoiceGuidedScanner';
 import { runIntakeAgent } from '../services/intake_agent';
@@ -25,6 +25,8 @@ interface CareTransiaIntakeProps {
   errorMsg?: string | null;
   onDismissError?: () => void;
   isOffline?: boolean;
+  // NEW: Pass parsed episode for conflict detection
+  parsedEpisode?: ParsedEpisode | null;
 }
 
 type IntakeMode = 'selection' | 'agent' | 'manual';
@@ -36,7 +38,8 @@ export default function CareTransiaIntake({
   onAnalyze, onReview, isLoading,
   progressMsg = "Processing...",
   onLoadDemo,
-  status, errorMsg, onDismissError, isOffline
+  status, errorMsg, onDismissError, isOffline,
+  parsedEpisode
 }: CareTransiaIntakeProps) {
   
   // Default to selection unless files already exist (returning user/state)
@@ -259,7 +262,8 @@ export default function CareTransiaIntake({
                 hasCamera={hasCamera}
                 initialContext={agentContext}
                 status={status}
-                errorMsg={errorMsg} // PASS ERROR MSG HERE
+                errorMsg={errorMsg}
+                parsedEpisode={parsedEpisode} // Pass extracted data for verification
             />
             {files.length === 0 && (
                 <div className="text-center mt-4">
@@ -598,7 +602,8 @@ function AgentIntake({
     files, addFile, removeFile,
     onCamera, onVoiceScan, onAnalyze, onReview,
     isLoading, progressMsg, hasCamera,
-    initialContext, status, errorMsg
+    initialContext, status, errorMsg,
+    parsedEpisode
 }: {
     patientInfo: PatientInfo;
     setPatientInfo: React.Dispatch<React.SetStateAction<PatientInfo>>;
@@ -615,6 +620,7 @@ function AgentIntake({
     initialContext: 'papers' | 'bottles' | 'mixed' | null;
     status?: string;
     errorMsg?: string | null;
+    parsedEpisode?: ParsedEpisode | null;
 }) {
     // Generate context-aware welcome
     const getWelcomeMsg = () => {
@@ -650,6 +656,7 @@ function AgentIntake({
     const fileInputRef = useRef<HTMLInputElement>(null);
     const recognitionRef = useRef<any>(null);
     const prevFileCount = useRef(files.length);
+    const prevStatusRef = useRef<string | undefined>(status);
     
     // Auto-scroll
     useEffect(() => {
@@ -677,6 +684,66 @@ function AgentIntake({
             });
         }
     }, [status, errorMsg]);
+
+    // ** MISSING INFO & CONFLICT CHECK EFFECT **
+    // Triggers when analysis completes
+    useEffect(() => {
+        // Only run when transitioning INTO analysis_complete
+        if (status === 'analysis_complete' && prevStatusRef.current !== 'analysis_complete') {
+            
+            // 1. Conflict Check: Document vs User Name
+            const docName = parsedEpisode?.patient?.name;
+            const userName = patientInfo.name;
+            
+            // Check if both exist, differ significantly (simple casing/trim check), and exclude simple substrings (e.g. "James" vs "James Mike")
+            if (docName && userName && docName.toLowerCase().trim() !== userName.toLowerCase().trim()) {
+                 setMessages(prev => {
+                    const last = prev[prev.length - 1];
+                    if (last.text.includes("Doc says")) return prev;
+                    
+                    return [
+                        ...prev,
+                        {
+                            id: `conflict-${Date.now()}`,
+                            role: 'model',
+                            text: `I noticed a small difference. The document lists the patient as **"${docName}"**, but you told me **"${userName}"**. Which one should I use for the plan?`,
+                            timestamp: Date.now(),
+                            suggestions: [docName, userName] // These will appear as clickable chips
+                        }
+                    ];
+                });
+                // Stop further processing so we don't ask for missing info while handling conflict
+                prevStatusRef.current = status;
+                return;
+            }
+
+            // 2. Missing Info Check
+            const missing = [];
+            if (!patientInfo.name) missing.push("patient's name");
+            if (!patientInfo.age) missing.push("age");
+            if (!patientInfo.primary_condition) missing.push("primary condition");
+
+            if (missing.length > 0) {
+                // Add a prompt if not already the last message to avoid loop
+                setMessages(prev => {
+                    const last = prev[prev.length - 1];
+                    // Check to prevent duplicate asking
+                    if (last.text.includes("couldn't find the") || last.text.includes("provide these details")) return prev;
+                    
+                    return [
+                        ...prev,
+                        {
+                            id: `missing-info-${Date.now()}`,
+                            role: 'model',
+                            text: `I've analyzed the documents, but I couldn't find the ${missing.join(', ')}. Could you please provide these details so I can build a safe plan?`,
+                            timestamp: Date.now()
+                        }
+                    ];
+                });
+            }
+        }
+        prevStatusRef.current = status;
+    }, [status, patientInfo.name, patientInfo.age, patientInfo.primary_condition, parsedEpisode]);
 
     // Detect file removal state
     useEffect(() => {
@@ -943,6 +1010,9 @@ function AgentIntake({
                         if (m.widget === 'analysis_progress') {
                             const isAnalyzing = status === 'analyzing';
                             const isComplete = status === 'analysis_complete' || status === 'verifying'; // Show complete even if in verifying so history looks correct
+                            
+                            // Check for missing info locally to decide what to show
+                            const isMissingInfo = !patientInfo.name || !patientInfo.age || !patientInfo.primary_condition;
 
                             return (
                                 <div key={m.id} className="flex flex-col items-start w-full max-w-[90%]">
@@ -967,7 +1037,8 @@ function AgentIntake({
                                         </div>
                                     )}
 
-                                    {isComplete && (
+                                    {/* Success Card - ONLY SHOW IF COMPLETE INFO */}
+                                    {isComplete && !isMissingInfo && (
                                         <div className="bg-emerald-50 p-5 rounded-2xl border border-emerald-100 shadow-sm animate-scale-in w-full rounded-bl-none">
                                             <div className="flex items-center gap-4 mb-4">
                                                 <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 flex-shrink-0">
@@ -987,6 +1058,21 @@ function AgentIntake({
                                                     Review Extracted Plan <Icons.ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                                                 </button>
                                             )}
+                                        </div>
+                                    )}
+
+                                    {/* Missing Info Warning Card - Only show if analysis is complete but blocked */}
+                                    {isComplete && isMissingInfo && (
+                                        <div className="bg-amber-50 p-5 rounded-2xl border border-amber-100 shadow-sm animate-scale-in w-full rounded-bl-none">
+                                            <div className="flex items-center gap-4 mb-2">
+                                                <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 flex-shrink-0">
+                                                    <Icons.Alert className="w-6 h-6" />
+                                                </div>
+                                                <div>
+                                                    <p className="font-bold text-amber-900 text-lg">Details Missing</p>
+                                                    <p className="text-sm text-amber-700">Please answer the questions below to continue.</p>
+                                                </div>
+                                            </div>
                                         </div>
                                     )}
                                     
