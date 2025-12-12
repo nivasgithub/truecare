@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Card, Badge, Icons, Button, HelpTip, Breadcrumbs } from './ui';
 import { ParsedEpisode, ConsistencyReport, FormattedCarePlan, PlanItem, PillIdentificationResult } from '../types';
@@ -26,6 +27,16 @@ function normalizePlanItems(items: any[]): PlanItem[] {
     return i;
   });
 }
+
+// --- Helper Components ---
+
+const TimelineItem = ({ timeLabel, task }: { timeLabel: string, task: string }) => (
+  <div className="relative pl-8 pb-6 last:pb-0 border-l-2 border-slate-200 last:border-l-0 ml-2">
+    <div className="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-white border-2 border-purple-400"></div>
+    <div className="text-[10px] font-bold text-slate-400 uppercase mb-1 tracking-wider">{timeLabel}</div>
+    <div className="text-slate-700 font-medium text-sm leading-relaxed">{task}</div>
+  </div>
+);
 
 // --- Pill Result Modal Component ---
 function PillResultModal({ result, onClose, onPlayTTS }: { result: PillIdentificationResult, onClose: () => void, onPlayTTS: (text: string) => void }) {
@@ -90,62 +101,6 @@ function PillResultModal({ result, onClose, onPlayTTS }: { result: PillIdentific
         </div>
     );
 }
-
-interface InstructionRowProps {
-  item: PlanItem;
-  type: 'checkbox' | 'bullet' | 'warning';
-}
-
-// Helper Component for Instructions with Citation
-const InstructionRow: React.FC<InstructionRowProps> = ({ item, type }) => {
-    // Recommendation: Default to showing sources for trust
-    const [showSource, setShowSource] = useState(true);
-    const isWarning = type === 'warning';
-    
-    return (
-        <div className="group relative">
-            <div className="flex items-start gap-3">
-                {type === 'checkbox' && (
-                    <input type="checkbox" className="mt-1.5 w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
-                )}
-                {type === 'bullet' && (
-                     <div className="w-2 h-2 rounded-full bg-purple-400 mt-2 flex-shrink-0"></div>
-                )}
-                {type === 'warning' && (
-                     <span className="mt-1.5 w-1.5 h-1.5 bg-red-500 rounded-full flex-shrink-0"></span>
-                )}
-                
-                <div className="flex-1">
-                    <span className={`text-slate-700 leading-relaxed ${isWarning ? 'text-red-700 font-medium' : ''}`}>
-                        {item.text}
-                    </span>
-                    
-                    {/* Citation Toggle - Improved Visibility */}
-                    {item.source && (
-                        <div className="mt-1">
-                             {showSource ? (
-                                <div className="flex items-start gap-2 mt-1 animate-fade-in">
-                                    <div className={`text-[10px] uppercase font-bold tracking-wider mt-0.5 ${isWarning ? 'text-red-400' : 'text-slate-400'}`}>Source:</div>
-                                    <div className={`text-xs leading-relaxed italic ${isWarning ? 'text-red-600' : 'text-slate-500'}`}>
-                                        "{item.source}"
-                                        <button onClick={() => setShowSource(false)} className="ml-2 underline opacity-50 hover:opacity-100">Hide</button>
-                                    </div>
-                                </div>
-                             ) : (
-                                <button 
-                                    onClick={() => setShowSource(true)}
-                                    className="text-[10px] font-bold uppercase tracking-wider text-blue-600 hover:text-blue-800 flex items-center gap-1 mt-1 opacity-60 hover:opacity-100 transition-opacity"
-                                >
-                                    <Icons.FileText className="w-3 h-3" /> Verify Source
-                                </button>
-                             )}
-                        </div>
-                    )}
-                </div>
-            </div>
-        </div>
-    );
-};
 
 export default function CareTransiaResults({ data, consistency, carePlan, onReset, simpleMode: initialSimpleMode = false, onBack, onDashboard }: CareTransiaResultsProps) {
   
@@ -338,10 +293,6 @@ export default function CareTransiaResults({ data, consistency, carePlan, onRese
       }
   };
 
-  const handlePrint = () => {
-      window.print();
-  };
-
   // Define tabs available based on mode
   const tabs = [
       { id: 'plan', label: 'My Care Plan', icon: Icons.Clipboard },
@@ -378,7 +329,7 @@ export default function CareTransiaResults({ data, consistency, carePlan, onRese
   }
 
   return (
-    <div className="animate-fade-in space-y-6 pb-32 max-w-6xl mx-auto relative print:pb-0">
+    <div className="animate-fade-in pb-32 max-w-7xl mx-auto relative print:pb-0">
       
       {/* Result Modal for Pill Scan */}
       {pillResult && (
@@ -390,95 +341,96 @@ export default function CareTransiaResults({ data, consistency, carePlan, onRese
       )}
 
       {/* Integrated Back Navigation */}
-      <div className="flex items-center justify-between print:hidden">
+      <div className="flex items-center justify-between print:hidden mb-4">
         <button 
             onClick={onBack}
             className="flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-800 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-lg px-2 py-1"
         >
             <Icons.ArrowRight className="w-4 h-4 rotate-180" /> Back to Uploads
         </button>
+        {/* Toggle Mode - Segmented Control */}
+        <div className="ct-tabs">
+            <button 
+                onClick={() => setIsSimpleMode(false)}
+                data-active={!isSimpleMode}
+                className="ct-tab px-4 py-1.5 text-xs font-bold"
+            >
+                Detailed
+            </button>
+            <button 
+                onClick={() => setIsSimpleMode(true)}
+                data-active={isSimpleMode}
+                className="ct-tab px-4 py-1.5 text-xs font-bold"
+            >
+                Simple
+            </button>
+        </div>
       </div>
 
-      {/* Dashboard Header */}
-      <div className="bg-white rounded-3xl p-6 md:p-8 border border-slate-100 shadow-lg shadow-slate-100/50 flex flex-col lg:flex-row lg:items-end justify-between gap-6 print:shadow-none print:border-none print:p-0">
-        <div>
-           <div className="flex items-center gap-2 mb-3 print:hidden">
-             <span className="px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-bold uppercase tracking-wide flex items-center gap-2 border border-emerald-100">
-               <Icons.Sparkle className="w-3 h-3"/> Analysis Complete
-             </span>
-             <span className="px-3 py-1 rounded-full bg-slate-50 text-slate-600 text-xs font-bold uppercase tracking-wide flex items-center gap-2 border border-slate-100">
-               <Icons.Check className="w-3 h-3"/> Saved to Device
-             </span>
-           </div>
-           <h2 className="text-3xl md:text-5xl font-extrabold text-slate-900 tracking-tight">
-             Care Plan for <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600 print:text-black">{data.patient?.name || 'Patient'}</span>
-           </h2>
-           <p className="text-xs text-slate-400 mt-2 font-medium print:hidden">
-              <span className="font-bold text-slate-500">Transparency Note:</span> This plan was generated using <u>only</u> your uploaded documents. No external records were accessed.
-           </p>
-        </div>
-        
-        <div className="flex flex-col items-end gap-4 print:hidden w-full lg:w-auto">
-            <div className="flex flex-wrap gap-3 justify-end">
-                {/* Done/Dashboard Button - High Priority Action */}
-                {onDashboard && (
-                    <button 
-                        onClick={onDashboard}
-                        className="bg-slate-900 hover:bg-slate-800 text-white p-3 rounded-2xl transition-colors shadow-lg shadow-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 flex items-center gap-2 font-bold text-sm"
-                        title="Finish and go to Dashboard"
-                    >
-                        <Icons.Check className="w-5 h-5" /> Done
-                    </button>
-                )}
+      {/* HERO DASHBOARD HEADER - USING NEW CSS VARIABLES */}
+      <div 
+        className="relative overflow-hidden rounded-[2.5rem] text-white shadow-2xl mb-8 p-8 md:p-12 print:shadow-none print:text-black print:bg-white print:p-0"
+        style={{
+            background: 'linear-gradient(135deg, var(--ct-hero-from) 0%, var(--ct-hero-mid) 50%, var(--ct-hero-to) 100%)'
+        }}
+      >
+          {/* Background Decorative Elements */}
+          <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-blue-600/30 rounded-full blur-[80px] -mr-20 -mt-20 pointer-events-none print:hidden"></div>
+          <div className="absolute bottom-0 left-0 w-[300px] h-[300px] bg-purple-600/30 rounded-full blur-[80px] -ml-20 -mb-20 pointer-events-none print:hidden"></div>
+          
+          <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-end gap-8">
+              <div className="space-y-4 max-w-2xl">
+                  <div className="flex flex-wrap items-center gap-3 print:hidden">
+                      <span className="px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 text-xs font-bold uppercase tracking-wide flex items-center gap-2">
+                          <Icons.Check className="w-3 h-3"/> Analysis Complete
+                      </span>
+                      <span className="px-3 py-1 rounded-full bg-white/10 border border-white/10 text-slate-300 text-xs font-bold uppercase tracking-wide flex items-center gap-2">
+                          <Icons.Shield className="w-3 h-3"/> Private & Local
+                      </span>
+                  </div>
+                  
+                  <h1 className="text-4xl md:text-5xl font-black tracking-tight leading-tight">
+                      Recovery Plan for <br/>
+                      <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-300 to-purple-300 print:text-black">
+                          {data.patient?.name || 'Patient'}
+                      </span>
+                  </h1>
+                  
+                  <p className="text-blue-200/80 text-sm md:text-base max-w-xl print:text-slate-500 font-medium">
+                      Generated from your uploaded documents. No external records accessed.
+                  </p>
+              </div>
 
-                <button 
-                    onClick={handleShare}
-                    className="bg-white hover:bg-slate-50 text-slate-700 p-3 rounded-2xl transition-colors border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center gap-2 font-bold text-sm"
-                    title="Share with Family"
-                >
-                    <Icons.Share className="w-5 h-5" /> Share
-                </button>
-                
-                {/* TTS Button */}
-                <button 
-                    onClick={handleMainReadAloud}
-                    className={`p-3 rounded-2xl transition-all border focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center gap-2 font-bold text-sm shadow-md ${
-                        ttsStatus === 'playing' 
-                        ? 'bg-red-50 text-red-600 border-red-200 animate-pulse' 
-                        : 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700 hover:shadow-lg'
-                    }`}
-                    title={ttsStatus === 'playing' ? "Stop Reading" : "Read Aloud Summary"}
-                >
-                    {ttsStatus === 'generating' ? (
-                        <><Icons.Spinner className="w-5 h-5 text-white/80" /> Generating...</>
-                    ) : ttsStatus === 'playing' ? (
-                        <><Icons.Stop className="w-5 h-5" /> Stop Audio</>
-                    ) : (
-                        <><Icons.Speaker className="w-5 h-5" /> Listen to Plan</>
-                    )}
-                </button>
-            </div>
-            
-            {/* View Toggle (Progressive Disclosure) */}
-            <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-lg">
-                <button 
-                    onClick={() => setIsSimpleMode(false)}
-                    className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${!isSimpleMode ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                >
-                    Detailed
-                </button>
-                <button 
-                    onClick={() => setIsSimpleMode(true)}
-                    className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${isSimpleMode ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                >
-                    Simple
-                </button>
-            </div>
-        </div>
+              <div className="flex flex-col gap-3 w-full md:w-auto print:hidden">
+                  <button 
+                      onClick={handleMainReadAloud}
+                      className={`
+                          flex items-center justify-center gap-3 px-8 py-4 rounded-2xl font-bold text-lg transition-all shadow-lg hover:scale-105 active:scale-95
+                          ${ttsStatus === 'playing' 
+                              ? 'bg-white text-slate-900 animate-pulse' 
+                              : 'bg-white/10 backdrop-blur-md text-white border border-white/20 hover:bg-white/20'}
+                      `}
+                  >
+                      {ttsStatus === 'playing' ? <Icons.Stop className="w-6 h-6" /> : <Icons.Speaker className="w-6 h-6" />}
+                      {ttsStatus === 'playing' ? "Stop Listening" : "Listen to Plan"}
+                  </button>
+                  
+                  <div className="flex gap-2">
+                      {onDashboard && (
+                          <button onClick={onDashboard} className="flex-1 bg-white/10 hover:bg-white/20 border border-white/10 text-white py-3 rounded-xl font-bold text-sm transition-colors flex items-center justify-center gap-2">
+                              <Icons.Check className="w-4 h-4" /> Save
+                          </button>
+                      )}
+                      <button onClick={handleShare} className="flex-1 bg-white/10 hover:bg-white/20 border border-white/10 text-white py-3 rounded-xl font-bold text-sm transition-colors flex items-center justify-center gap-2">
+                          <Icons.Share className="w-4 h-4" /> Share
+                      </button>
+                  </div>
+              </div>
+          </div>
       </div>
       
       {planError && (
-          <div className="bg-red-50 p-6 rounded-2xl border border-red-200 text-red-700 flex items-start gap-3">
+          <div className="bg-red-50 p-6 rounded-2xl border border-red-200 text-red-700 flex items-start gap-3 mb-8">
               <Icons.Alert className="w-6 h-6 flex-shrink-0 mt-1" />
               <div>
                   <h3 className="font-bold text-lg">Plan Generation Issue</h3>
@@ -489,7 +441,7 @@ export default function CareTransiaResults({ data, consistency, carePlan, onRese
       )}
 
       {/* --- TABS NAVIGATION --- */}
-      <div className="flex border-b border-slate-200 gap-1 overflow-x-auto print:hidden">
+      <div className="flex border-b border-slate-200 gap-1 overflow-x-auto print:hidden mb-8">
           {tabs.map(tab => (
               <button 
                 key={tab.id}
@@ -503,85 +455,118 @@ export default function CareTransiaResults({ data, consistency, carePlan, onRese
 
       {/* --- TAB CONTENT: MY CARE PLAN --- */}
       {activeTab === 'plan' && (
-        <div className="space-y-8 animate-fade-in">
+        <div className="space-y-6 animate-fade-in">
           
-          {/* Prominent Warning Card (Sticky-ish logic if desired, for now top of flow) */}
+          {/* Prominent Warning Card (Full Width) */}
           {safePlan.warning_signs_card.length > 0 && (
-             <div className="bg-red-50 rounded-2xl border-2 border-red-100 p-6 shadow-sm flex flex-col md:flex-row gap-6 items-start">
-                <div className="bg-red-100 p-3 rounded-xl text-red-600">
-                    <Icons.Alert className="w-8 h-8" />
-                </div>
-                <div className="flex-1 space-y-4">
-                    <div>
-                        <h3 className="text-xl font-bold text-red-800">When to Call the Doctor</h3>
-                        <p className="text-red-700/80 text-sm font-medium">Watch for these signs. If you have chest pain or severe shortness of breath, call 911.</p>
+             <div className="bg-red-50 rounded-3xl p-6 md:p-8 border border-red-100 flex flex-col md:flex-row gap-6 shadow-sm">
+                <div className="flex-shrink-0">
+                    <div className="w-14 h-14 bg-red-100 rounded-2xl flex items-center justify-center text-red-600">
+                        <Icons.Alert className="w-8 h-8" />
                     </div>
+                </div>
+                <div className="flex-1">
+                    <h3 className="text-xl font-bold text-red-900 mb-2">When to Call the Doctor</h3>
+                    <p className="text-red-800/80 mb-6 font-medium">Watch for these signs. If you have chest pain or severe shortness of breath, call 911 immediately.</p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {safePlan.warning_signs_card.map((warning: PlanItem, i: number) => (
-                            <InstructionRow key={i} item={warning} type="warning" />
+                        {safePlan.warning_signs_card.map((item, i) => (
+                            <div key={i} className="bg-white p-4 rounded-xl border border-red-100 shadow-sm flex items-start gap-3">
+                                <div className="w-2 h-2 bg-red-500 rounded-full mt-2 flex-shrink-0" />
+                                <span className="text-red-900 text-sm font-medium leading-relaxed">{item.text}</span>
+                            </div>
                         ))}
                     </div>
                 </div>
              </div>
           )}
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Immediate Actions */}
-            <div className="space-y-4">
-               <h3 className="font-bold text-xl text-slate-800 flex items-center gap-2 border-b border-slate-100 pb-2">
-                 <div className="p-1.5 bg-blue-100 rounded-lg text-blue-600"><Icons.Check className="w-5 h-5" /></div>
-                 Today & Tomorrow
-               </h3>
-               {safePlan.today_and_tomorrow.length > 0 ? (
-                 <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
-                    {safePlan.today_and_tomorrow.map((task: PlanItem, i: number) => (
-                      <InstructionRow key={i} item={task} type="checkbox" />
-                    ))}
-                 </div>
-               ) : (
-                 <div className="bg-slate-50 rounded-2xl p-6 text-slate-500 italic">No immediate tasks listed.</div>
-               )}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            {/* Left Column: Top Priorities (Wider) */}
+            <div className="lg:col-span-2 space-y-6">
+               <Card className="p-6 md:p-8 h-full border-t-4 border-t-blue-500 shadow-md">
+                   <div className="flex items-center gap-3 mb-6 border-b border-slate-100 pb-4">
+                       <div className="bg-blue-100 p-2 rounded-xl text-blue-600">
+                           <Icons.Check className="w-6 h-6" />
+                       </div>
+                       <div>
+                           <h3 className="text-xl font-bold text-slate-900">Top Priorities</h3>
+                           <p className="text-xs text-slate-500 font-bold uppercase tracking-wide">Today & Tomorrow</p>
+                       </div>
+                   </div>
+                   <div className="space-y-4">
+                       {safePlan.today_and_tomorrow.map((task, i) => (
+                           <div key={i} className="flex items-start gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-100 hover:border-blue-200 transition-colors group">
+                               <input type="checkbox" className="mt-1 w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer" />
+                               <div className="flex-1">
+                                   <div className="text-slate-800 font-medium text-base leading-relaxed">{task.text}</div>
+                                   {task.source && (
+                                       <div className="text-xs text-slate-400 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                           Source: "{task.source}"
+                                       </div>
+                                   )}
+                               </div>
+                           </div>
+                       ))}
+                       {safePlan.today_and_tomorrow.length === 0 && (
+                           <div className="text-slate-400 italic text-center py-8">No immediate tasks listed.</div>
+                       )}
+                   </div>
+               </Card>
             </div>
 
-            {/* Daily Routine */}
-            <div className="space-y-4">
-               <h3 className="font-bold text-xl text-slate-800 flex items-center gap-2 border-b border-slate-100 pb-2">
-                 <div className="p-1.5 bg-purple-100 rounded-lg text-purple-600"><Icons.Calendar className="w-5 h-5" /></div>
-                 Daily Routine
-               </h3>
-               {safePlan.daily_routine.length > 0 ? (
-                 <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
-                    {safePlan.daily_routine.map((task: PlanItem, i: number) => (
-                      <InstructionRow key={i} item={task} type="bullet" />
-                    ))}
-                 </div>
-               ) : (
-                 <div className="bg-slate-50 rounded-2xl p-6 text-slate-500 italic">No daily routine listed.</div>
-               )}
+            {/* Right Column: Routine & Questions (Stacked) */}
+            <div className="space-y-6">
+               
+               {/* Daily Routine - Timeline Style */}
+               <Card className="p-6 md:p-8 border-t-4 border-t-purple-500 shadow-md">
+                   <div className="flex items-center gap-3 mb-6 border-b border-slate-100 pb-4">
+                       <div className="bg-purple-100 p-2 rounded-xl text-purple-600">
+                           <Icons.Clock className="w-6 h-6" />
+                       </div>
+                        <div>
+                           <h3 className="text-xl font-bold text-slate-900">Daily Flow</h3>
+                           <p className="text-xs text-slate-500 font-bold uppercase tracking-wide">Your Schedule</p>
+                       </div>
+                   </div>
+                   <div className="space-y-0">
+                       {safePlan.daily_routine.length > 0 ? safePlan.daily_routine.map((task, i) => (
+                           <TimelineItem 
+                               key={i} 
+                               timeLabel={i === 0 ? "Morning" : i === safePlan.daily_routine.length - 1 ? "Evening" : "Daytime"} 
+                               task={task.text} 
+                           />
+                       )) : (
+                           <div className="text-slate-400 italic text-center py-4">No specific routine found.</div>
+                       )}
+                   </div>
+               </Card>
+
+               {/* Questions - Notepad Style */}
+               <Card className="p-6 md:p-8 bg-amber-50 border-amber-100 border-t-4 border-t-amber-400 shadow-md">
+                   <div className="flex items-center gap-3 mb-6 border-b border-amber-200/50 pb-4">
+                       <div className="bg-amber-200 p-2 rounded-xl text-amber-700">
+                           <Icons.Question className="w-6 h-6" />
+                       </div>
+                        <div>
+                           <h3 className="text-xl font-bold text-amber-900">Ask Doctor</h3>
+                           <p className="text-xs text-amber-700 font-bold uppercase tracking-wide">Next Visit</p>
+                       </div>
+                   </div>
+                   <ul className="space-y-3">
+                       {safePlan.doctor_questions.map((q, i) => (
+                           <li key={i} className="flex gap-3 text-amber-900 text-sm font-medium bg-white/60 p-3 rounded-xl border border-amber-200/50">
+                               <span className="font-bold text-amber-500 text-lg leading-none mt-0.5">?</span>
+                               <span className="leading-relaxed">{q}</span>
+                           </li>
+                       ))}
+                       {safePlan.doctor_questions.length === 0 && (
+                           <li className="text-amber-700/50 italic text-center py-4">No specific questions identified.</li>
+                       )}
+                   </ul>
+               </Card>
             </div>
           </div>
-
-          {/* Questions Section */}
-          <div className="space-y-4">
-               <h3 className="font-bold text-xl text-slate-800 flex items-center gap-2 border-b border-slate-100 pb-2">
-                 <div className="p-1.5 bg-amber-100 rounded-lg text-amber-600"><Icons.Question className="w-5 h-5" /></div>
-                 Questions for Doctor
-               </h3>
-               {safePlan.doctor_questions.length > 0 ? (
-                 <div className="bg-amber-50 rounded-2xl border border-amber-100 p-6 space-y-3">
-                    <p className="font-bold text-amber-800 text-sm mb-2">Ask these at your follow-up:</p>
-                    {safePlan.doctor_questions.map((q: string, i: number) => (
-                      <div key={i} className="flex items-start gap-3 text-amber-900 bg-white/50 p-3 rounded-lg border border-amber-100/50">
-                         <span className="mt-0.5 font-bold text-amber-500">?</span>
-                         <span>{q}</span>
-                      </div>
-                    ))}
-                 </div>
-               ) : (
-                 <div className="bg-slate-50 rounded-2xl p-6 text-slate-500 italic">No specific questions identified from gaps.</div>
-               )}
-          </div>
-
         </div>
       )}
 

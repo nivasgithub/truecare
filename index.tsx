@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 // import { onAuthStateChanged } from 'firebase/auth'; // Removed
@@ -97,7 +96,12 @@ function CareTransiaApp() {
 
   // Handle Routing (Hash Change)
   useEffect(() => {
-    const onHashChange = () => setCurrentView(getHashPath());
+    const onHashChange = () => {
+        const newPath = getHashPath();
+        setCurrentView(newPath);
+        // CRITICAL FIX: Scroll to top on navigation to prevent "jumping" visual
+        window.scrollTo({ top: 0, behavior: 'auto' });
+    };
     window.addEventListener('hashchange', onHashChange);
     return () => window.removeEventListener('hashchange', onHashChange);
   }, []);
@@ -136,7 +140,6 @@ function CareTransiaApp() {
   useEffect(() => {
     if (ui.status === 'done') {
       navigate('results');
-      window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   }, [ui.status]);
 
@@ -155,7 +158,6 @@ function CareTransiaApp() {
     // Increment session ID to force Intake component remount (clearing local UI state like chat history)
     setIntakeSessionId(prev => prev + 1);
     navigate('intake');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleLogout = async () => {
@@ -185,6 +187,9 @@ function CareTransiaApp() {
           case 'landing':
               return <CareTransiaLandingPage onGetStarted={handleStart} />;
           case 'intake':
+              // Auth Guard: Require User
+              if (!user) return <SignInScreen onSignIn={() => navigate('intake')} onBack={() => navigate('landing')} />;
+              
               return (
                 <React.Fragment key={intakeSessionId}>
                   <CareTransiaIntake 
@@ -227,6 +232,9 @@ function CareTransiaApp() {
                 </React.Fragment>
               );
           case 'results':
+               // Auth Guard: Require User
+               if (!user) return <SignInScreen onSignIn={() => navigate('results')} onBack={() => navigate('landing')} />;
+               
                if (!results.parsedEpisode) return <div className="text-center py-20">No plan loaded. <button onClick={() => navigate('intake')} className="text-blue-600 underline">Start New</button></div>;
                return <CareTransiaResults 
                         data={results.parsedEpisode} 
@@ -272,7 +280,7 @@ function CareTransiaApp() {
   };
 
   return (
-    <div className={`min-h-screen pb-20 md:pb-0 font-sans text-slate-900 ${appSettings.fontSize === 'large' ? 'text-lg' : 'text-base'}`}>
+    <div className={`ct-page pb-20 md:pb-0 font-sans text-slate-900 ${appSettings.fontSize === 'large' ? 'text-lg' : 'text-base'}`}>
       <Navbar 
         onHomeClick={() => navigate(user ? 'dashboard' : 'landing')} 
         currentView={currentView}
@@ -285,8 +293,9 @@ function CareTransiaApp() {
         hasActivePlan={hasActivePlan}
       />
       
-      <main className="pt-6 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
-        {renderView()}
+      {/* Wrapper removed key and animation to prevent flickering */}
+      <main className="pt-6 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto min-h-[80vh]">
+          {renderView()}
       </main>
 
       <BottomNav 
@@ -295,6 +304,7 @@ function CareTransiaApp() {
         onLiveClick={() => setShowLiveAssistant(true)}
         hasActivePlan={hasActivePlan}
         isLiveActive={isLiveActive}
+        user={user}
       />
 
       <LiveAssistant 

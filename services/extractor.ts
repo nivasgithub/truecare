@@ -25,23 +25,12 @@ The images may be:
 2. Multi-page Discharge Summaries.
 3. Handwritten Notes.
 
-VALIDATION & ERROR HANDLING:
-- **Irrelevant Images**: If the image is NOT a medical document, medication label, or patient note (e.g., it is a sunset, a cat, a company logo, or blank), set "status" to "error" and "error_message" to "The image provided does not contain any medical data. Please upload a discharge paper or medication label.".
-- **Unreadable**: If the image is too blurry to read, set "status" to "error".
-
 CRITICAL RULES FOR PILL BOTTLES & MED LISTS:
 - **Name**: Drug name (e.g. "Lisinopril").
 - **Dose**: Strength (e.g. "10mg", "500 mg"). Do NOT put "1 tablet" here; put that in Frequency.
 - **Frequency**: How often (e.g. "Take 1 tablet daily", "Twice a day").
 - **Timing/Instructions**: Specifics (e.g. "Take with food", "Until finished"). If none, use "-".
 - If patient details are visible, extract them. If not, leave patient fields null.
-
-CONFIDENCE SCORING:
-- Set "extraction_confidence" based on image clarity and data completeness:
-  - "high": Clear images, all expected fields found, no guessing.
-  - "medium": Some text was blurry OR 1-2 fields required inference.
-  - "low": Significant portions unreadable OR multiple fields missing.
-- List unclear fields in "low_confidence_items" (e.g., ["dose for Metformin", "appointment date"]).
 
 GENERAL RULES:
 1. Extract all sections as they appear.
@@ -79,16 +68,6 @@ Focus on extracting the "Dose" and "Frequency" for every medication found.
         properties: {
           status: { type: Type.STRING, enum: ["success", "error"] },
           error_message: { type: Type.STRING },
-          extraction_confidence: { 
-             type: Type.STRING, 
-             enum: ["high", "medium", "low"],
-             description: "Overall confidence in extraction accuracy"
-          },
-          low_confidence_items: { 
-            type: Type.ARRAY, 
-            items: { type: Type.STRING },
-            description: "List of field names where text was unclear or guessed"
-          },
           patient: {
             type: Type.OBJECT,
             properties: {
@@ -163,19 +142,6 @@ Focus on extracting the "Dose" and "Frequency" for every medication found.
   // Safe parsing with default fallbacks. Guard against null returns.
   const rawParsed = cleanAndParseJSON<Partial<ParsedEpisode>>(response.text) || {};
   
-  // Post-processing Validation
-  // If status is success but NO data was found, override it to error.
-  const hasContent = 
-      (Array.isArray(rawParsed.medications) && rawParsed.medications.length > 0) ||
-      (Array.isArray(rawParsed.appointments) && rawParsed.appointments.length > 0) ||
-      (Array.isArray(rawParsed.warnings) && rawParsed.warnings.length > 0) ||
-      (rawParsed.patient && rawParsed.patient.name);
-
-  if (rawParsed.status === 'success' && !hasContent) {
-      rawParsed.status = 'error';
-      rawParsed.error_message = "No extractable medical data found in the provided image. The image appears to be a logo or marketing graphic.";
-  }
-
   const parsedEpisode: ParsedEpisode = {
       status: rawParsed.status || 'success',
       error_message: rawParsed.error_message || '',
@@ -190,9 +156,7 @@ Focus on extracting the "Dose" and "Frequency" for every medication found.
       appointments: Array.isArray(rawParsed.appointments) ? rawParsed.appointments : [],
       activities: Array.isArray(rawParsed.activities) ? rawParsed.activities : [],
       warnings: Array.isArray(rawParsed.warnings) ? rawParsed.warnings : [],
-      additional_notes: rawParsed.additional_notes || '',
-      extraction_confidence: rawParsed.extraction_confidence || 'high',
-      low_confidence_items: Array.isArray(rawParsed.low_confidence_items) ? rawParsed.low_confidence_items : []
+      additional_notes: rawParsed.additional_notes || ''
   };
 
   return parsedEpisode;
@@ -200,14 +164,24 @@ Focus on extracting the "Dose" and "Frequency" for every medication found.
 
 /**
  * Extracts structured patient info from natural language text
+ * @param text The user's input text
+ * @param context The previous question asked by the system (optional)
  */
-export async function extractPatientDetails(text: string): Promise<Partial<PatientInfo>> {
+export async function extractPatientDetails(text: string, context?: string): Promise<Partial<PatientInfo>> {
   if (!text.trim()) return {};
 
   const systemPrompt = `
-    You are a data extraction helper. 
-    Extract patient details from the provided text into JSON.
-    Fields: name, age, primary_condition.
+    You are a smart data extraction helper. 
+    Your goal is to extract patient details from the user's input text into JSON.
+    
+    Fields to extract: name, age, primary_condition.
+    
+    IMPORTANT:
+    - Use the 'Previous Question' to understand the user's answer.
+    - If the user types just "99", and the question was "What is your Age?", extract age="99".
+    - If the user types "Fever", and the question was "Condition?", extract primary_condition="Fever".
+    
+    Previous Question Asked: "${context || 'None'}"
   `;
 
   const response = await runWithRetry<GenerateContentResponse>(() => ai.models.generateContent({

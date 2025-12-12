@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 
 // --- Icons ---
@@ -47,7 +46,7 @@ export const Icons = {
 // --- Components ---
 
 export const Card = ({ children, className = "", ...props }: React.HTMLAttributes<HTMLDivElement>) => (
-  <div className={`bg-white rounded-2xl border border-slate-100 shadow-sm ${className}`} {...props}>
+  <div className={`ct-card ${className}`} {...props}>
     {children}
   </div>
 );
@@ -67,22 +66,16 @@ export const Button = ({
   className = "",
   ...props
 }: ButtonProps) => {
-  // Added min-h-[44px] min-w-[44px] for accessibility compliance
-  const baseStyle = "min-h-[44px] min-w-[44px] px-6 py-3.5 rounded-full font-semibold transition-all duration-300 flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed text-sm md:text-base focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2";
   
   const variants = {
-    // Soft Blue Gradient for trust/action
-    primary: "bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white shadow-lg shadow-blue-200 hover:shadow-blue-300",
-    // Clean secondary
-    secondary: "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300 shadow-sm",
-    // Soft warning
-    danger: "bg-red-50 text-red-600 hover:bg-red-100 border border-red-100",
-    // Ghost
-    ghost: "text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg"
+    primary: "ct-btn--primary",
+    secondary: "ct-btn--secondary",
+    danger: "ct-btn--danger",
+    ghost: "ct-btn--ghost"
   };
 
   return (
-    <button className={`${baseStyle} ${variants[variant]} ${className}`} {...props}>
+    <button className={`ct-btn ${variants[variant]} ${className}`} {...props}>
       {children}
     </button>
   );
@@ -96,14 +89,14 @@ export interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
 
 export const Badge = ({ children, color = 'blue', ...props }: BadgeProps) => {
   const colors = {
-    blue: "bg-blue-50 text-blue-700 border-blue-100",
-    green: "bg-emerald-50 text-emerald-700 border-emerald-100",
-    red: "bg-red-50 text-red-700 border-red-100",
-    amber: "bg-amber-50 text-amber-700 border-amber-100",
-    slate: "bg-slate-50 text-slate-700 border-slate-100"
+    blue: "ct-chip--blue",
+    green: "ct-chip--ok",
+    red: "ct-chip--red",
+    amber: "ct-chip--amber",
+    slate: "ct-chip--private"
   };
   return (
-    <span className={`px-3 py-1 rounded-full text-xs font-semibold tracking-wide border ${colors[color]}`} {...props}>
+    <span className={`ct-chip ${colors[color]}`} {...props}>
       {children}
     </span>
   );

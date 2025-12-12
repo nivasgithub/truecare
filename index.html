@@ -5,23 +5,299 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>CareTransia</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-      body {
-        font-family: 'Inter', sans-serif;
-        background-color: #f3f4f6;
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: 'var(--ct-font)',
+            },
+            colors: {
+              // Brand: Primary (Blue)
+              blue: {
+                50: '#eff6ff',
+                100: '#dbeafe',
+                200: '#bfdbfe',
+                300: '#93c5fd',
+                400: 'var(--ct-primary-400)',
+                500: 'var(--ct-primary-500)',
+                600: 'var(--ct-primary-600)',
+                700: '#1d4ed8',
+              },
+              // Brand: Accent (Teal)
+              teal: {
+                50: '#f0fdfa',
+                100: '#ccfbf1',
+                400: '#2dd4bf',
+                500: 'var(--ct-teal-500)',
+                600: 'var(--ct-teal-600)',
+                700: '#0f766e',
+              },
+              // Neutrals (Slate mapped to Brand Greys)
+              slate: {
+                50: 'var(--ct-surface-2)',  // Soft tinted panels
+                100: 'var(--ct-border)',    // Borders
+                200: '#e2e8f0',
+                300: '#cbd5e1',
+                400: 'var(--ct-muted)',     // Muted text
+                500: 'var(--ct-text-2)',    // Secondary text
+                600: 'var(--ct-text-2)',    // Secondary text
+                700: '#334155',
+                800: 'var(--ct-text)',      // Primary text
+                900: 'var(--ct-text)',      // Primary text
+              }
+            },
+            borderRadius: {
+              'xl': 'var(--ct-radius-sm)',
+              '2xl': 'var(--ct-radius-md)',
+              '3xl': 'var(--ct-radius-lg)',
+            },
+            boxShadow: {
+              'sm': 'var(--ct-shadow-sm)',
+              'md': 'var(--ct-shadow-md)',
+              'lg': 'var(--ct-shadow-md)',
+              'xl': 'var(--ct-shadow-md)',
+              '2xl': 'var(--ct-shadow-md)',
+            }
+          }
+        }
       }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+      :root {
+        /* Brand (calm medical) */
+        --ct-primary-600: #2563EB;   /* Royal Blue */
+        --ct-primary-500: #3B82F6;   /* Bright Blue */
+        --ct-primary-400: #60A5FA;
+
+        --ct-teal-600:    #0D9488;   /* Teal */
+        --ct-teal-500:    #14B8A6;
+
+        /* Hero gradient (matches your “My Plan” header) */
+        --ct-hero-from:   #0F172A;   /* Slate 900 */
+        --ct-hero-mid:    #1E3A8A;   /* Blue 900 */
+        --ct-hero-to:     #4F46E5;   /* Indigo 600 */
+
+        /* Backgrounds (marble clean) */
+        --ct-bg:          #F8FAFC;   /* Slate 50 */
+        --ct-surface:     #FFFFFF;   /* cards */
+        --ct-surface-2:   #F1F5F9;   /* Slate 100 */
+        --ct-border:      #E2E8F0;   /* Slate 200 */
+
+        /* Text */
+        --ct-text:        #0F172A;
+        --ct-text-2:      #475569;
+        --ct-muted:       #94A3B8;
+
+        /* Semantic */
+        --ct-success:     #10B981;
+        --ct-warning:     #F59E0B;
+        --ct-danger:      #EF4444;
+        --ct-info:        #3B82F6;
+
+        /* Effects */
+        --ct-radius-lg:   20px;
+        --ct-radius-md:   16px;
+        --ct-radius-sm:   12px;
+
+        --ct-shadow-sm:   0 2px 8px -2px rgba(15, 23, 42, .08);
+        --ct-shadow-md:   0 12px 24px -6px rgba(15, 23, 42, .12);
+        --ct-ring:        0 0 0 4px rgba(59, 130, 246, .15);
+
+        /* Typography (Modern Medical) */
+        --ct-font: "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      }
+
+      html {
+        overflow-y: scroll;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+      
+      body {
+        font-family: var(--ct-font);
+        background-color: var(--ct-bg);
+        color: var(--ct-text);
+        line-height: 1.5;
+      }
+
+      /* Heading Scale Overrides */
+      h1, h2, h3, h4, h5, h6 { letter-spacing: -0.025em; }
+      
+      /* --- CUSTOM COMPONENTS --- */
+
+      /* Page background + layout */
+      .ct-page {
+        background: radial-gradient(1200px 600px at 50% -10%, rgba(59,130,246,.08), transparent 100%),
+                    var(--ct-bg);
+        min-height: 100vh;
+      }
+
+      /* Card */
+      .ct-card {
+        background: var(--ct-surface);
+        border: 1px solid var(--ct-border);
+        border-radius: var(--ct-radius-lg);
+        box-shadow: var(--ct-shadow-sm);
+      }
+      .ct-card--soft {
+        background: linear-gradient(180deg, rgba(59,130,246,.04), rgba(20,184,166,.04));
+      }
+
+      /* Primary button */
+      .ct-btn {
+        border-radius: 12px;
+        padding: 12px 20px;
+        font-weight: 600;
+        border: 1px solid transparent;
+        transition: transform .08s ease, box-shadow .15s ease, background .15s ease;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        cursor: pointer;
+        font-size: 0.95rem;
+      }
+      .ct-btn:active { transform: translateY(1px); }
+      .ct-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+      .ct-btn--primary {
+        color: #fff;
+        background: linear-gradient(135deg, var(--ct-primary-600), #4F46E5);
+        box-shadow: 0 8px 20px -4px rgba(59,130,246,.4);
+      }
+      .ct-btn--primary:hover { 
+        background: linear-gradient(135deg, #1D4ED8, #4338CA);
+        box-shadow: 0 10px 25px -5px rgba(59,130,246,.5); 
+      }
+
+      .ct-btn--secondary {
+        background: #fff;
+        border: 1px solid var(--ct-border);
+        color: var(--ct-text-2);
+        box-shadow: var(--ct-shadow-sm);
+      }
+      .ct-btn--secondary:hover { background: var(--ct-surface-2); color: var(--ct-text); }
+
+      .ct-btn--danger {
+        background: #FEF2F2;
+        color: var(--ct-danger);
+        border: 1px solid #FECACA;
+      }
+      .ct-btn--danger:hover { background: #FEE2E2; }
+
+      .ct-btn--ghost {
+        background: transparent;
+        border-color: transparent;
+        color: var(--ct-text-2);
+      }
+      .ct-btn--ghost:hover { background: rgba(0,0,0,0.05); color: var(--ct-text); }
+      
+      .ct-btn:focus { outline: none; box-shadow: var(--ct-ring); }
+
+      /* Tabs */
+      .ct-tabs {
+        background: #F1F5F9;
+        border: 1px solid var(--ct-border);
+        border-radius: 14px;
+        padding: 4px;
+        display: inline-flex;
+        gap: 4px;
+      }
+      .ct-tab {
+        border-radius: 10px;
+        padding: 8px 16px;
+        color: var(--ct-text-2);
+        font-weight: 600;
+        font-size: 0.9rem;
+        transition: all 0.2s ease;
+        border: 1px solid transparent;
+      }
+      .ct-tab[data-active="true"] {
+        background: #fff;
+        color: var(--ct-primary-600);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        border: 1px solid rgba(0,0,0,0.02);
+      }
+      .ct-tab:hover:not([data-active="true"]) {
+        color: var(--ct-text);
+        background: rgba(255,255,255,0.5);
+      }
+
+      /* Inputs */
+      .ct-input {
+        width: 100%;
+        border-radius: 12px;
+        border: 1px solid var(--ct-border);
+        background: #F8FAFC;
+        padding: 12px 16px;
+        color: var(--ct-text);
+        font-size: 0.95rem;
+        transition: all 0.2s ease;
+      }
+      .ct-input::placeholder { color: var(--ct-muted); }
+      .ct-input:focus { outline: none; box-shadow: var(--ct-ring); border-color: var(--ct-primary-500); background: #fff; }
+
+      /* Status chips */
+      .ct-chip {
+        display: inline-flex; align-items: center; gap: 6px;
+        border-radius: 99px; padding: 4px 10px;
+        font-size: 0.75rem; font-weight: 700; letter-spacing: .02em;
+        border: 1px solid transparent;
+      }
+      .ct-chip--ok { color: #065F46; background: #D1FAE5; border-color: #A7F3D0; }
+      .ct-chip--private { color: #475569; background: #F1F5F9; border-color: #E2E8F0; }
+      .ct-chip--blue { color: #1E40AF; background: #DBEAFE; border-color: #BFDBFE; }
+      .ct-chip--amber { color: #92400E; background: #FEF3C7; border-color: #FDE68A; }
+      .ct-chip--red { color: #991B1B; background: #FEE2E2; border-color: #FECACA; }
+
+      /* NEW LOGO STYLES */
+      .ct-logo { display: flex; align-items: center; gap: 12px; cursor: pointer; user-select: none; }
+      
+      .ct-logoText {
+        font-size: 20px; 
+        font-weight: 800; 
+        letter-spacing: -0.03em;
+        color: var(--ct-text);
+        line-height: 1;
+      }
+      .ct-logoText span {
+        color: var(--ct-primary-600);
+      }
+
+      .ct-logoMark {
+        width: 40px; height: 40px; 
+        border-radius: 12px;
+        /* Modern Gradient: Blue to Indigo */
+        background: linear-gradient(135deg, #2563EB, #4338CA); 
+        box-shadow: 0 8px 16px -4px rgba(37, 99, 235, 0.3);
+        display: flex; align-items: center; justify-content: center;
+        color: white;
+        position: relative;
+        overflow: hidden;
+      }
+      
+      /* Subtle inner shine for depth */
+      .ct-logoMark::after {
+        content: ""; position: absolute;
+        top: 0; left: 0; width: 100%; height: 100%;
+        background: linear-gradient(rgba(255,255,255,0.15), transparent 60%);
+        pointer-events: none;
+      }
+
       /* Custom scrollbar for cleaner look */
       ::-webkit-scrollbar {
         width: 8px;
         height: 8px;
       }
       ::-webkit-scrollbar-track {
-        background: #f1f1f1; 
+        background: transparent; 
       }
       ::-webkit-scrollbar-thumb {
-        background: #cbd5e1; 
-        border-radius: 4px;
+        background: #CBD5E1; 
+        border-radius: 99px;
+        border: 2px solid var(--ct-bg);
       }
       ::-webkit-scrollbar-thumb:hover {
         background: #94a3b8; 

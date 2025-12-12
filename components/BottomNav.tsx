@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Icons } from './ui';
+import { UserProfile } from '../types';
 
 interface BottomNavProps {
   currentView: string;
@@ -7,24 +8,24 @@ interface BottomNavProps {
   onLiveClick: () => void;
   hasActivePlan: boolean;
   isLiveActive?: boolean;
+  user: UserProfile | null;
 }
 
-export default function BottomNav({ currentView, onNavigate, onLiveClick, hasActivePlan, isLiveActive }: BottomNavProps) {
-  const [isHovered, setIsHovered] = useState(false);
+export default function BottomNav({ currentView, onNavigate, onLiveClick, hasActivePlan, isLiveActive, user }: BottomNavProps) {
   
   const navItems = [
     { id: 'dashboard', label: 'Home', icon: Icons.Home },
     // Tooltip added for disabled state
-    { id: 'results', label: 'My Plan', icon: Icons.Clipboard, disabled: !hasActivePlan, tooltip: "Complete your first plan to access" },
+    { id: 'results', label: 'My Plan', icon: Icons.Clipboard, disabled: !hasActivePlan && !!user, tooltip: "Complete your first plan to access" },
     // Label changed from Scan to Add
     { id: 'intake', label: 'Add', icon: Icons.Camera },
-    { id: 'live', label: 'Live Agent', icon: Icons.Mic },
+    { id: 'live', label: 'Agent', icon: Icons.Mic },
   ];
 
   const handleNavClick = (item: typeof navItems[0]) => {
-      // Haptic Feedback
+      // Light Haptic Feedback
       if (typeof navigator !== 'undefined' && navigator.vibrate) {
-          navigator.vibrate(10); 
+          navigator.vibrate(5); 
       }
 
       if (item.id === 'live') {
@@ -32,8 +33,13 @@ export default function BottomNav({ currentView, onNavigate, onLiveClick, hasAct
           return;
       }
       
+      // Auth Guard for Add/My Plan
+      if ((item.id === 'intake' || item.id === 'results') && !user) {
+          onNavigate('signin');
+          return;
+      }
+      
       if (item.disabled) {
-          // Explicit explanation instead of silent failure
           alert(item.tooltip || "Please generate a care plan first.");
           return;
       }
@@ -43,56 +49,43 @@ export default function BottomNav({ currentView, onNavigate, onLiveClick, hasAct
 
   return (
     <div 
-      className="fixed bottom-0 left-0 w-full z-40 flex flex-col items-center justify-end pb-4 pointer-events-none md:hidden"
+      className="fixed bottom-0 left-0 w-full z-40 pb-safe md:hidden bg-white/95 backdrop-blur-xl border-t border-slate-100 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]"
     >
-      <div 
-         className="pointer-events-auto flex flex-col items-center relative w-[92%]"
-         onMouseEnter={() => setIsHovered(true)}
-         onMouseLeave={() => setIsHovered(false)}
-      >
-        
-        {/* Navigation Dock */}
-        <div 
-          className={`
-             bg-white/90 backdrop-blur-xl border border-slate-200 shadow-2xl 
-             flex items-end justify-between px-4 py-2 gap-1
-             transition-all duration-500 cubic-bezier(0.34, 1.56, 0.64, 1) ease-out origin-bottom
-             w-full rounded-2xl h-20 opacity-100 scale-100 translate-y-0 relative
-          `}
-        >
+        <div className="flex items-center justify-around w-full max-w-md mx-auto px-2 py-2">
             {navItems.map((item) => {
               const isActive = item.id === 'live' ? isLiveActive : currentView === item.id;
               
               return (
-                 <div key={item.id} className="w-16 flex justify-center pb-2 relative group">
-                     {/* Hover Tooltip for disabled items on desktop/touch long press simulation */}
-                     {item.disabled && (
-                         <div className="absolute bottom-full mb-2 bg-slate-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-                             {item.tooltip}
-                         </div>
-                     )}
-                     
-                     <button
-                        onClick={() => handleNavClick(item)}
-                        className={`
-                            transition-all duration-300 ease-out flex flex-col items-center justify-center
-                            ${isActive 
-                                ? 'relative -top-5 w-14 h-14 rounded-2xl bg-gradient-to-tr from-blue-600 to-cyan-500 text-white shadow-xl shadow-blue-500/30 scale-110 border-4 border-white' 
-                                : 'w-full h-full text-slate-500 hover:text-slate-800 hover:bg-slate-50 rounded-xl py-2'
-                            }
-                            ${item.disabled ? 'opacity-40' : ''}
-                        `}
-                        title={item.tooltip || item.label}
-                     >
-                        <item.icon className={`${isActive ? 'w-6 h-6' : 'w-5 h-5 mb-1'}`} />
-                        {!isActive && <span className="text-[10px] font-bold tracking-wide">{item.label}</span>}
-                     </button>
-                 </div>
+                 <button
+                    key={item.id}
+                    onClick={() => handleNavClick(item)}
+                    disabled={item.disabled}
+                    className={`
+                        relative flex flex-col items-center justify-center py-2 px-4 rounded-2xl transition-all duration-200 ease-out min-w-[70px]
+                        ${isActive 
+                            ? 'text-blue-600 bg-blue-50' 
+                            : 'text-slate-400 hover:text-slate-600 active:bg-slate-50'
+                        }
+                        ${item.disabled ? 'opacity-40' : ''}
+                    `}
+                    title={item.tooltip || item.label}
+                 >
+                    {/* Icon */}
+                    <item.icon className={`w-6 h-6 transition-transform duration-200 ${isActive ? 'scale-110 stroke-[2.5px]' : ''}`} />
+                    
+                    {/* Label */}
+                    <span className={`text-[10px] font-bold mt-1 transition-colors ${isActive ? 'text-blue-600' : 'text-slate-400'}`}>
+                        {item.label}
+                    </span>
+
+                    {/* Active Dot Indicator (Subtle) */}
+                    {isActive && (
+                        <span className="absolute top-1 right-3 w-1.5 h-1.5 rounded-full bg-blue-500 shadow-sm animate-fade-in"></span>
+                    )}
+                 </button>
               );
             })}
         </div>
-
-      </div>
     </div>
   );
 }

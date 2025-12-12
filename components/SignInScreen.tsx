@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Icons, Card, Button, Badge } from './ui';
 import { 
@@ -122,7 +121,7 @@ export default function SignInScreen({ onSignIn, onBack }: SignInScreenProps) {
                         value={name}
                         onChange={(e) => setName(e.target.value)}
                         placeholder="Alex Smith"
-                        className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-blue-200 focus:ring-2 outline-none transition-all text-slate-900 bg-white placeholder-slate-400"
+                        className="ct-input"
                     />
                   </div>
               )}
@@ -133,7 +132,7 @@ export default function SignInScreen({ onSignIn, onBack }: SignInScreenProps) {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="you@example.com"
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-blue-200 focus:ring-2 outline-none transition-all text-slate-900 bg-white placeholder-slate-400"
+                    className="ct-input"
                 />
               </div>
               <div>
@@ -143,7 +142,7 @@ export default function SignInScreen({ onSignIn, onBack }: SignInScreenProps) {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-blue-200 focus:ring-2 outline-none transition-all text-slate-900 bg-white placeholder-slate-400"
+                    className="ct-input"
                 />
               </div>
               

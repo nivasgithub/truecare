@@ -1,4 +1,5 @@
 
+
 export interface PatientInfo {
   name: string;
   age: string;
@@ -129,6 +130,15 @@ export interface RunTrace {
   steps: RunStep[];
 }
 
+export interface AgentTrace {
+  id: string;
+  step: string;
+  timestamp: number;
+  input: any;
+  output: any;
+  latency?: number;
+}
+
 export interface SelfEvalSummary {
   score: number; // 0-100
   user_facing_message: string;
@@ -197,12 +207,18 @@ export interface GeneratedVideo {
 // --- Intake Agent Types ---
 export interface IntakeAgentResponse {
   text: string;
-  widget: 'upload' | 'camera' | 'analyze' | 'none';
+  widget: 'upload' | 'camera' | 'analyze' | 'upload_options' | 'none';
   action?: 'validate_files' | 'extract_data' | 'ask_for_info' | 'confirm_summary' | 'proceed_to_verification' | 'wait';
   action_reason?: string;
   suggestions: string[];
   extracted_info: Partial<PatientInfo>;
   state_updates?: Partial<PatientInfo>;
+  // Debug info for tracing
+  _debug?: {
+    userMessage?: string;
+    sessionState: any;
+    promptSnapshot?: string;
+  };
 }
 
 // --- App Settings ---

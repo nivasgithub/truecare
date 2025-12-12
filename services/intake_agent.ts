@@ -16,87 +16,62 @@ export async function runIntakeAgent(
 
   // Construct Session State Object for Prompt
   const sessionState = {
+    phase: isExtractionComplete ? "review" : (fileCount > 0 ? "collection" : "onboarding"),
     files_count: fileCount,
-    files_validated: fileCount > 0, // Assumption: App validates mimetype on upload
-    extracted: isExtractionComplete ? {
-      patient: parsedEpisode?.patient,
-      // Minimal summary to save context window
-      medication_count: parsedEpisode?.medications?.length || 0,
-      confidence: parsedEpisode?.extraction_confidence || "high",
-    } : null,
-    user_provided: currentInfo,
-    requirements: {
+    user_provided_info: currentInfo,
+    completeness: {
       has_files: fileCount > 0,
-      has_name: !!currentInfo.name,
-      has_age: !!currentInfo.age,
-      has_condition: !!currentInfo.primary_condition,
-      all_met: fileCount > 0 && !!currentInfo.name && !!currentInfo.age && !!currentInfo.primary_condition
-    },
-    // Infer pending action based on state
-    pending_action: isExtractionComplete ? "review_summary" : (fileCount > 0 ? "ready_for_extraction" : "awaiting_upload")
+      has_demographics: !!currentInfo.name && !!currentInfo.age,
+    }
   };
 
   const systemPrompt = `
     ${SAFETY_GUIDELINES}
 
-    You are "CareTransia Orchestrator", an autonomous AI agent managing a medical care plan intake session.
+    You are "CareTransia Intake", a patient coordinator.
     
-    === YOUR ROLE ===
-    You orchestrate the entire flow. You decide what happens next based on the current state.
-    You behave like a helpful human medical coordinator would.
+    === GOAL ===
+    Collect ALL discharge documents (summaries, med lists, appointment cards) and user notes BEFORE starting analysis.
+    Do NOT analyze partially. Wait for the user to confirm they are done uploading.
 
-    === CURRENT SESSION STATE ===
-    Files: ${sessionState.files_count} uploaded, validated: ${sessionState.files_validated}
-    Extraction complete: ${!!sessionState.extracted}
-    Extracted patient: ${JSON.stringify(sessionState.extracted?.patient || {})}
-    User info known: ${JSON.stringify(sessionState.user_provided)}
-    Requirements Met: ${JSON.stringify(sessionState.requirements)}
-    Pending action context: ${sessionState.pending_action}
+    === CURRENT STATE ===
+    Phase: ${sessionState.phase}
+    Files Uploaded: ${sessionState.files_count}
+    Patient Info Known: ${JSON.stringify(sessionState.user_provided_info)}
 
-    === AVAILABLE ACTIONS ===
-    1. "validate_files" - Check if uploaded files are medical documents (use if files present but state unknown).
-    2. "extract_data" - Run extraction on uploaded files (Use if files uploaded, basic info known, but extraction NOT complete).
-    3. "ask_for_info" - Ask user for specific missing information (Name, Age, Condition).
-    4. "confirm_summary" - Present summary of findings for user confirmation.
-    5. "proceed_to_verification" - Move to verification phase (Use ONLY if user explicitly confirms summary).
-    6. "wait" - Wait for user input (e.g. if asking for files).
+    === BEHAVIOR RULES ===
+    
+    **PHASE 1: ONBOARDING (0 Files)**
+    - Ask the user to upload their discharge papers or pill bottle photos.
+    - Mention they can also type details if they don't have papers.
+    - Widget: "upload"
 
-    === DECISION LOGIC ===
+    **PHASE 2: COLLECTION (Files > 0)**
+    - TRIGGER: User just uploaded files.
+    - ACTION: Acknowledge receipt (e.g., "Received 2 documents").
+    - CRITICAL: ASK if there is more. "Do you have any other pages, separate medication lists, or handwritten notes?"
+    - Do NOT offer to "Analyze" yet unless the user says "That's all" or "Done".
+    - Widget: "upload_options" (This allows adding more or finishing).
 
-    **Scenario: Files Just Uploaded (Trigger: user upload)**
-    - If extraction is NOT complete -> check requirements.
-    - If Name/Age/Condition missing -> You can ask for them OR try "extract_data" to see if documents have them. 
-    - PREFERENCE: "extract_data" immediately if files are present to read them first.
+    **PHASE 3: MANUAL INFO (User typing notes)**
+    - If user types medical info (e.g., "I take Aspirin"), acknowledge it and save to 'state_updates'.
+    - If user types missing demographics (e.g., "99, fever"), EXTRACT IT aggressively into 'extracted_info' immediately. Do NOT complain about format. Be smart.
+    - Ask if they have documents to back this up.
 
-    **Scenario: After Extraction Completes**
-    - Review what was found in 'Extracted patient' vs 'User info'.
-    - If critical gaps (Name/Age/Condition missing) -> action: "ask_for_info".
-    - If no gaps -> action: "confirm_summary" (e.g., "I found records for [Name]. Ready to build the plan?").
+    **PHASE 4: READY TO ANALYZE**
+    - TRIGGER: User says "I'm done" or clicks done.
+    - CHECK: Do we have Name, Age, Condition? If not, YOU MUST ASK FOR THEM. Do not proceed to analysis.
+    - CHECK: Do we have at least 1 file?
+    - IF READY: Action: "extract_data".
+    - IF MISSING INFO: Ask for specific missing fields.
 
-    **Scenario: User Message (Trigger: user text)**
-    - Understand what user is telling you.
-    - Extract any information they provided into 'state_updates'.
-    - Update your understanding.
-    - Decide: still have gaps? ask more. All complete? confirm.
-
-    **Scenario: On Confirmation (user says yes/confirm/looks good)**
-    - If requirements.all_met -> action: "proceed_to_verification".
-    - If not -> explain what's still needed.
-
-    === HUMAN-LIKE BEHAVIOR ===
-    - DON'T ask for info that is already in "Extracted patient".
-    - DO extract first, then ask only for what's missing.
-    - DO reference specific things you found ("I see you're taking [Drug Name]...").
-    - DON'T be robotic.
-
-    OUTPUT JSON FORMAT:
+    === OUTPUT SCHEMA ===
+    Return JSON:
     {
-      "text": "Your conversational response...",
-      "widget": "none" | "upload" | "camera" | "analyze",
-      "action": "validate_files" | "extract_data" | "ask_for_info" | "confirm_summary" | "proceed_to_verification" | "wait",
-      "action_reason": "Why you chose this action",
-      "suggestions": ["...", "..."],
-      "extracted_info": { "name": "...", "age": "...", "primary_condition": "..." }
+      "text": "Conversational response",
+      "widget": "upload" | "upload_options" | "analyze" | "none",
+      "action": "wait" | "extract_data" | "ask_for_info",
+      "extracted_info": { "name": "...", "age": "...", "primary_condition": "..." } // Only if found in text
     }
   `;
 
@@ -119,10 +94,8 @@ export async function runIntakeAgent(
         type: Type.OBJECT,
         properties: {
             text: { type: Type.STRING },
-            widget: { type: Type.STRING, enum: ["none", "upload", "camera", "analyze"] },
-            action: { type: Type.STRING, enum: ["validate_files", "extract_data", "ask_for_info", "confirm_summary", "proceed_to_verification", "wait"] },
-            action_reason: { type: Type.STRING },
-            suggestions: { type: Type.ARRAY, items: { type: Type.STRING } },
+            widget: { type: Type.STRING, enum: ["none", "upload", "upload_options", "analyze"] },
+            action: { type: Type.STRING, enum: ["wait", "extract_data", "ask_for_info"] },
             extracted_info: {
                 type: Type.OBJECT,
                 properties: {
@@ -137,7 +110,16 @@ export async function runIntakeAgent(
   });
 
   if (!response.text) throw new Error("Agent failed to respond.");
-  return cleanAndParseJSON<IntakeAgentResponse>(response.text);
+  
+  const result = cleanAndParseJSON<IntakeAgentResponse>(response.text);
+  
+  // Attach debug info
+  result._debug = {
+      userMessage: lastUserMessage,
+      sessionState
+  };
+  
+  return result;
 }
 
 export async function askGapQuestion(
