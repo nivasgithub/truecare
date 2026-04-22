@@ -15,6 +15,30 @@ export default function SettingsScreen({ user, onNavigate, onLogout, settings, o
   
   const settingSections = [
     {
+        title: "Security & Privacy",
+        items: [
+            {
+                id: 'autolock',
+                icon: <Icons.Shield className="w-5 h-5 text-emerald-600" />,
+                label: "Auto-Lock Timeout",
+                desc: "Automatically log out after inactivity (HIPAA Recommended).",
+                actionLabel: settings.autoLockMinutes > 0 ? `${settings.autoLockMinutes} min` : "Disabled",
+                onClick: () => {
+                    const next = settings.autoLockMinutes === 15 ? 30 : settings.autoLockMinutes === 30 ? 0 : 15;
+                    onUpdateSettings({ autoLockMinutes: next });
+                }
+            },
+            {
+                id: 'privacymode',
+                icon: <Icons.Eye className="w-5 h-5 text-slate-600" />,
+                label: "Privacy Mask",
+                desc: "Blur patient names and sensitive details on the dashboard for public viewing.",
+                actionLabel: settings.privacyMode ? "On" : "Off",
+                onClick: () => onUpdateSettings({ privacyMode: !settings.privacyMode })
+            }
+        ]
+    },
+    {
       title: "Display & Accessibility",
       items: [
         {
@@ -27,7 +51,7 @@ export default function SettingsScreen({ user, onNavigate, onLogout, settings, o
         },
         {
           id: 'simplemode',
-          icon: <Icons.Eye className="w-5 h-5 text-purple-600" />,
+          icon: <Icons.Maximize className="w-5 h-5 text-purple-600" />,
           label: "Simple View Mode",
           desc: "Hide complex charts and extra details for a cleaner look.",
           actionLabel: settings.simpleMode ? "On" : "Off",

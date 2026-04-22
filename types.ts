@@ -1,5 +1,4 @@
 
-
 export interface PatientInfo {
   name: string;
   age: string;
@@ -226,6 +225,9 @@ export interface AppSettings {
   fontSize: 'normal' | 'large';
   simpleMode: boolean;
   calmMode: boolean;
+  // Security & Privacy (HIPAA)
+  privacyMode: boolean; // Blurs PHI on dashboard
+  autoLockMinutes: number; // 0 = disabled, otherwise minutes
 }
 
 // --- Reminders ---

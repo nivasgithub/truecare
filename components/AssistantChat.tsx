@@ -290,26 +290,29 @@ export default function AssistantChat({ isOpen, onClose, carePlan, patientName, 
                     AI can make mistakes. Not medical advice. Call 911 for emergencies.
                 </div>
 
-                <div className="p-4 bg-white border-t border-slate-100 flex gap-3 pb-safe-bottom">
+                <div className="p-4 bg-white border-t border-slate-100 flex gap-2 items-center pb-safe-bottom">
                     <div className="flex-1 relative">
                         <input 
                             value={input}
                             onChange={e => setInput(e.target.value)}
                             onKeyDown={e => e.key === 'Enter' && handleSend()}
                             placeholder="Find clinics, ask questions..."
-                            className="w-full bg-slate-100 rounded-full pl-5 pr-12 py-3 text-base outline-none focus:ring-2 focus:ring-blue-500 border border-transparent focus:border-blue-200"
+                            className="w-full bg-slate-100 rounded-full pl-5 pr-4 py-3 text-base outline-none focus:ring-2 focus:ring-blue-500 border border-transparent focus:border-blue-200"
                         />
-                         <button 
-                            onClick={toggleDictation}
-                            className={`absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${isListening ? 'text-red-500 bg-red-50 animate-pulse' : 'text-slate-400 hover:text-blue-600 hover:bg-blue-50'}`}
-                            title={isListening ? "Listening..." : "Use Microphone"}
-                            aria-label={isListening ? "Stop listening" : "Start voice input"}
-                        >
-                            <Icons.Mic className="w-5 h-5" />
-                        </button>
                     </div>
-                    <button onClick={() => handleSend()} disabled={!input.trim()} className="p-3 bg-blue-600 text-white rounded-full hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-lg shadow-blue-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2" aria-label="Send Message">
-                        <Icons.Send className="w-5 h-5" />
+                    
+                    {/* Mic Button - Moved Outside */}
+                    <button 
+                        onClick={toggleDictation}
+                        className={`p-3 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 flex items-center justify-center ${isListening ? 'text-red-500 bg-red-50 animate-pulse' : 'bg-slate-100 text-slate-500 hover:text-blue-600 hover:bg-blue-50'}`}
+                        title={isListening ? "Listening..." : "Use Microphone"}
+                        aria-label={isListening ? "Stop listening" : "Start voice input"}
+                    >
+                        {isListening ? <Icons.Stop className="w-5 h-5" /> : <Icons.Mic className="w-5 h-5" />}
+                    </button>
+
+                    <button onClick={() => handleSend()} disabled={!input.trim()} className="p-3 bg-blue-600 text-white rounded-full hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-lg shadow-blue-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center justify-center" aria-label="Send Message">
+                        <Icons.Send className="w-5 h-5 rotate-45" />
                     </button>
                 </div>
              </div>

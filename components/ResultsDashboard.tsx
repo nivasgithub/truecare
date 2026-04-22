@@ -30,7 +30,7 @@ function normalizePlanItems(items: any[]): PlanItem[] {
 
 // --- Helper Components ---
 
-const TimelineItem = ({ timeLabel, task }: { timeLabel: string, task: string }) => (
+const TimelineItem: React.FC<{ timeLabel: string, task: string }> = ({ timeLabel, task }) => (
   <div className="relative pl-8 pb-6 last:pb-0 border-l-2 border-slate-200 last:border-l-0 ml-2">
     <div className="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-white border-2 border-purple-400"></div>
     <div className="text-[10px] font-bold text-slate-400 uppercase mb-1 tracking-wider">{timeLabel}</div>

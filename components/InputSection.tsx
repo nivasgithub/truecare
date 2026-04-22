@@ -55,7 +55,7 @@ const InfoField = ({ label, value, placeholder }: { label: string, value?: strin
 );
 
 // Moved DocumentCard up so it can be shared between Agent and Manual views
-function DocumentCard({ file, onRemove }: { file: UploadedFile, onRemove: () => void }) {
+const DocumentCard: React.FC<{ file: UploadedFile, onRemove: () => void }> = ({ file, onRemove }) => {
     return (
         <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-3 w-full animate-fade-in-up hover:border-blue-200 transition-colors">
             <div className="w-12 h-12 bg-slate-50 rounded-xl overflow-hidden flex-shrink-0 border border-slate-100 relative group">
@@ -83,7 +83,7 @@ function DocumentCard({ file, onRemove }: { file: UploadedFile, onRemove: () => 
             </button>
         </div>
     );
-}
+};
 
 export default function CareTransiaIntake({ 
   patientInfo, setPatientInfo, 
@@ -317,7 +317,7 @@ function ManualIntake({
 
     const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files.length > 0) {
-            Array.from(e.target.files).forEach(file => {
+            Array.from(e.target.files).forEach((file: File) => {
                 const reader = new FileReader();
                 reader.onload = (ev) => {
                     if (ev.target?.result) {
@@ -649,7 +649,7 @@ function AgentIntake({
         if (e.target.files && e.target.files.length > 0) {
             
             // PREPARE FILES
-            const selectedFiles = Array.from(e.target.files);
+            const selectedFiles = Array.from(e.target.files) as File[];
             const processedFiles: UploadedFile[] = [];
 
             // Helper to read file
@@ -1380,33 +1380,34 @@ function AgentIntake({
                         </div>
                     )}
                     
-                    <div className="flex gap-3 relative">
+                    <div className="flex gap-2 items-center">
                         <div className="flex-1 relative">
                             <input 
                                 value={input}
                                 onChange={e => setInput(e.target.value)}
                                 onKeyDown={e => e.key === 'Enter' && handleSend(input)}
                                 placeholder="Type a note (e.g. 'I take Aspirin')..."
-                                className="w-full bg-slate-100 rounded-2xl pl-5 pr-12 py-4 text-base outline-none focus:ring-2 focus:ring-teal-500 border border-transparent focus:bg-white transition-all placeholder-slate-400"
+                                className="w-full bg-slate-100 rounded-2xl pl-5 pr-4 py-4 text-base outline-none focus:ring-2 focus:ring-teal-500 border border-transparent focus:bg-white transition-all placeholder-slate-400"
                             />
-                            {/* Mic Button Inside Input */}
-                            <button
-                                onClick={toggleDictation}
-                                className={`absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-xl transition-all focus:outline-none focus:ring-2 focus:ring-teal-500 ${isListening ? 'text-red-500 bg-red-50 animate-pulse' : 'text-slate-400 hover:text-teal-600 hover:bg-teal-50'}`}
-                                title={isListening ? "Stop & Send" : "Dictate"}
-                                aria-label={isListening ? "Stop recording" : "Start voice input"}
-                            >
-                                {isListening ? <Icons.Stop className="w-5 h-5" /> : <Icons.Mic className="w-5 h-5" />}
-                            </button>
                         </div>
+
+                        {/* Mic Button - Moved Outside */}
+                        <button
+                            onClick={toggleDictation}
+                            className={`p-4 rounded-2xl transition-all focus:outline-none focus:ring-2 focus:ring-teal-500 flex items-center justify-center ${isListening ? 'text-red-500 bg-red-50 animate-pulse' : 'bg-slate-100 text-slate-500 hover:text-teal-600 hover:bg-teal-50'}`}
+                            title={isListening ? "Stop & Send" : "Dictate"}
+                            aria-label={isListening ? "Stop recording" : "Start voice input"}
+                        >
+                            {isListening ? <Icons.Stop className="w-5 h-5" /> : <Icons.Mic className="w-5 h-5" />}
+                        </button>
 
                         <button 
                             onClick={() => handleSend(input)}
                             disabled={!input.trim()}
-                            className="bg-slate-900 text-white p-4 rounded-2xl hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2"
+                            className="bg-slate-900 text-white p-4 rounded-2xl hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2 flex items-center justify-center"
                             aria-label="Send message"
                         >
-                            <Icons.Send className="w-5 h-5" />
+                            <Icons.Send className="w-5 h-5 rotate-45" />
                         </button>
                     </div>
                 </div>

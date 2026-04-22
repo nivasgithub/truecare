@@ -1,8 +1,10 @@
+
 import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 // import { onAuthStateChanged } from 'firebase/auth'; // Removed
 
 import { useCareTransiaFlow } from './hooks/useDischargeAnalysis';
+import { useInactivity } from './hooks/useInactivity';
 import type {
   UserProfile,
   ConsistencyReport,
@@ -55,11 +57,13 @@ function CareTransiaApp() {
   // Session Management for Intake Reset
   const [intakeSessionId, setIntakeSessionId] = useState(0);
   
-  // Accessibility Settings
+  // App Settings (including Security)
   const [appSettings, setAppSettings] = useState<AppSettings>({
     fontSize: 'normal',
     simpleMode: false,
-    calmMode: false
+    calmMode: false,
+    privacyMode: false, // Default: Privacy Mask off
+    autoLockMinutes: 15 // Default: 15 min HIPAA Recommendation
   });
 
   // Onboarding State
@@ -84,6 +88,13 @@ function CareTransiaApp() {
           document.body.classList.remove('calm-mode');
       }
   }, [appSettings.calmMode]);
+
+  // --- HIPAA: Automatic Logoff ---
+  useInactivity(user ? appSettings.autoLockMinutes : 0, () => {
+      console.log("Auto-lock triggered due to inactivity.");
+      handleLogout();
+      alert("For your security, you have been logged out due to inactivity.");
+  });
 
   const updateSettings = (newSettings: Partial<AppSettings>) => {
     const updated = { ...appSettings, ...newSettings };
@@ -260,6 +271,7 @@ function CareTransiaApp() {
                         }} 
                         onNewPlan={handleStart}
                         simpleMode={appSettings.simpleMode}
+                        privacyMode={appSettings.privacyMode} // Pass privacy setting
                       />;
           case 'settings':
                if (!user) return <SignInScreen onSignIn={() => navigate('dashboard')} onBack={() => navigate('landing')} />;

@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { Card, Icons, Button } from './ui';
 import { UserProfile, HistoricalRecord, ParsedEpisode, FormattedCarePlan, PlanItem } from '../types';
@@ -22,6 +23,21 @@ const TaskItem: React.FC<{ label: string | PlanItem, status: 'completed' | 'pend
                 <div className={`font-bold text-base ${isCompleted ? 'text-slate-500 line-through' : 'text-slate-900'}`}>{text}</div>
             </div>
         </div>
+    );
+};
+
+// Mask component for privacy mode
+const PrivacyMask: React.FC<{ children: React.ReactNode, active: boolean, className?: string }> = ({ children, active, className="" }) => {
+    if (!active) return <span className={className}>{children}</span>;
+    return (
+        <span className={`group relative cursor-pointer select-none ${className}`}>
+            <span className="filter blur-[6px] group-hover:blur-0 transition-all duration-300 bg-slate-200/50 rounded px-1">
+                {children}
+            </span>
+            <span className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-0 pointer-events-none">
+                <Icons.Eye className="w-4 h-4 text-slate-400" />
+            </span>
+        </span>
     );
 };
 
@@ -89,9 +105,10 @@ interface DashboardScreenProps {
   onViewRecord: (recordId: string, fullData?: string) => void;
   onNewPlan: () => void;
   simpleMode?: boolean;
+  privacyMode?: boolean; // New prop for HIPAA Masking
 }
 
-export default function DashboardScreen({ user, onViewRecord, onNewPlan, simpleMode = false }: DashboardScreenProps) {
+export default function DashboardScreen({ user, onViewRecord, onNewPlan, simpleMode = false, privacyMode = false }: DashboardScreenProps) {
   
   const [records, setRecords] = useState<HistoricalRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -239,6 +256,12 @@ export default function DashboardScreen({ user, onViewRecord, onNewPlan, simpleM
         </div>
       )}
 
+      {privacyMode && (
+          <div className="mb-4 bg-slate-900 text-white px-4 py-2 rounded-xl flex items-center gap-2 text-xs font-bold uppercase tracking-wide justify-center animate-fade-in">
+              <Icons.Eye className="w-4 h-4" /> Privacy Mode Active: PHI Hidden
+          </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           
           {/* LEFT COLUMN: The "Now" (Active Care) */}
@@ -267,8 +290,12 @@ export default function DashboardScreen({ user, onViewRecord, onNewPlan, simpleM
                             </div>
                         </div>
 
-                        <h2 className="text-3xl font-bold mb-2 pr-16">{activeRecord.primaryCondition}</h2>
-                        <p className="text-blue-100 text-lg mb-8">Discharged from {activeRecord.hospitalName}</p>
+                        <h2 className="text-3xl font-bold mb-2 pr-16">
+                            <PrivacyMask active={privacyMode}>{activeRecord.primaryCondition}</PrivacyMask>
+                        </h2>
+                        <p className="text-blue-100 text-lg mb-8">
+                            Discharged from <PrivacyMask active={privacyMode}>{activeRecord.hospitalName}</PrivacyMask>
+                        </p>
 
                         {!simpleMode && (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -388,7 +415,9 @@ export default function DashboardScreen({ user, onViewRecord, onNewPlan, simpleM
                             onClick={() => onViewRecord(rec.id, rec.fullData)}
                             className="w-full text-left bg-white p-4 rounded-xl border border-slate-200 shadow-sm hover:border-blue-300 cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
                         >
-                            <div className="text-sm font-bold text-slate-900">{rec.primaryCondition}</div>
+                            <div className="text-sm font-bold text-slate-900">
+                                <PrivacyMask active={privacyMode}>{rec.primaryCondition}</PrivacyMask>
+                            </div>
                             <div className="text-xs text-slate-500 mt-1">{rec.dischargeDate} • {rec.hospitalName}</div>
                         </button>
                     ))}
@@ -493,7 +522,9 @@ export default function DashboardScreen({ user, onViewRecord, onNewPlan, simpleM
                  {parsedData.parsedEpisode.medications.map((med, i) => (
                     <div key={i} className="bg-white border border-slate-100 p-4 rounded-xl shadow-sm hover:border-blue-200 transition-colors">
                         <div className="flex justify-between items-start mb-2">
-                            <h4 className="font-bold text-slate-900 text-lg">{med.name}</h4>
+                            <h4 className="font-bold text-slate-900 text-lg">
+                                <PrivacyMask active={privacyMode}>{med.name}</PrivacyMask>
+                            </h4>
                             <span className="text-xs font-bold bg-blue-50 text-blue-700 px-2 py-1 rounded-lg uppercase">{med.route}</span>
                         </div>
                         <div className="grid grid-cols-2 gap-2 text-sm text-slate-600 mb-2">
@@ -516,7 +547,7 @@ export default function DashboardScreen({ user, onViewRecord, onNewPlan, simpleM
            )}
       </SimpleModal>
 
-      {/* Appointments Detail Modal (Reusing structure but separate state for clarity) */}
+      {/* Appointments Detail Modal */}
       <SimpleModal 
           isOpen={showAppts} 
           onClose={() => setShowAppts(false)} 
